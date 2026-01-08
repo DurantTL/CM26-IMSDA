@@ -1,0 +1,75 @@
+:root {
+    --primary: #1a365d;
+    --primary-light: #2c5282;
+    --accent: #f59e0b;
+    --success: #10b981;
+    --danger: #ef4444;
+    --bg: #f3f4f6;
+    --card: #ffffff;
+    --text: #1f2937;
+}
+
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; background: var(--bg); color: var(--text); padding-bottom: 80px; }
+
+header { background: var(--primary); color: white; padding: 15px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+.header-content { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+h1 { margin: 0; font-size: 1.2rem; }
+
+.meal-selector { display: flex; gap: 10px; align-items: center; background: rgba(255,255,255,0.1); padding: 5px; border-radius: 6px; }
+select { background: white; border: none; padding: 5px; border-radius: 4px; flex: 1; }
+.active-meal-badge { font-size: 0.8rem; font-weight: bold; color: var(--accent); }
+
+main { padding: 15px; max-width: 600px; margin: 0 auto; }
+
+/* Buttons */
+.btn { border: none; padding: 12px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 1rem; width: 100%; transition: opacity 0.2s; }
+.btn:active { opacity: 0.8; transform: scale(0.98); }
+.btn-primary { background: var(--primary); color: white; }
+.btn-secondary { background: #e5e7eb; color: var(--text); }
+.btn-outline { background: transparent; border: 2px solid #e5e7eb; color: #6b7280; margin-top: 15px; }
+.btn-redeem { background: var(--success); color: white; padding: 15px; font-size: 1.1rem; }
+.btn-large { padding: 15px; font-size: 1.1rem; }
+
+/* Scanner */
+#reader { width: 100%; border-radius: 8px; overflow: hidden; margin-bottom: 15px; background: #000; min-height: 200px; }
+#scanner-section { text-align: center; margin-bottom: 20px; }
+
+/* Manual Entry */
+.manual-entry { display: flex; gap: 10px; margin-bottom: 20px; }
+.manual-entry input { flex: 1; padding: 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 1rem; }
+.manual-entry button { width: auto; }
+
+/* Cards */
+.card { background: var(--card); border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 20px; animation: slideUp 0.3s ease; }
+.card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e5e7eb; padding-bottom: 10px; margin-bottom: 15px; }
+.card-header h2 { margin: 0; font-size: 1.2rem; }
+.badge { background: #e5e7eb; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-family: monospace; }
+
+.warning-box { background: #fef2f2; color: var(--danger); padding: 10px; border-radius: 6px; margin-bottom: 15px; font-weight: bold; border: 1px solid #fee2e2; }
+
+.ticket-stats { display: flex; gap: 10px; margin-bottom: 20px; }
+.stat-box { flex: 1; background: #f9fafb; padding: 10px; border-radius: 8px; text-align: center; }
+.stat-label { font-size: 0.8rem; color: #6b7280; }
+.stat-value { font-size: 1.5rem; font-weight: bold; color: var(--primary); }
+
+.grid-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.full-width { grid-column: 1 / -1; }
+
+/* Offline Bar */
+.queue-bar { position: fixed; bottom: 0; left: 0; right: 0; background: var(--accent); color: #fff; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); z-index: 90; }
+.btn-sm { padding: 5px 10px; font-size: 0.9rem; width: auto; }
+.btn-white { background: white; color: var(--accent); }
+
+/* Activity Log */
+.activity-log h3 { font-size: 1rem; color: #6b7280; margin-bottom: 10px; }
+#activity-list { list-style: none; padding: 0; margin: 0; }
+#activity-list li { padding: 10px 0; border-bottom: 1px solid #e5e7eb; font-size: 0.9rem; color: #4b5563; display: flex; justify-content: space-between; }
+#activity-list li.success { color: var(--success); }
+
+/* Status Indicators */
+.status-indicator { font-size: 0.8rem; padding: 2px 6px; border-radius: 4px; }
+.online { background: #d1fae5; color: #065f46; }
+.offline { background: #fee2e2; color: #991b1b; }
+
+@keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
