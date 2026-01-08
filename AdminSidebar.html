@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      padding: 15px;
+      font-size: 13px;
+    }
+    h2 {
+      color: #1a365d;
+      border-bottom: 2px solid #e2e8f0;
+      padding-bottom: 8px;
+      margin-top: 0;
+    }
+    h3 {
+      color: #4a5568;
+      margin-top: 20px;
+      margin-bottom: 10px;
+    }
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 10px 15px;
+      margin: 8px 0;
+      font-size: 13px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: left;
+    }
+    .btn-primary {
+      background: #3b82f6;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #2563eb;
+    }
+    .btn-secondary {
+      background: #f1f5f9;
+      color: #334155;
+      border: 1px solid #e2e8f0;
+    }
+    .btn-secondary:hover {
+      background: #e2e8f0;
+    }
+    .btn-warning {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fcd34d;
+    }
+    .section {
+      margin-bottom: 25px;
+    }
+    .input-group {
+      margin: 10px 0;
+    }
+    .input-group label {
+      display: block;
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+    .input-group input, .input-group select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .status {
+      padding: 10px;
+      border-radius: 6px;
+      margin: 10px 0;
+      display: none;
+    }
+    .status.success {
+      background: #dcfce7;
+      color: #166534;
+      display: block;
+    }
+    .status.error {
+      background: #fef2f2;
+      color: #dc2626;
+      display: block;
+    }
+    .loading {
+      color: #64748b;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <h2>🏕️ Camp Meeting Admin</h2>
+  
+  <div id="status" class="status"></div>
+  
+  <div class="section">
+    <h3>📊 Quick Actions</h3>
+    <button class="btn btn-primary" onclick="recalculateTotals()">
+      🔄 Recalculate All Totals
+    </button>
+    <button class="btn btn-secondary" onclick="generateKeyReport()">
+      🔑 Generate Key Report
+    </button>
+    <button class="btn btn-secondary" onclick="exportCheckIn()">
+      📋 Export Check-In List
+    </button>
+  </div>
+  
+  <div class="section">
+    <h3>📧 Resend Confirmation</h3>
+    <div class="input-group">
+      <label>Registration ID:</label>
+      <input type="text" id="resend-reg-id" placeholder="CM26-0001">
+    </div>
+    <button class="btn btn-secondary" onclick="resendEmail()">
+      Send Confirmation Email
+    </button>
+  </div>
+  
+  <div class="section">
+    <h3>🚪 Room Assignment</h3>
+    <p><span id="unassigned-count">...</span> registrations need rooms</p>
+    <button class="btn btn-secondary" onclick="loadUnassigned()">
+      View Unassigned List
+    </button>
+    <div id="unassigned-list" style="margin-top:10px; max-height:200px; overflow-y:auto;"></div>
+  </div>
+  
+  <div class="section">
+    <h3>🏠 Change Housing</h3>
+    <div class="input-group">
+      <label>Registration ID:</label>
+      <input type="text" id="change-reg-id" placeholder="CM26-0001">
+    </div>
+    <div class="input-group">
+      <label>New Housing Type:</label>
+      <select id="new-housing">
+        <option value="dorm">Dorm Room</option>
+        <option value="rv">RV/Camper</option>
+        <option value="tent">Tent</option>
+        <option value="none">No Housing</option>
+      </select>
+    </div>
+    <button class="btn btn-warning" onclick="changeHousing()">
+      ⚠️ Change Housing Type
+    </button>
+  </div>
+
+  <script>
+    function showStatus(message, isError) {
+      var el = document.getElementById('status');
+      el.textContent = message;
+      el.className = 'status ' + (isError ? 'error' : 'success');
+      setTimeout(function() { el.className = 'status'; }, 5000);
+    }
+    
+    function recalculateTotals() {
+      showStatus('Recalculating...', false);
+      google.script.run
+        .withSuccessHandler(function(count) {
+          showStatus('Recalculated ' + count + ' registrations', false);
+        })
+        .withFailureHandler(function(err) {
+          showStatus('Error: ' + err.message, true);
+        })
+        .recalculateAllTotals();
+    }
+    
+    function generateKeyReport() {
+      showStatus('Generating report...', false);
+      google.script.run
+        .withSuccessHandler(function() {
+          showStatus('Key report generated! Check the "Key Report" tab.', false);
+        })
+        .withFailureHandler(function(err) {
+          showStatus('Error: ' + err.message, true);
+        })
+        .generateKeyReport();
+    }
+    
+    function exportCheckIn() {
+      showStatus('Exporting...', false);
+      google.script.run
+        .withSuccessHandler(function() {
+          showStatus('Export ready! Check "Check-In Export" tab.', false);
+        })
+        .withFailureHandler(function(err) {
+          showStatus('Error: ' + err.message, true);
+        })
+        .exportCheckInList();
+    }
+    
+    function resendEmail() {
+      var regId = document.getElementById('resend-reg-id').value.trim();
+      if (!regId) {
+        showStatus('Enter a registration ID', true);
+        return;
+      }
+      showStatus('Sending email...', false);
+      google.script.run
+        .withSuccessHandler(function(result) {
+          showStatus(result.message, !result.success);
+        })
+        .withFailureHandler(function(err) {
+          showStatus('Error: ' + err.message, true);
+        })
+        .resendConfirmationEmail(regId);
+    }
+    
+    function loadUnassigned() {
+      document.getElementById('unassigned-list').innerHTML = '<span class="loading">Loading...</span>';
+      google.script.run
+        .withSuccessHandler(function(list) {
+          var html = '';
+          if (list.length === 0) {
+            html = '<p style="color:#16a34a;">All dorm registrations have rooms assigned! ✓</p>';
+          } else {
+            list.forEach(function(r) {
+              html += '<div style="padding:8px; margin:4px 0; background:#f8fafc; border-radius:4px;">';
+              html += '<strong>' + r.name + '</strong> (' + r.regId + ')<br>';
+              html += '<small>' + r.guests + ' guests | ' + r.nights + '</small>';
+              if (r.specialNeeds) html += '<br><small style="color:#f59e0b;">Note: ' + r.specialNeeds + '</small>';
+              html += '</div>';
+            });
+          }
+          document.getElementById('unassigned-list').innerHTML = html;
+          document.getElementById('unassigned-count').textContent = list.length;
+        })
+        .withFailureHandler(function(err) {
+          document.getElementById('unassigned-list').innerHTML = '<span style="color:red;">Error loading</span>';
+        })
+        .getUnassignedRegistrations();
+    }
+    
+    function changeHousing() {
+      var regId = document.getElementById('change-reg-id').value.trim();
+      var newType = document.getElementById('new-housing').value;
+      if (!regId) {
+        showStatus('Enter a registration ID', true);
+        return;
+      }
+      if (!confirm('Change housing for ' + regId + ' to ' + newType + '?\n\nThis will recalculate their total.')) {
+        return;
+      }
+      showStatus('Updating...', false);
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result.success) {
+            showStatus('Housing changed! New subtotal: $' + result.newHousingSubtotal, false);
+          } else {
+            showStatus(result.error, true);
+          }
+        })
+        .withFailureHandler(function(err) {
+          showStatus('Error: ' + err.message, true);
+        })
+        .changeHousingType(regId, newType);
+    }
+    
+    // Load initial count
+    loadUnassigned();
+  </script>
+</body>
+</html>
