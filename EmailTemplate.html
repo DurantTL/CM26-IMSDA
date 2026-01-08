@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; background-color: #f4f4f4; }
+    .container { background: white; margin: 20px auto; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .header { background: #1a365d; color: white; padding: 25px; text-align: center; }
+    .header h1 { margin: 0; font-size: 24px; }
+    .content { padding: 30px; }
+    .reg-id-box { background: #e8f4fd; border: 2px dashed #1a365d; color: #1a365d; padding: 15px; text-align: center; font-size: 24px; font-weight: bold; margin: 20px 0; letter-spacing: 1px; }
+    .qr-section { text-align: center; margin: 25px 0; padding: 20px; background: #fff; border: 1px solid #eee; border-radius: 8px; }
+    .qr-section img { max-width: 180px; height: auto; display: inline-block; }
+    .qr-caption { font-size: 13px; color: #666; margin-top: 10px; }
+    .details-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+    .details-table td { padding: 10px 0; border-bottom: 1px solid #eee; }
+    .section-title { font-size: 18px; color: #1a365d; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 25px; margin-bottom: 15px; font-weight: bold; }
+    .label { font-weight: bold; color: #555; width: 40%; }
+    .total-row td { font-size: 18px; font-weight: bold; color: #1a365d; border-top: 2px solid #1a365d; border-bottom: none; padding-top: 15px; }
+    .footer { background: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #eee; }
+    .warning { color: #856404; background-color: #fff3cd; border: 1px solid #ffeeba; padding: 10px; border-radius: 4px; margin-top: 20px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Camp Meeting 2026</h1>
+      <p>Registration Confirmation</p>
+    </div>
+    
+    <div class="content">
+      <p>Dear <?= reg.primaryName ?>,</p>
+      <p>We are excited to see you at Camp Meeting 2026! Your registration has been received.</p>
+      
+      <div class="reg-id-box">
+        <?= reg.regId ?>
+      </div>
+      
+      <div class="qr-section">
+        <img src="https://quickchart.io/qr?text=<?= encodeURIComponent(reg.regId) ?>&size=300&ecLevel=H" alt="Registration QR Code" width="180" height="180">
+        <p class="qr-caption">Present this code at Check-In and for Meals</p>
+      </div>
+      
+      <div class="section-title">Registration Details</div>
+      <table class="details-table">
+        <tr>
+          <td class="label">Total Guests</td>
+          <td><?= reg.totalGuests ?> (<?= reg.adultsCount ?> adults, <?= reg.childrenCount ?> children)</td>
+        </tr>
+        <tr>
+          <td class="label">Housing</td>
+          <td><?= reg.housingOption ?></td>
+        </tr>
+        <tr>
+          <td class="label">Nights</td>
+          <td><?= reg.numNights ?></td>
+        </tr>
+      </table>
+      
+      <div class="section-title">Payment Summary</div>
+      <table class="details-table">
+        <tr>
+          <td class="label">Housing Total</td>
+          <td>$<?= Number(reg.housingSubtotal).toFixed(2) ?></td>
+        </tr>
+        <tr>
+          <td class="label">Meal Tickets</td>
+          <td>$<?= Number(reg.mealSubtotal).toFixed(2) ?></td>
+        </tr>
+        <tr class="total-row">
+          <td class="label">Total Charged</td>
+          <td>$<?= Number(reg.totalCharged).toFixed(2) ?></td>
+        </tr>
+        <tr>
+          <td class="label">Amount Paid</td>
+          <td>$<?= Number(reg.amountPaid).toFixed(2) ?></td>
+        </tr>
+      </table>
+      
+      <? if (reg.balanceDue > 0) { ?>
+        <div class="warning">
+          <strong>Balance Due: $<?= Number(reg.balanceDue).toFixed(2) ?></strong><br>
+          Please pay the remaining balance upon arrival.
+        </div>
+      <? } ?>
+      
+    </div>
+    
+    <div class="footer">
+      <p>Iowa-Missouri Conference of Seventh-day Adventists</p>
+      <p>1005 Grand Ave, West Des Moines, IA 50263</p>
+    </div>
+  </div>
+</body>
+</html>
