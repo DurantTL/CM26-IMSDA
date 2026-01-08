@@ -26,6 +26,7 @@ const els = {
     ticketsUsed: document.getElementById('tickets-used'),
     dietaryWarning: document.getElementById('dietary-warning'),
     dietaryText: document.getElementById('dietary-text'),
+    actionMealName: document.getElementById('action-meal-name'),
     redeemButtons: document.getElementById('redeem-buttons'),
     redeemMessage: document.getElementById('redeem-message'),
     closeCardBtn: document.getElementById('close-card-btn'),
