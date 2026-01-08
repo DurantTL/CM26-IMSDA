@@ -4,7 +4,7 @@
 
 // *** CONFIGURATION ***
 // Replace with your actual Google Apps Script Web App URL
-const GOOGLE_SCRIPT_URL = 'YOUR_GOOGLE_SCRIPT_URL_HERE'; 
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzoNQDGxE-Z6GxByX2hhXxGZ3uzpSbL1vnrN2VkWCEmDHpPsL9Q0VyB6qk2ypzWS9lX8w/exec'; 
 
 // State
 let html5QrCode;
