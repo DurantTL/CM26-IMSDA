@@ -217,3 +217,108 @@ Deployment is manual through the Apps Script editor (Deploy > New deployment > W
 6. **No authentication on endpoints.** The web app is open to anonymous access. Security relies on registration IDs being difficult to guess and the system being used in a trusted context.
 
 7. **All activity is logged.** Use `logActivity(action, regId, details, source)` from `Utilities.gs` for any new operations that modify data.
+
+## Remaining Work
+
+This section tracks the gap between the project's planning document and the current implementation. Items are categorized by type and priority.
+
+### CRITICAL: Column Layout Conflict (Must Fix Before Check-In Usage)
+
+Three files write to overlapping but **incompatible** column ranges in the Registrations sheet. `Registration.gs` and `Operations.gs` use the original layout, while `CheckIn.gs` inserts 8 additional columns (building, dual keys, key deposits, deposit refund tracking) between `room_assignment` and `checked_in`. **If both implementations are used against the same sheet, data will be written to wrong columns.**
+
+| Col (1-based) | Letter | Registration.gs / Operations.gs | CheckIn.gs |
+|---|---|---|---|
+| 35 | AI | room_assignment | room_assignment |
+| 36 | AJ | key_number | building |
+| 37 | AK | key_checked_out | key_1_number |
+| 38 | AL | key_checkout_time | key_2_number |
+| 39 | AM | key_returned | key_deposit_amount |
+| 40 | AN | key_return_time | key_deposit_paid |
+| 41 | AO | **checked_in** | key_1_returned |
+| 42 | AP | **check_in_time** | key_2_returned |
+| 43 | AQ | **checked_out** | deposit_refunded |
+| 44 | AR | **check_out_time** | deposit_refund_amount |
+| 45 | AS | notes | **checked_in** |
+| 46 | AT | fluent_entry_id | **check_in_time** |
+| 47 | AU | qr_data | checked_in_by |
+| 48 | AV | — | welcome_packet_given |
+| 49 | AW | — | **checked_out** |
+| 50 | AX | — | **check_out_time** |
+| 51 | AY | — | checked_out_by |
+
+**Resolution steps:**
+1. Decide on ONE canonical column layout (the `CheckIn.gs` expanded layout is more complete and should likely be the target).
+2. Update `Registration.gs` row array (lines 40-88) to match, inserting the new columns and shifting `notes`, `fluent_entry_id`, and `qr_data` past column AY.
+3. Update or deprecate `Operations.gs` to match the chosen layout.
+4. Update the Spreadsheet Column Map section above to reflect the final layout.
+5. Verify the actual Google Sheet header row matches.
+
+### Backend Features Not Yet Implemented
+
+These are code changes needed within this repository's `.gs` files.
+
+#### 1. `getRegistration` GET Endpoint
+- **What:** Add a `getRegistration` case to `doGet()` in `Code.gs` returning full registration details by ID.
+- **Why:** Specified in the planning document. `getRegistrationByRegId()` exists in `Email.gs` but is not exposed via the API and returns only a subset of fields.
+- **Files:** `Code.gs`, `Email.gs`
+
+#### 2. Cancellation and Refund Processing
+- **What:** Create a `cancelRegistration(data)` function that sets status to `cancelled`, applies the $10 `cancellation_fee` (from Config), calculates the refund amount, records it in the Payments sheet, releases housing inventory, and sends a cancellation email.
+- **Why:** Config defines `cancellation_fee` and `deposit_amount` but no code uses them for cancellations. The planning document specifies: before May 25 = full refund minus $10 fee; after May 25 or no-show first night = deposit forfeited.
+- **Files:** New function in `Registration.gs` or new `Cancellation.gs`; add case to `doPost()` in `Code.gs`
+
+#### 3. Registration and Cancellation Deadline Enforcement
+- **What:** Add date checks in `processRegistration()` and the future cancellation function comparing current date against `registration_deadline` and `cancellation_deadline` Config values.
+- **Why:** Config keys `registration_deadline` (May 25) and `cancellation_deadline` (May 25) exist but nothing reads or enforces them.
+- **Files:** `Registration.gs`, `Config.gs`
+
+#### 4. No-Show Handling
+- **What:** Create an admin-triggered function that identifies registrations whose first night has passed without check-in, marks them as `no_show`, and forfeits the deposit per the cancellation policy.
+- **Why:** Specified in the planning document; no implementation exists.
+- **Files:** `Admin.gs` (new function + add to sidebar menu)
+
+#### 5. Waitlist Notification Email
+- **What:** Implement the email send in `Admin.gs` at line 264 (currently a `// TODO` comment). When `promoteFromWaitlist()` sets status to `offered`, it should email the waitlisted person informing them a spot is available with a 48-hour deadline.
+- **Why:** The promotion logic works but the person is never notified.
+- **Files:** `Admin.gs` (line 264), `Email.gs` (new template or inline HTML)
+
+#### 6. Reminder Email
+- **What:** Create a pre-event reminder email function and HTML template, triggered by a time-based Apps Script trigger a few days before June 2, 2026.
+- **Why:** Specified in planning document Session 4; not implemented.
+- **Files:** `Email.gs` (new function), new `ReminderEmailTemplate.html`
+
+#### 7. Operations.gs Missing LockService
+- **What:** Add `LockService.getScriptLock()` to `checkInRegistration()`, `checkOutRegistration()`, and `addToWaitlist()` in `Operations.gs`.
+- **Why:** These functions mutate shared data but have no concurrency protection, unlike their `CheckIn.gs` counterparts which properly use locks. The `Code.gs` router sends `checkIn`/`checkOut` POST actions to these unprotected functions.
+- **Files:** `Operations.gs`
+
+### External Systems (Not In This Repository)
+
+These are separate deployments referenced in the planning document but not part of this Apps Script codebase.
+
+| Item | Planning Session | Description | Status |
+|---|---|---|---|
+| WordPress PHP integration | 5 | `camp-meeting-google-integration.php` — webhook handler with retry logic | Not started |
+| WordPress availability shortcode | 5 | PHP shortcode + JS/CSS for live housing availability display | Not started |
+| Fluent Forms configuration | 6 | Multi-step registration form with payment in WordPress admin | Not started |
+| Google Form (Staff registration) | 7 | The actual Google Form that triggers `onStaffFormSubmit()`; GAS backend is done | Not started |
+| Cafe Scanner PWA | 8 | Standalone PWA for meal ticket QR scanning (index.html, app.js, sw.js, manifest.json) | Not started |
+| Check-In System PWA | 9 | Standalone PWA frontend calling `CheckIn.gs` functions; backend is done | Not started |
+| End-to-end testing | 11 | Full integration testing across all systems with test data | Not started |
+| Training materials | 11 | User guides for volunteers operating check-in and scanner systems | Not started |
+
+### Build Session Progress Summary
+
+| Session | Description | Status |
+|---|---|---|
+| 1 | Google Sheets Foundation | Done |
+| 2 | Apps Script Core | Done |
+| 3 | Apps Script Complete | Done |
+| 4 | Email System | **Partial** — confirmation done; waitlist notification and reminder emails missing |
+| 5 | WordPress Integration | Not started (external) |
+| 6 | Fluent Form | Not started (external) |
+| 7 | Staff Form | **Partial** — GAS backend done; Google Form creation is external |
+| 8 | Cafe Scanner PWA | Not started (external) |
+| 9 | Check-In System PWA | **Partial** — backend done; PWA frontend not started (external) |
+| 10 | Admin Sidebar | Done |
+| 11 | Testing and Polish | **Partial** — basic test functions exist; end-to-end testing and training missing |
