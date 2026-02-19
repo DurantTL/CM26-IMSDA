@@ -23,8 +23,9 @@ jobs:
 
       - name: Create clasprc file
         run: |
-          echo "${{ secrets.CLASPRC_JSON }}" > /home/runner/.clasprc.json
-          echo "${{ secrets.CLASPRC_JSON }}" > ~/.clasprc.json
+          cat << 'EOF' > ~/.clasprc.json
+          ${{ secrets.CLASPRC_JSON }}
+          EOF
 
       - name: Inject Script ID into clasp config
         run: |
