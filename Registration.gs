@@ -73,18 +73,25 @@ function processRegistration(data) {
       data.staffRole || '',             // AG: staff_role
       'no',                             // AH: moveable
       '',                               // AI: room_assignment
-      '',                               // AJ: key_number
-      'no',                             // AK: key_checked_out
-      '',                               // AL: key_checkout_time
-      'no',                             // AM: key_returned
-      '',                               // AN: key_return_time
-      'no',                             // AO: checked_in
-      '',                               // AP: check_in_time
-      'no',                             // AQ: checked_out
-      '',                               // AR: check_out_time
-      '',                               // AS: notes
-      data.entryId || '',               // AT: fluent_entry_id
-      regId                             // AU: qr_data
+      '',                               // AJ: building
+      '',                               // AK: key_1_number
+      '',                               // AL: key_2_number
+      0,                                // AM: key_deposit_amount
+      'no',                             // AN: key_deposit_paid
+      'no',                             // AO: key_1_returned
+      'no',                             // AP: key_2_returned
+      'no',                             // AQ: deposit_refunded
+      0,                                // AR: deposit_refund_amount
+      'no',                             // AS: checked_in
+      '',                               // AT: check_in_time
+      '',                               // AU: checked_in_by
+      'no',                             // AV: welcome_packet_given
+      'no',                             // AW: checked_out
+      '',                               // AX: check_out_time
+      '',                               // AY: checked_out_by
+      '',                               // AZ: notes
+      data.entryId || '',               // BA: fluent_entry_id
+      regId                             // BB: qr_data
     ];
     
     // 4. Save to Registration Sheet
