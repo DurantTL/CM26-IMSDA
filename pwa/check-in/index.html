@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Check-In - CM26</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2f855a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+</head>
+<body>
+
+    <header>
+        <div class="header-content">
+            <h1>🏕️ CM26 Check-In</h1>
+            <div id="connection-status" class="status-indicator online">Online</div>
+        </div>
+    </header>
+
+    <main>
+        <!-- STATS DASHBOARD -->
+        <div id="dashboard-stats" class="stats-grid">
+            <div class="stat-card">
+                <span class="stat-val" id="stat-checked-in">--</span>
+                <span class="stat-label">Checked In</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-val" id="stat-expected">--</span>
+                <span class="stat-label">Expected</span>
+            </div>
+            <div class="stat-card">
+                <span class="stat-val" id="stat-keys-out">--</span>
+                <span class="stat-label">Keys Out</span>
+            </div>
+        </div>
+
+        <!-- SEARCH & SCAN -->
+        <div class="search-section">
+            <div class="input-group">
+                <input type="text" id="search-input" placeholder="Search name or Reg ID...">
+                <button id="search-btn" class="btn btn-primary">🔍</button>
+            </div>
+            <div class="action-row">
+                <button id="scan-btn" class="btn btn-secondary full-width">📷 Scan QR</button>
+                <button id="arrivals-btn" class="btn btn-outline full-width">📋 View Arrivals</button>
+            </div>
+        </div>
+
+        <div id="reader" style="display:none;"></div>
+
+        <!-- DYNAMIC CONTENT AREA -->
+        <div id="main-content">
+            <!-- RESULTS LIST -->
+            <div id="search-results" class="results-list" style="display:none;"></div>
+
+            <!-- GUEST DETAIL CARD -->
+            <div id="guest-detail" class="card" style="display:none;">
+                <!-- Content injected by JS -->
+            </div>
+        </div>
+
+        <!-- OFFLINE QUEUE -->
+        <div id="offline-queue-bar" class="queue-bar" style="display:none;">
+            <span>⚠️ <b id="queue-count">0</b> offline actions pending</span>
+            <button id="sync-btn" class="btn btn-sm btn-white">Sync Now</button>
+        </div>
+
+        <!-- ACTIVITY LOG -->
+        <div class="activity-log">
+            <h3>Recent Activity</h3>
+            <ul id="activity-list"></ul>
+        </div>
+    </main>
+
+    <!-- MODALS -->
+
+    <!-- CHECK IN MODAL -->
+    <div id="checkin-modal" class="modal">
+        <div class="modal-content">
+            <h2>Check-In Guest</h2>
+            <div id="checkin-summary"></div>
+
+            <form id="checkin-form">
+                <div class="form-group" id="balance-section">
+                    <label>💰 Balance Due</label>
+                    <div class="balance-display">$<span id="ci-balance">0.00</span></div>
+                    <label class="checkbox-row">
+                        <input type="checkbox" id="ci-balance-paid">
+                        Paid via Square Terminal
+                    </label>
+                    <input type="number" id="ci-payment-amount" placeholder="Amount Paid" step="0.01">
+                </div>
+
+                <div class="form-group" id="keys-section">
+                    <label>🔑 Key Assignment</label>
+                    <div class="deposit-box">
+                        Deposit Required: $<span id="ci-deposit-amount">10</span> (Cash)
+                        <label class="checkbox-row">
+                            <input type="checkbox" id="ci-deposit-collected">
+                            Deposit Collected
+                        </label>
+                    </div>
+                    <input type="text" id="ci-key1" placeholder="Key 1 Number (e.g. K-101)">
+                    <input type="text" id="ci-key2" placeholder="Key 2 Number (e.g. K-102)">
+                </div>
+
+                <div class="form-group">
+                    <label class="checkbox-row">
+                        <input type="checkbox" id="ci-packet-given">
+                        📦 Welcome Packet Given
+                    </label>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('checkin-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Confirm Check-In</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- CHECK OUT MODAL -->
+    <div id="checkout-modal" class="modal">
+        <div class="modal-content">
+            <h2>Check-Out Guest</h2>
+            <div id="checkout-summary"></div>
+
+            <form id="checkout-form">
+                <div class="form-group" id="return-keys-section">
+                    <label>🔑 Key Return</label>
+                    <label class="checkbox-row">
+                        <input type="checkbox" id="co-key1-returned">
+                        Key 1 (<span id="co-key1-val"></span>) Returned
+                    </label>
+                    <label class="checkbox-row">
+                        <input type="checkbox" id="co-key2-returned">
+                        Key 2 (<span id="co-key2-val"></span>) Returned
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label>💰 Deposit Refund</label>
+                    <div class="deposit-display">Paid: $<span id="co-deposit-paid">0</span></div>
+                    <label>Refund Amount (Cash)</label>
+                    <input type="number" id="co-refund-amount" value="0" step="1">
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('checkout-modal')">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Confirm Check-Out</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="overlay" class="overlay"></div>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('SW Registered'))
+                .catch(err => console.log('SW Error', err));
+        }
+    </script>
+</body>
+</html>
