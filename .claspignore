@@ -1,11 +1,15 @@
-# Ignore all files by default
+# Ignore everything by default
 **/**
 
-# Only allow these specific files/folders to be pushed
+# Allow .gs and .html files
 !*.gs
-!*.js
 !*.html
 !appsscript.json
-!**/*.gs
-!**/*.js
-!**/*.html
+
+# Ignore node_modules and git metadata
+node_modules/**
+.git/**
+.github/**
+README.md
+.clasp.json
+.claspignore
