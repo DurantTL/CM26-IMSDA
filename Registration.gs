@@ -52,7 +52,6 @@ function processRegistration(data) {
     
     // 3. Prepare Data for 'Registrations' Sheet
     // This array MUST match the column order (A - AU) in your sheet exactly
-    // Using COLUMNS constant implicitly by order, but comment references helper
     var regRow = [
       regId,                            // A: reg_id
       createdDate,                      // B: created_at
@@ -115,33 +114,44 @@ function processRegistration(data) {
     
     // Flush to ensure row exists before Guests/Meals processing
     SpreadsheetApp.flush();
+    var insertedRow = regSheet.getLastRow();
 
-    // 5. Save Individual Guest Details
-    if (data.guests && data.guests.length > 0) {
-      var guestRows = [];
-      data.guests.forEach(function(guest) {
-        guestRows.push([
-          generateGuestId(),            // guest_id
-          regId,                        // reg_id
-          guest.name,                   // guest_name
-          guest.age,                    // age
-          guest.isChild ? 'yes' : 'no', // is_child
-          'no',                         // is_primary
-          '',                           // class_assignment
-          '',                           // sabbath_school
-          ''                            // children_meeting
-        ]);
-      });
-      
-      if (guestRows.length > 0) {
-        guestSheet.getRange(guestSheet.getLastRow() + 1, 1, guestRows.length, guestRows[0].length)
-                  .setValues(guestRows);
+    // *** TRANSACTION BLOCK ***
+    try {
+      // 5. Save Individual Guest Details
+      if (data.guests && data.guests.length > 0) {
+        var guestRows = [];
+        data.guests.forEach(function(guest) {
+          guestRows.push([
+            generateGuestId(),            // guest_id
+            regId,                        // reg_id
+            guest.name,                   // guest_name
+            guest.age,                    // age
+            guest.isChild ? 'yes' : 'no', // is_child
+            'no',                         // is_primary
+            '',                           // class_assignment
+            '',                           // sabbath_school
+            ''                            // children_meeting
+          ]);
+        });
+
+        if (guestRows.length > 0) {
+          guestSheet.getRange(guestSheet.getLastRow() + 1, 1, guestRows.length, guestRows[0].length)
+                    .setValues(guestRows);
+        }
       }
+
+      // 6. Create Meal Tickets
+      // Pass skipLock=true to maintain the current lock
+      createMealTickets(regId, data, true);
+
+    } catch (innerError) {
+      // ROLLBACK
+      console.error('Registration failed mid-process. Rolling back row ' + insertedRow + '. Error: ' + innerError.toString());
+      regSheet.deleteRow(insertedRow);
+      // Re-throw to inform caller
+      throw innerError;
     }
-    
-    // 6. Create Meal Tickets
-    // This calls the function in MealTickets.gs
-    createMealTickets(regId, data);
     
     // 7. Record Payment
     // If they paid immediately via Square, log it in Payments tab

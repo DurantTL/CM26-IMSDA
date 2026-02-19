@@ -2,14 +2,17 @@
 // FILE: MealTickets.gs (FIXED LOGIC)
 // ==========================================
 
-function createMealTickets(regId, data) {
+function createMealTickets(regId, data, skipLock) {
   var lock = LockService.getScriptLock();
-  try {
-    // Wait for up to 30 seconds for other processes to finish.
-    lock.waitLock(30000);
-  } catch (e) {
-    Logger.log('Could not obtain lock after 30 seconds.');
-    return; // Or throw error
+
+  if (!skipLock) {
+    try {
+      // Wait for up to 30 seconds for other processes to finish.
+      lock.waitLock(30000);
+    } catch (e) {
+      Logger.log('Could not obtain lock after 30 seconds.');
+      throw new Error('System busy, please try again later.');
+    }
   }
 
   try {
@@ -164,8 +167,11 @@ function createMealTickets(regId, data) {
   } catch (e) {
     Logger.log('Error creating meal tickets: ' + e.toString());
     logActivity('error', regId, 'Failed to create meal tickets: ' + e.toString(), 'system');
+    throw e; // Re-throw to allow caller to handle rollback if needed
   } finally {
-    lock.releaseLock();
+    if (!skipLock) {
+      lock.releaseLock();
+    }
   }
 }
 

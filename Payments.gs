@@ -33,7 +33,7 @@ function recordPayment(data) {
     }
 
     // 2. Record the payment
-    var payId = 'PAY-' + Utilities.getUuid().slice(0,8);
+    var payId = 'PAY-' + Utilities.getUuid();
     paySheet.appendRow([
       payId,
       data.regId,
