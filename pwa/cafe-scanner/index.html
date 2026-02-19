@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Cafe Scanner - CM26</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#1a365d">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+</head>
+<body>
+
+    <header>
+        <div class="header-content">
+            <h1>☕ Cafe Scanner</h1>
+            <div id="connection-status" class="status-indicator online">Online</div>
+        </div>
+
+        <div class="meal-selector">
+            <select id="current-meal-select">
+                <option value="auto">🕒 Auto-detect Meal</option>
+                <option value="breakfast">Breakfast</option>
+                <option value="lunch">Lunch</option>
+                <option value="supper">Supper</option>
+            </select>
+            <div id="current-active-meal" class="active-meal-badge">Detecting...</div>
+        </div>
+    </header>
+
+    <main>
+        <div id="scanner-section">
+            <div id="reader"></div>
+            <button id="start-scan-btn" class="btn btn-primary btn-large">📷 Start Camera</button>
+            <button id="stop-scan-btn" class="btn btn-secondary" style="display:none;">Stop Camera</button>
+        </div>
+
+        <div class="manual-entry">
+            <input type="text" id="manual-input" placeholder="Enter Reg ID (e.g. CM26-0001)">
+            <button id="manual-lookup-btn" class="btn btn-secondary">🔍 Lookup</button>
+        </div>
+
+        <div id="result-card" class="card" style="display:none;">
+            <div class="card-header">
+                <h2 id="guest-name">Guest Name</h2>
+                <span id="reg-id-display" class="badge">ID</span>
+            </div>
+
+            <div class="card-body">
+                <div id="dietary-warning" class="warning-box" style="display:none;">
+                    ⚠️ <span id="dietary-text"></span>
+                </div>
+
+                <div class="ticket-stats">
+                    <div class="stat-box">
+                        <div class="stat-label">Tickets Found</div>
+                        <div class="stat-value" id="tickets-found">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Already Used</div>
+                        <div class="stat-value" id="tickets-used">0</div>
+                    </div>
+                </div>
+
+                <div id="action-area" class="action-area">
+                    <h3>Redeem for <span id="action-meal-name">Current Meal</span></h3>
+                    <div id="redeem-buttons" class="grid-buttons">
+                        </div>
+                    <div id="redeem-message" class="message"></div>
+                </div>
+            </div>
+
+            <button id="close-card-btn" class="btn btn-outline">Close / Next Guest</button>
+        </div>
+
+        <div id="offline-queue-bar" class="queue-bar" style="display:none;">
+            <span>⚠️ <b id="queue-count">0</b> offline scans pending</span>
+            <button id="sync-btn" class="btn btn-sm btn-white">Sync Now</button>
+        </div>
+
+        <div class="activity-log">
+            <h3>Recent Activity</h3>
+            <ul id="activity-list"></ul>
+        </div>
+    </main>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+    <script>
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('./sw.js')
+                .then(reg => console.log('SW Registered'))
+                .catch(err => console.log('SW Error', err));
+        }
+    </script>
+</body>
+</html>
