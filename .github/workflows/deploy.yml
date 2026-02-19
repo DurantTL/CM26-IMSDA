@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -21,7 +22,9 @@ jobs:
         run: npm install -g @google/clasp
 
       - name: Create clasprc file
-        run: echo '${{ secrets.CLASPRC_JSON }}' > ~/.clasprc.json
+        run: |
+          echo "${{ secrets.CLASPRC_JSON }}" > /home/runner/.clasprc.json
+          echo "${{ secrets.CLASPRC_JSON }}" > ~/.clasprc.json
 
       - name: Inject Script ID into clasp config
         run: |
