@@ -2,11 +2,26 @@
 // FILE: Config.gs
 // ==========================================
 
+var _configCache = null;
+
 function getConfig() {
-  var ss = getSS(); // Uses helper from Utilities.gs
+  // 1. Check Memory Cache (for same execution)
+  if (_configCache) return _configCache;
+
+  // 2. Check Script Cache (for repeated executions)
+  var cache = CacheService.getScriptCache();
+  var cachedJSON = cache.get('app_config');
+
+  if (cachedJSON) {
+    _configCache = JSON.parse(cachedJSON);
+    return _configCache;
+  }
+
+  // 3. Fetch from Sheet
+  var ss = getSS();
   var configSheet = ss.getSheetByName('Config');
   if (!configSheet) {
-    Logger.log('Error: "Config" sheet not found.');
+    console.error('Error: "Config" sheet not found.');
     return {};
   }
 
@@ -23,5 +38,22 @@ function getConfig() {
       config[key] = value;
     }
   }
+
+  // 4. Save to Cache (expires in 10 minutes)
+  try {
+    cache.put('app_config', JSON.stringify(config), 600);
+  } catch(e) {
+    console.warn('Config cache failed: ' + e.message);
+  }
+
+  _configCache = config;
   return config;
+}
+
+/**
+ * Clear config cache (call this when updating config sheet)
+ */
+function clearConfigCache() {
+  CacheService.getScriptCache().remove('app_config');
+  _configCache = null;
 }

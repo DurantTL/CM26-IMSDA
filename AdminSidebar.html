@@ -106,6 +106,9 @@
     <button class="btn btn-secondary" onclick="exportCheckIn()">
       📋 Export Check-In List
     </button>
+    <button class="btn btn-warning" onclick="processNoShows()">
+      🛑 Process No-Shows
+    </button>
   </div>
   
   <div class="section">
@@ -149,6 +152,14 @@
   </div>
 
   <script>
+    // XSS Mitigation: Use textContent for user data
+    function escapeHtml(text) {
+      if (!text) return '';
+      var div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
     function showStatus(message, isError) {
       var el = document.getElementById('status');
       el.textContent = message;
@@ -191,6 +202,18 @@
         })
         .exportCheckInList();
     }
+
+    function processNoShows() {
+      showStatus('Processing...', false);
+      google.script.run
+        .withSuccessHandler(function() {
+          showStatus('No-show processing complete.', false);
+        })
+        .withFailureHandler(function(err) {
+          showStatus('Error: ' + err.message, true);
+        })
+        .processNoShows();
+    }
     
     function resendEmail() {
       var regId = document.getElementById('resend-reg-id').value.trim();
@@ -218,10 +241,11 @@
             html = '<p style="color:#16a34a;">All dorm registrations have rooms assigned! ✓</p>';
           } else {
             list.forEach(function(r) {
+              // XSS Fix: Escaping values before constructing HTML string
               html += '<div style="padding:8px; margin:4px 0; background:#f8fafc; border-radius:4px;">';
-              html += '<strong>' + r.name + '</strong> (' + r.regId + ')<br>';
-              html += '<small>' + r.guests + ' guests | ' + r.nights + '</small>';
-              if (r.specialNeeds) html += '<br><small style="color:#f59e0b;">Note: ' + r.specialNeeds + '</small>';
+              html += '<strong>' + escapeHtml(r.name) + '</strong> (' + escapeHtml(r.regId) + ')<br>';
+              html += '<small>' + escapeHtml(r.guests) + ' guests | ' + escapeHtml(r.nights) + '</small>';
+              if (r.specialNeeds) html += '<br><small style="color:#f59e0b;">Note: ' + escapeHtml(r.specialNeeds) + '</small>';
               html += '</div>';
             });
           }
