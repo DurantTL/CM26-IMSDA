@@ -34,24 +34,30 @@ Frontend (external)                  Backend (this repo)
 
 ## File Structure
 
-All source files are in the root directory (flat structure, no subdirectories):
+Backend source files are in the root directory. PWA frontends are in `/pwa/`:
 
 | File | Purpose |
 |---|---|
 | `Code.gs` | Main entry point. HTTP router (`doGet`/`doPost`) dispatching to action handlers |
-| `Utilities.gs` | Shared helpers: `getSS()`, `jsonResponse()`, `generateRegId()`, `generateGuestId()`, `logActivity()` |
-| `Config.gs` | Loads key-value config from the Config sheet tab |
-| `Registration.gs` | Processes paid registrations from Fluent Forms webhook |
-| `StaffRegistration.gs` | Handles staff/pastor/volunteer registrations from Google Form trigger |
-| `Email.gs` | Sends HTML confirmation emails via Gmail |
-| `EmailTemplate.html` | HTML email template with dynamic content and QR code |
+| `Utilities.gs` | Shared helpers: `getSS()`, `jsonResponse()`, `generateRegId()`, `generateGuestId()`, `logActivity()`, `COLUMNS` map, `EVENT_DATES` |
+| `Config.gs` | Loads key-value config from the Config sheet tab with multi-tier caching |
+| `Registration.gs` | Processes new registrations with deadline enforcement, atomic rollback, and cancellation/refund logic |
+| `StaffRegistration.gs` | Handles staff/pastor/volunteer registrations from Google Form trigger with deduplication |
+| `Email.gs` | Sends confirmation, waitlist offer, and reminder emails via Gmail |
+| `EmailTemplate.html` | Confirmation email HTML template with dynamic content and QR code |
+| `ReminderEmailTemplate.html` | Pre-event reminder email HTML template with check-in info |
+| `WaitlistOfferEmail.html` | Waitlist promotion offer email HTML template |
 | `Inventory.gs` | Housing availability checks (`getAvailability`, `checkAvailability`) |
-| `MealTickets.gs` | Meal ticket creation, redemption (single and bulk), and queries |
-| `Payments.gs` | Payment recording and registration balance updates |
-| `Operations.gs` | Check-in/check-out (simple version) and waitlist management |
-| `CheckIn.gs` | Full check-in system: search, check-in, check-out, room management, stats |
-| `Admin.gs` | Admin utilities: recalculate totals, key reports, housing changes, waitlist promotion |
+| `MealTickets.gs` | Meal ticket creation, redemption (single and bulk), queries; supports `skipLock` for atomic transactions |
+| `Payments.gs` | Payment recording with atomic balance updates (full UUIDs) |
+| `Operations.gs` | Waitlist management; simple check-in/check-out stubs (not routed — see CheckIn.gs) |
+| `CheckIn.gs` | Full check-in system: search, check-in, check-out, room/key management, stats |
+| `Admin.gs` | Admin utilities: recalculate totals, key reports, housing changes, waitlist promotion, no-show processing |
 | `AdminSidebar.html` | Admin sidebar UI rendered in Google Sheets |
+| `Tests.gs` | Manual test functions: connection, doGet, email system, staff form submission |
+| `TestNewFeatures.gs` | Tests for `getRegistration` and `cancelRegistration` endpoints |
+| `TestWaitlist.gs` | Test for waitlist addition and promotion flow |
+| `TestFixes.gs` | Verification tests for UUID entropy, rollback logic, staff deduplication |
 | `appsscript.json` | Apps Script project manifest (runtime, scopes, webapp config) |
 
 ## API Endpoints
@@ -63,16 +69,22 @@ All API calls go through `Code.gs`. Actions are dispatched via the `action` para
 |---|---|---|
 | `ping` | inline | Health check, returns `{success: true, status: 'online'}` |
 | `getAvailability` | `Inventory.gs:getAvailability()` | Returns housing options with availability |
+| `getRegistration` | `Registration.gs:getRegistration(id)` | Returns full registration details by ID |
 | `getGuestMeals` | `MealTickets.gs:getGuestMeals(id)` | Returns meal tickets for a registration |
+| `getCheckInData` | `CheckIn.gs:getCheckInData(id)` | Returns registration formatted for check-in screen |
+| `getArrivals` | `CheckIn.gs:getArrivals(date)` | Returns expected arrivals for a given date |
+| `getCheckInStats` | `CheckIn.gs:getCheckInStats()` | Returns check-in dashboard statistics |
+| `searchRegistrations` | `CheckIn.gs:searchRegistrations(query)` | Search by name or registration ID |
 
 ### POST Actions (`doPost`)
 | Action | Handler | Description |
 |---|---|---|
-| `submitRegistration` | `Registration.gs:processRegistration()` | Process new paid registration |
+| `submitRegistration` | `Registration.gs:processRegistration()` | Process new paid registration with deadline check and atomic rollback |
+| `cancelRegistration` | `Registration.gs:cancelRegistration()` | Cancel registration with refund/fee calculation and inventory release |
 | `addToWaitlist` | `Operations.gs:addToWaitlist()` | Add to housing waitlist |
 | `redeemMeal` | `MealTickets.gs:redeemMealTicket()` | Redeem a single meal ticket |
-| `checkIn` | `Operations.gs:checkInRegistration()` | Simple check-in |
-| `checkOut` | `Operations.gs:checkOutRegistration()` | Simple check-out |
+| `checkIn` | `CheckIn.gs:processCheckIn()` | Full check-in with room/key assignment |
+| `checkOut` | `CheckIn.gs:processCheckOut()` | Check-out with key return and deposit refund |
 | `updatePayment` | `Payments.gs:recordPayment()` | Record a payment |
 
 ## Key ID Formats
@@ -157,12 +169,14 @@ Note: `CheckIn.gs`, `Operations.gs`, and `Registration.gs` all use the expanded 
 Runtime configuration is read from the `Config` sheet (key-value pairs in columns A-B). Key settings include:
 
 - `event_name`, `event_start`, `event_end`
+- `registration_deadline` (May 25), `cancellation_deadline` (May 25)
 - `deposit_amount` ($65), `cancellation_fee` ($10)
 - `dorm_price` ($25/night), `rv_price` ($15/night), `tent_price` ($5/night)
 - `adult_breakfast`, `adult_lunch`, `adult_supper` (meal prices)
 - `child_breakfast`, `child_lunch`, `child_supper` (meal prices)
 - `key_deposit_amount` ($10)
 - `square_fee_percent` (2.9%), `square_fee_fixed` ($0.30)
+- `admin_email` (required — used for system notifications and as fallback sender)
 
 The `SPREADSHEET_ID` in `Utilities.gs` is the only hardcoded config. Everything else comes from the Config sheet.
 
@@ -181,14 +195,17 @@ The `SPREADSHEET_ID` in `Utilities.gs` is the only hardcoded config. Everything 
 
 ## Testing
 
-There is no automated test framework. Manual test functions are embedded in the source:
+There is no automated test framework. Manual test functions are in dedicated test files:
 
 | Function | File | What it tests |
 |---|---|---|
-| `testConnection()` | `Code.gs` | Verifies spreadsheet connectivity |
-| `testDoGet()` | `Code.gs` | Simulates a GET request for availability |
-| `testEmailSystem()` | `Email.gs` | Sends a test confirmation email to the current user |
-| `testStaffFormSubmit()` | `StaffRegistration.gs` | Simulates a staff form submission end-to-end |
+| `testConnection()` | `Tests.gs` | Verifies spreadsheet connectivity |
+| `testDoGet()` | `Tests.gs` | Simulates a GET request for availability |
+| `testEmailSystem()` | `Tests.gs` | Sends a test confirmation email to the current user |
+| `testStaffFormSubmit()` | `Tests.gs` | Simulates a staff form submission end-to-end |
+| `testNewFeatures()` | `TestNewFeatures.gs` | Creates a registration, tests `getRegistration`, then tests `cancelRegistration` |
+| `testWaitlistPromotion()` | `TestWaitlist.gs` | Adds to waitlist and tests `promoteFromWaitlist` with email |
+| `testFixes()` | `TestFixes.gs` | Verifies UUID entropy, documents rollback logic, tests staff deduplication |
 
 Run these in the Apps Script editor console. They write to the live spreadsheet.
 
@@ -206,7 +223,7 @@ Deployment is manual through the Apps Script editor (Deploy > New deployment > W
 
 1. **Column indices are critical.** The Registrations sheet has 47+ columns (A through AU+). Any column shift breaks multiple files. Always verify column references against the actual sheet.
 
-2. **Two check-in implementations exist.** `Operations.gs` has a simpler check-in/check-out, while `CheckIn.gs` has a more complete version with room/key management. The `Code.gs` router maps `checkIn`/`checkOut` POST actions to the `Operations.gs` versions. The `CheckIn.gs` functions (`processCheckIn`, `processCheckOut`) are called by the Check-In PWA directly.
+2. **`Code.gs` routes `checkIn`/`checkOut` to `CheckIn.gs`.** The `checkIn` and `checkOut` POST actions call `processCheckIn()` and `processCheckOut()` from `CheckIn.gs`, which handle room assignment, key deposits, and departure processing. `Operations.gs` retains simple check-in/check-out functions that are no longer routed via the API but remain as reference implementations. The Check-In PWA also calls `CheckIn.gs` functions directly.
 
 3. **Lock discipline.** Any function that writes data and could be called concurrently must acquire a script lock. Always release in both success and error paths.
 
@@ -222,34 +239,17 @@ Deployment is manual through the Apps Script editor (Deploy > New deployment > W
 
 This section tracks the gap between the project's planning document and the current implementation. Items are categorized by type and priority.
 
-### Backend Features Not Yet Implemented
+### Backend Features — All Complete
 
-These are code changes needed within this repository's `.gs` files.
+All originally planned backend features have been implemented in this repository:
 
-#### 1. `getRegistration` GET Endpoint
-- **What:** Add a `getRegistration` case to `doGet()` in `Code.gs` returning full registration details by ID.
-- **Why:** Specified in the planning document. `getRegistrationByRegId()` exists in `Email.gs` but is not exposed via the API and returns only a subset of fields.
-- **Files:** `Code.gs`, `Email.gs`
-
-#### 2. Cancellation and Refund Processing
-- **What:** Create a `cancelRegistration(data)` function that sets status to `cancelled`, applies the $10 `cancellation_fee` (from Config), calculates the refund amount, records it in the Payments sheet, releases housing inventory, and sends a cancellation email.
-- **Why:** Config defines `cancellation_fee` and `deposit_amount` but no code uses them for cancellations. The planning document specifies: before May 25 = full refund minus $10 fee; after May 25 or no-show first night = deposit forfeited.
-- **Files:** New function in `Registration.gs` or new `Cancellation.gs`; add case to `doPost()` in `Code.gs`
-
-#### 3. Registration and Cancellation Deadline Enforcement
-- **What:** Add date checks in `processRegistration()` and the future cancellation function comparing current date against `registration_deadline` and `cancellation_deadline` Config values.
-- **Why:** Config keys `registration_deadline` (May 25) and `cancellation_deadline` (May 25) exist but nothing reads or enforces them.
-- **Files:** `Registration.gs`, `Config.gs`
-
-#### 4. No-Show Handling
-- **What:** Create an admin-triggered function that identifies registrations whose first night has passed without check-in, marks them as `no_show`, and forfeits the deposit per the cancellation policy.
-- **Why:** Specified in the planning document; no implementation exists.
-- **Files:** `Admin.gs` (new function + add to sidebar menu)
-
-#### 5. Reminder Email
-- **What:** Create a pre-event reminder email function and HTML template, triggered by a time-based Apps Script trigger a few days before June 2, 2026.
-- **Why:** Specified in planning document Session 4; not implemented.
-- **Files:** `Email.gs` (new function), new `ReminderEmailTemplate.html`
+| Feature | Status | Location |
+|---|---|---|
+| `getRegistration` GET endpoint | ✅ Done | `Registration.gs`, `Code.gs` |
+| Cancellation and refund processing | ✅ Done | `Registration.gs:cancelRegistration()`, `Code.gs` |
+| Registration/cancellation deadline enforcement | ✅ Done | `Registration.gs` (reads `registration_deadline` / `cancellation_deadline` from Config) |
+| No-show handling | ✅ Done | `Admin.gs` (admin-triggered function + sidebar menu item) |
+| Reminder email | ✅ Done | `Email.gs:sendReminderEmail()`, `ReminderEmailTemplate.html` |
 
 ### External Systems (Not In This Repository)
 
@@ -261,8 +261,8 @@ These are separate deployments referenced in the planning document but not part 
 | WordPress availability shortcode | 5 | PHP shortcode + JS/CSS for live housing availability display | Not started |
 | Fluent Forms configuration | 6 | Multi-step registration form with payment in WordPress admin | Not started |
 | Google Form (Staff registration) | 7 | The actual Google Form that triggers `onStaffFormSubmit()`; GAS backend is done | Not started |
-| Cafe Scanner PWA | 8 | Standalone PWA for meal ticket QR scanning (index.html, app.js, sw.js, manifest.json) | Not started |
-| Check-In System PWA | 9 | Standalone PWA frontend calling `CheckIn.gs` functions; backend is done | Not started |
+| Cafe Scanner PWA | 8 | Standalone PWA for meal ticket QR scanning | **Partial** — frontend code in `/pwa/` |
+| Check-In System PWA | 9 | Standalone PWA frontend calling `CheckIn.gs` functions | **Partial** — frontend code in `/pwa/` |
 | End-to-end testing | 11 | Full integration testing across all systems with test data | Not started |
 | Training materials | 11 | User guides for volunteers operating check-in and scanner systems | Not started |
 
@@ -273,11 +273,11 @@ These are separate deployments referenced in the planning document but not part 
 | 1 | Google Sheets Foundation | Done |
 | 2 | Apps Script Core | Done |
 | 3 | Apps Script Complete | Done |
-| 4 | Email System | **Partial** — confirmation and waitlist notification done; reminder emails missing |
+| 4 | Email System | Done — confirmation, waitlist offer, and reminder emails all implemented |
 | 5 | WordPress Integration | Not started (external) |
 | 6 | Fluent Form | Not started (external) |
 | 7 | Staff Form | **Partial** — GAS backend done; Google Form creation is external |
-| 8 | Cafe Scanner PWA | Not started (external) |
-| 9 | Check-In System PWA | **Partial** — backend done; PWA frontend not started (external) |
+| 8 | Cafe Scanner PWA | **Partial** — frontend code in `/pwa/`; deployment/hosting needed |
+| 9 | Check-In System PWA | **Partial** — backend done; frontend in `/pwa/`; deployment/hosting needed |
 | 10 | Admin Sidebar | Done |
-| 11 | Testing and Polish | **Partial** — basic test functions exist; end-to-end testing and training missing |
+| 11 | Testing and Polish | **Partial** — manual test functions exist in 4 test files; end-to-end integration testing and training materials remain |
