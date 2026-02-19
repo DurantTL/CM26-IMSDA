@@ -10,14 +10,19 @@ function checkInRegistration(data) {
   for (var i = 1; i < rows.length; i++) {
     if (rows[i][0] === data.regId) {
       var row = i + 1;
-      sheet.getRange(row, 41).setValue('yes'); 
-      sheet.getRange(row, 42).setValue(new Date()); 
+      // Batch update check-in status (columns 41-42)
+      sheet.getRange(row, 41, 1, 2).setValues([['yes', new Date()]]);
       
-      if (data.room) sheet.getRange(row, 35).setValue(data.room);
-      if (data.key) {
-        sheet.getRange(row, 36).setValue(data.key);
-        sheet.getRange(row, 37).setValue('yes'); 
-        sheet.getRange(row, 38).setValue(new Date());
+      if (data.room || data.key) {
+        // Batch update room and key info (columns 35-38)
+        var roomKeyValues = [rows[i].slice(34, 38)];
+        if (data.room) roomKeyValues[0][0] = data.room;
+        if (data.key) {
+          roomKeyValues[0][1] = data.key;
+          roomKeyValues[0][2] = 'yes';
+          roomKeyValues[0][3] = new Date();
+        }
+        sheet.getRange(row, 35, 1, 4).setValues(roomKeyValues);
       }
       
       logActivity('check_in', data.regId, 'Guest checked in', 'admin_panel');
@@ -35,11 +40,11 @@ function checkOutRegistration(data) {
   for (var i = 1; i < rows.length; i++) {
     if (rows[i][0] === data.regId) {
       var row = i + 1;
-      sheet.getRange(row, 43).setValue('yes'); 
-      sheet.getRange(row, 44).setValue(new Date());
+      // Batch update check-out status (columns 43-44)
+      sheet.getRange(row, 43, 1, 2).setValues([['yes', new Date()]]);
       
-      sheet.getRange(row, 39).setValue('yes'); 
-      sheet.getRange(row, 40).setValue(new Date());
+      // Batch update key status (columns 39-40)
+      sheet.getRange(row, 39, 1, 2).setValues([['yes', new Date()]]);
       
       logActivity('check_out', data.regId, 'Guest checked out', 'admin_panel');
       return { success: true };
