@@ -16,6 +16,18 @@ function doGet(e) {
       case 'getGuestMeals':
         return jsonResponse(getGuestMeals(e.parameter.id));
         
+      case 'getCheckInData':
+        return jsonResponse(getCheckInData(e.parameter.id));
+
+      case 'getArrivals':
+        return jsonResponse(getArrivals(e.parameter.date));
+
+      case 'getCheckInStats':
+        return jsonResponse(getCheckInStats());
+
+      case 'searchRegistrations':
+        return jsonResponse(searchRegistrations(e.parameter.query));
+
       case 'ping':
         return jsonResponse({success: true, status: 'online'});
         
@@ -23,12 +35,17 @@ function doGet(e) {
         return jsonResponse({error: 'Unknown action'}, 400);
     }
   } catch (error) {
-    return jsonResponse({error: error.toString()}, 500);
+    logActivity('error', 'system', 'doGet failed: ' + error.stack, 'api');
+    return jsonResponse({error: 'Internal Server Error'}, 500);
   }
 }
 
 function doPost(e) {
   try {
+    if (!e.postData || !e.postData.contents) {
+      return jsonResponse({error: 'No data provided'}, 400);
+    }
+
     var data = JSON.parse(e.postData.contents);
     var action = data.action;
     
@@ -46,10 +63,10 @@ function doPost(e) {
         return jsonResponse(redeemMealTicket(data));
         
       case 'checkIn':
-        return jsonResponse(checkInRegistration(data));
+        return jsonResponse(processCheckIn(data));
         
       case 'checkOut':
-        return jsonResponse(checkOutRegistration(data));
+        return jsonResponse(processCheckOut(data));
         
       case 'updatePayment':
         return jsonResponse(recordPayment(data));
@@ -58,6 +75,7 @@ function doPost(e) {
         return jsonResponse({error: 'Unknown action: ' + action}, 400);
     }
   } catch (error) {
-    return jsonResponse({error: 'System Error: ' + error.toString()}, 500);
+    logActivity('error', 'system', 'doPost failed: ' + error.stack, 'api');
+    return jsonResponse({error: 'Internal Server Error'}, 500);
   }
 }

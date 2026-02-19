@@ -30,7 +30,7 @@
     </div>
     
     <div class="content">
-      <p>Dear <?= reg.primaryName ?>,</p>
+      <p>Dear <?= reg.primaryName || 'Guest' ?>,</p>
       <p>We are excited to see you at Camp Meeting 2026! Your registration has been received.</p>
       
       <div class="reg-id-box">
@@ -62,25 +62,25 @@
       <table class="details-table">
         <tr>
           <td class="label">Housing Total</td>
-          <td>$<?= Number(reg.housingSubtotal).toFixed(2) ?></td>
+          <td>$<?= (Number(reg.housingSubtotal) || 0).toFixed(2) ?></td>
         </tr>
         <tr>
           <td class="label">Meal Tickets</td>
-          <td>$<?= Number(reg.mealSubtotal).toFixed(2) ?></td>
+          <td>$<?= (Number(reg.mealSubtotal) || 0).toFixed(2) ?></td>
         </tr>
         <tr class="total-row">
           <td class="label">Total Charged</td>
-          <td>$<?= Number(reg.totalCharged).toFixed(2) ?></td>
+          <td>$<?= (Number(reg.totalCharged) || 0).toFixed(2) ?></td>
         </tr>
         <tr>
           <td class="label">Amount Paid</td>
-          <td>$<?= Number(reg.amountPaid).toFixed(2) ?></td>
+          <td>$<?= (Number(reg.amountPaid) || 0).toFixed(2) ?></td>
         </tr>
       </table>
       
       <? if (reg.balanceDue > 0) { ?>
         <div class="warning">
-          <strong>Balance Due: $<?= Number(reg.balanceDue).toFixed(2) ?></strong><br>
+          <strong>Balance Due: $<?= (Number(reg.balanceDue) || 0).toFixed(2) ?></strong><br>
           Please pay the remaining balance upon arrival.
         </div>
       <? } ?>

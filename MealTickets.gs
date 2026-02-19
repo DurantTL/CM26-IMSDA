@@ -3,146 +3,169 @@
 // ==========================================
 
 function createMealTickets(regId, data) {
-  var ss = getSS();
-  var ticketSheet = ss.getSheetByName('MealTickets');
-  var config = getConfig();
-  
-  // Define Meal Schedules
-  var mealDays = {
-    breakfast: ['wed', 'thu', 'fri', 'sat'],
-    lunch: ['wed', 'thu', 'fri'], 
-    supper: ['tue', 'wed', 'thu', 'fri', 'sat']
-  };
-  
-  var mealDates = {
-    tue: '2026-06-02',
-    wed: '2026-06-03',
-    thu: '2026-06-04',
-    fri: '2026-06-05',
-    sat: '2026-06-06'
-  };
-  
-  var newTickets = [];
-  var mealSelections = data.mealSelections || {};
-  var guests = data.guests || [];
-  var isStaff = data.regType === 'staff' || !!data.staffRole;
-  
-  // Separate guests
-  var adults = guests.filter(function(g) { return !g.isChild; });
-  var children = guests.filter(function(g) { return g.isChild; });
-  
-  // Fallback if no guests listed but primary registrant exists
-  if (adults.length === 0 && guests.length === 0) {
-    adults = [{ name: data.name || 'Guest', isChild: false }];
+  var lock = LockService.getScriptLock();
+  try {
+    // Wait for up to 30 seconds for other processes to finish.
+    lock.waitLock(30000);
+  } catch (e) {
+    Logger.log('Could not obtain lock after 30 seconds.');
+    return; // Or throw error
   }
-  
-  // 1. Calculate Starting ID Number
-  var lastRow = Math.max(ticketSheet.getLastRow(), 0);
-  var idCounter = 1; 
 
-  // ------------------------------------------
-  // PROCESS ADULT MEALS (DISTRIBUTED)
-  // ------------------------------------------
-  ['breakfast', 'lunch', 'supper'].forEach(function(mealType) {
-    // Total tickets requested (e.g., 8)
-    var count = parseInt(mealSelections[mealType] && mealSelections[mealType].adult) || 0;
-    var availableDays = mealDays[mealType];
-    var numGuests = adults.length || 1;
-    var numDays = availableDays.length;
+  try {
+    var ss = getSS();
+    var ticketSheet = ss.getSheetByName('MealTickets');
+    var config = getConfig();
 
-    // Loop exactly 'count' times (e.g., 8 times)
-    for (var i = 0; i < count; i++) {
-      
-      // LOGIC: Distribute tickets across guests, then advance to next day
-      // i=0 -> Guest 0, Day 0
-      // i=1 -> Guest 1, Day 0
-      // i=2 -> Guest 0, Day 1...
-      
-      var guestIndex = i % numGuests;
-      var dayIndex = Math.floor(i / numGuests) % numDays;
+    // Define Meal Schedules
+    var mealDays = {
+      breakfast: ['wed', 'thu', 'fri', 'sat'],
+      lunch: ['wed', 'thu', 'fri'],
+      supper: ['tue', 'wed', 'thu', 'fri', 'sat']
+    };
 
-      var guest = adults[guestIndex] || { name: 'Guest' };
-      var day = availableDays[dayIndex];
+    var mealDates = {
+      tue: '2026-06-02',
+      wed: '2026-06-03',
+      thu: '2026-06-04',
+      fri: '2026-06-05',
+      sat: '2026-06-06'
+    };
 
-      // Generate Unique ID
-      var uniqueNum = lastRow + idCounter;
-      var ticketId = 'MT-' + ('00000' + uniqueNum).slice(-5);
-      idCounter++; 
-      
-      var price = isStaff ? 0 : parseFloat(config['adult_' + mealType]) || 0;
-      
-      newTickets.push([
-        ticketId,                      // A: ticket_id
-        regId,                         // B: reg_id
-        guest.name,                    // C: guest_name
-        mealType,                      // D: meal_type
-        day,                           // E: meal_day
-        mealDates[day],                // F: meal_date
-        'adult',                       // G: ticket_type
-        price,                         // H: price
-        'no',                          // I: redeemed
-        '',                            // J: redeemed_at
-        '',                            // K: redeemed_by
-        data.dietaryNeeds || ''        // L: notes
-      ]);
-    }
-  });
+    var newTickets = [];
+    var mealSelections = data.mealSelections || {};
+    var guests = data.guests || [];
+    var isStaff = data.regType === 'staff' || !!data.staffRole;
 
-  // ------------------------------------------
-  // PROCESS CHILD MEALS (DISTRIBUTED)
-  // ------------------------------------------
-  ['breakfast', 'lunch', 'supper'].forEach(function(mealType) {
-    var count = parseInt(mealSelections[mealType] && mealSelections[mealType].child) || 0;
-    var availableDays = mealDays[mealType];
-    var numGuests = children.length || 1;
-    var numDays = availableDays.length;
-    
-    // Only run if we actually have children tickets
-    if(count > 0 && children.length === 0) {
-        // Fallback if tickets bought but no child guest listed
-        children = [{name: data.name + " (Child)"}]; 
-        numGuests = 1;
+    // Separate guests
+    var adults = guests.filter(function(g) { return !g.isChild; });
+    var children = guests.filter(function(g) { return g.isChild; });
+
+    // Fallback if no guests listed but primary registrant exists
+    if (adults.length === 0 && guests.length === 0) {
+      adults = [{ name: data.name || 'Guest', isChild: false }];
     }
 
-    for (var i = 0; i < count; i++) {
-      var guestIndex = i % numGuests;
-      var dayIndex = Math.floor(i / numGuests) % numDays;
+    // 1. Calculate Starting ID Number - ATOMICALLY inside lock
+    var lastRow = Math.max(ticketSheet.getLastRow(), 0);
+    // If sheet is empty (only headers), lastRow might be 1.
+    // We need to find the MAX ID from existing data if possible, or trust row count.
+    // Row count is safe inside a lock.
+    var idCounter = 1;
 
-      var guest = children[guestIndex];
-      var day = availableDays[dayIndex];
+    // ------------------------------------------
+    // PROCESS ADULT MEALS (DISTRIBUTED)
+    // ------------------------------------------
+    ['breakfast', 'lunch', 'supper'].forEach(function(mealType) {
+      // Total tickets requested (e.g., 8)
+      var count = parseInt(mealSelections[mealType] && mealSelections[mealType].adult) || 0;
+      var availableDays = mealDays[mealType];
+      var numGuests = adults.length || 1;
+      var numDays = availableDays.length;
 
-      // Generate Unique ID
-      var uniqueNum = lastRow + idCounter;
-      var ticketId = 'MT-' + ('00000' + uniqueNum).slice(-5);
-      idCounter++; 
+      // Loop exactly 'count' times (e.g., 8 times)
+      for (var i = 0; i < count; i++) {
+
+        // LOGIC: Distribute tickets across guests, then advance to next day
+        // i=0 -> Guest 0, Day 0
+        // i=1 -> Guest 1, Day 0
+        // i=2 -> Guest 0, Day 1...
+
+        var guestIndex = i % numGuests;
+        var dayIndex = Math.floor(i / numGuests) % numDays;
+
+        var guest = adults[guestIndex] || { name: 'Guest' };
+        var day = availableDays[dayIndex];
+
+        // Generate Unique ID
+        var uniqueNum = lastRow + idCounter;
+        var ticketId = 'MT-' + ('00000' + uniqueNum).slice(-5);
+        idCounter++;
+
+        var price = isStaff ? 0 : parseFloat(config['adult_' + mealType]) || 0;
+
+        newTickets.push([
+          ticketId,                      // A: ticket_id
+          regId,                         // B: reg_id
+          guest.name,                    // C: guest_name
+          mealType,                      // D: meal_type
+          day,                           // E: meal_day
+          mealDates[day],                // F: meal_date
+          'adult',                       // G: ticket_type
+          price,                         // H: price
+          'no',                          // I: redeemed
+          '',                            // J: redeemed_at
+          '',                            // K: redeemed_by
+          data.dietaryNeeds || ''        // L: notes
+        ]);
+      }
+    });
+
+    // ------------------------------------------
+    // PROCESS CHILD MEALS (DISTRIBUTED)
+    // ------------------------------------------
+    ['breakfast', 'lunch', 'supper'].forEach(function(mealType) {
+      var count = parseInt(mealSelections[mealType] && mealSelections[mealType].child) || 0;
+      var availableDays = mealDays[mealType];
+      var numGuests = children.length || 1;
+      var numDays = availableDays.length;
+
+      // Only run if we actually have children tickets
+      if(count > 0 && children.length === 0) {
+          // Fallback if tickets bought but no child guest listed
+          children = [{name: data.name + " (Child)"}];
+          numGuests = 1;
+      }
+
+      for (var i = 0; i < count; i++) {
+        var guestIndex = i % numGuests;
+        var dayIndex = Math.floor(i / numGuests) % numDays;
+
+        var guest = children[guestIndex];
+        var day = availableDays[dayIndex];
+
+        // Generate Unique ID
+        var uniqueNum = lastRow + idCounter;
+        var ticketId = 'MT-' + ('00000' + uniqueNum).slice(-5);
+        idCounter++;
+
+        var price = isStaff ? 0 : parseFloat(config['child_' + mealType]) || 0;
+
+        newTickets.push([
+          ticketId,                      // A
+          regId,                         // B
+          guest.name,                    // C
+          mealType,                      // D
+          day,                           // E
+          mealDates[day],                // F
+          'child',                       // G
+          price,                         // H
+          'no',                          // I
+          '',                            // J
+          '',                            // K
+          data.dietaryNeeds || ''        // L
+        ]);
+      }
+    });
+
+    // ------------------------------------------
+    // BATCH SAVE
+    // ------------------------------------------
+    if (newTickets.length > 0) {
+      // Append rows
+      ticketSheet.getRange(ticketSheet.getLastRow() + 1, 1, newTickets.length, newTickets[0].length)
+                 .setValues(newTickets);
       
-      var price = isStaff ? 0 : parseFloat(config['child_' + mealType]) || 0;
+      // Flush to ensure data is written before lock is released (critical for race conditions)
+      SpreadsheetApp.flush();
       
-      newTickets.push([
-        ticketId,                      // A
-        regId,                         // B
-        guest.name,                    // C
-        mealType,                      // D
-        day,                           // E
-        mealDates[day],                // F
-        'child',                       // G
-        price,                         // H
-        'no',                          // I
-        '',                            // J
-        '',                            // K
-        data.dietaryNeeds || ''        // L
-      ]);
+      logActivity('meals_created', regId, 'Created ' + newTickets.length + ' meal tickets', 'system');
     }
-  });
-  
-  // ------------------------------------------
-  // BATCH SAVE
-  // ------------------------------------------
-  if (newTickets.length > 0) {
-    ticketSheet.getRange(ticketSheet.getLastRow() + 1, 1, newTickets.length, newTickets[0].length)
-               .setValues(newTickets);
-    
-    logActivity('meals_created', regId, 'Created ' + newTickets.length + ' meal tickets', 'system');
+  } catch (e) {
+    Logger.log('Error creating meal tickets: ' + e.toString());
+    logActivity('error', regId, 'Failed to create meal tickets: ' + e.toString(), 'system');
+  } finally {
+    lock.releaseLock();
   }
 }
 
@@ -183,6 +206,8 @@ function redeemMealTicket(data) {
         sheet.getRange(row, 10).setValue(new Date());    // redeemed_at
         sheet.getRange(row, 11).setValue(data.volunteer || 'scanner'); // redeemed_by
         
+        SpreadsheetApp.flush(); // Ensure write happens
+
         logActivity('meal_scan', tickets[i][1], 'Meal redeemed: ' + ticketId + ' for ' + tickets[i][2], 'scanner');
         
         return { 
@@ -321,6 +346,7 @@ function bulkRedeemMeals(regId, mealType, day, volunteer) {
     }
     
     if (redeemed > 0) {
+      SpreadsheetApp.flush();
       logActivity('bulk_meal_scan', regId, 'Bulk redeemed ' + redeemed + ' tickets for ' + mealType + ' ' + day, 'scanner');
     }
     

@@ -9,58 +9,38 @@ function checkInRegistration(data) {
   }
 
   try {
-    var ss = getSS(); // Uses helper
+    var ss = getSS();
     var sheet = ss.getSheetByName('Registrations');
     var rows = sheet.getDataRange().getValues();
 
     for (var i = 1; i < rows.length; i++) {
-      if (rows[i][0] === data.regId) {
+      if (rows[i][COLUMNS.REG_ID] === data.regId) {
         var row = i + 1;
 
-        // AS: checked_in (Index 44) -> Column 45
-        sheet.getRange(row, 45).setValue('yes');
-        // AT: check_in_time (Index 45) -> Column 46
-        sheet.getRange(row, 46).setValue(new Date());
+        // Update checked_in status and time
+        sheet.getRange(row, COLUMNS.CHECKED_IN + 1).setValue('yes');
+        sheet.getRange(row, COLUMNS.CHECK_IN_TIME + 1).setValue(new Date());
 
-        // AI: room_assignment (Index 34) -> Column 35
-        if (data.room) sheet.getRange(row, 35).setValue(data.room);
+        // Update room assignment if provided
+        if (data.room) {
+          sheet.getRange(row, COLUMNS.ROOM_ASSIGNMENT + 1).setValue(data.room);
+        }
 
+        // Update key assignment if provided
         if (data.key) {
-          // AK: key_1_number (Index 36) -> Column 37
-          sheet.getRange(row, 37).setValue(data.key);
+          sheet.getRange(row, COLUMNS.KEY_1_NUMBER + 1).setValue(data.key);
         }
 
         logActivity('check_in', data.regId, 'Guest checked in', 'admin_panel');
-        lock.releaseLock();
         return { success: true };
-  var ss = getSS(); // Uses helper
-  var sheet = ss.getSheetByName('Registrations');
-  var rows = sheet.getDataRange().getValues();
-  
-  for (var i = 1; i < rows.length; i++) {
-    if (rows[i][0] === data.regId) {
-      var row = i + 1;
-      // Batch update check-in status (columns 41-42)
-      sheet.getRange(row, 41, 1, 2).setValues([['yes', new Date()]]);
-      
-      if (data.room || data.key) {
-        // Batch update room and key info (columns 35-38)
-        var roomKeyValues = [rows[i].slice(34, 38)];
-        if (data.room) roomKeyValues[0][0] = data.room;
-        if (data.key) {
-          roomKeyValues[0][1] = data.key;
-          roomKeyValues[0][2] = 'yes';
-          roomKeyValues[0][3] = new Date();
-        }
-        sheet.getRange(row, 35, 1, 4).setValues(roomKeyValues);
       }
     }
 
-    lock.releaseLock();
     return { success: false, error: 'Registration not found' };
   } catch (e) {
-    lock.releaseLock();
     return { success: false, error: e.toString() };
+  } finally {
+    lock.releaseLock();
   }
 }
 
@@ -71,49 +51,34 @@ function checkOutRegistration(data) {
   }
 
   try {
-    var ss = getSS(); // Uses helper
+    var ss = getSS();
     var sheet = ss.getSheetByName('Registrations');
     var rows = sheet.getDataRange().getValues();
 
     for (var i = 1; i < rows.length; i++) {
-      if (rows[i][0] === data.regId) {
+      if (rows[i][COLUMNS.REG_ID] === data.regId) {
         var row = i + 1;
 
-        // AW: checked_out (Index 48) -> Column 49
-        sheet.getRange(row, 49).setValue('yes');
-        // AX: check_out_time (Index 49) -> Column 50
-        sheet.getRange(row, 50).setValue(new Date());
+        // Update checked_out status and time
+        sheet.getRange(row, COLUMNS.CHECKED_OUT + 1).setValue('yes');
+        sheet.getRange(row, COLUMNS.CHECK_OUT_TIME + 1).setValue(new Date());
 
-        // AO: key_1_returned (Index 40) -> Column 41
-        // Mark key 1 as returned if checking out
-        sheet.getRange(row, 41).setValue('yes');
+        // Mark keys as returned
+        sheet.getRange(row, COLUMNS.KEY_1_RETURNED + 1).setValue('yes');
+        // Assuming key 2 is also returned if checked out, or logic handled elsewhere.
+        // For simplicity matching previous intent:
+        sheet.getRange(row, COLUMNS.KEY_2_RETURNED + 1).setValue('yes');
 
         logActivity('check_out', data.regId, 'Guest checked out', 'admin_panel');
-        lock.releaseLock();
         return { success: true };
       }
-  var ss = getSS(); // Uses helper
-  var sheet = ss.getSheetByName('Registrations');
-  var rows = sheet.getDataRange().getValues();
-  
-  for (var i = 1; i < rows.length; i++) {
-    if (rows[i][0] === data.regId) {
-      var row = i + 1;
-      // Batch update check-out status (columns 43-44)
-      sheet.getRange(row, 43, 1, 2).setValues([['yes', new Date()]]);
-      
-      // Batch update key status (columns 39-40)
-      sheet.getRange(row, 39, 1, 2).setValues([['yes', new Date()]]);
-      
-      logActivity('check_out', data.regId, 'Guest checked out', 'admin_panel');
-      return { success: true };
     }
 
-    lock.releaseLock();
     return { success: false, error: 'Registration not found' };
   } catch (e) {
-    lock.releaseLock();
     return { success: false, error: e.toString() };
+  } finally {
+    lock.releaseLock();
   }
 }
 
@@ -124,13 +89,30 @@ function addToWaitlist(data) {
   }
 
   try {
-    var ss = getSS(); // Uses helper
+    var ss = getSS();
     var sheet = ss.getSheetByName('Waitlist');
 
-    var position = 1;
+    // Waitlist columns:
+    // A=0: ID
+    // B=1: Date
+    // C=2: Name
+    // D=3: Email
+    // E=4: Phone
+    // F=5: Housing Option
+    // G=6: Nights
+    // H=7: Num Guests
+    // I=8: Position
+    // J=9: Status
+
     var existing = sheet.getDataRange().getValues();
-    var count = existing.filter(function(r) { return r[5] === data.housingOption && r[9] === 'waiting'; }).length;
-    position = count + 1;
+    // Count existing waiting for this option
+    var count = 0;
+    for (var i = 1; i < existing.length; i++) {
+      if (existing[i][5] === data.housingOption && existing[i][9] === 'waiting') {
+        count++;
+      }
+    }
+    var position = count + 1;
 
     var id = 'WL-' + Utilities.getUuid().slice(0,6);
 
@@ -145,15 +127,16 @@ function addToWaitlist(data) {
       data.numGuests,
       position,
       'waiting',
-      '',
-      '',
+      '', // Offered At
+      '', // Expires At
       data.notes || ''
     ]);
 
-    lock.releaseLock();
+    logActivity('waitlist_add', id, 'Added to waitlist: ' + data.name, 'public_form');
     return { success: true, waitlistId: id, position: position };
   } catch (e) {
-    lock.releaseLock();
     return { success: false, error: e.toString() };
+  } finally {
+    lock.releaseLock();
   }
 }

@@ -6,21 +6,22 @@
  * Sends the HTML confirmation email to a registrant
  */
 function sendConfirmationEmail(regId) {
-  var reg = getRegistrationByRegId(regId);
+  var config = getConfig();
+  var regResult = getRegistration(regId);
   
-  if (!reg) {
+  if (!regResult.success) {
     Logger.log("Error: Registration not found for email " + regId);
     return;
   }
   
+  var reg = regResult.registration;
+
   // Prepare the template
   var template = HtmlService.createTemplateFromFile('EmailTemplate');
   template.reg = reg;
   
   var emailBody = template.evaluate().getContent();
   
-  var config = getConfig();
-
   // Send the email
   try {
     GmailApp.sendEmail(
@@ -30,7 +31,7 @@ function sendConfirmationEmail(regId) {
       {
         htmlBody: emailBody,
         name: 'Iowa-Missouri Conference',
-        replyTo: config.admin_email || ''
+        replyTo: config.admin_email || 'campmeeting@imsda.org'
       }
     );
 
@@ -46,6 +47,8 @@ function sendConfirmationEmail(regId) {
  * Sends the HTML waitlist offer email
  */
 function sendWaitlistOfferEmail(waitlistId, name, email, housingOption, expiresAt) {
+  var config = getConfig();
+
   // Prepare the template
   var template = HtmlService.createTemplateFromFile('WaitlistOfferEmail');
   template.waitlistId = waitlistId;
@@ -64,7 +67,8 @@ function sendWaitlistOfferEmail(waitlistId, name, email, housingOption, expiresA
       {
         htmlBody: emailBody,
         name: 'Iowa-Missouri Conference',
-        replyTo: 'campmeeting@imsda.org'
+        // Fix: Use config instead of hardcoded
+        replyTo: config.admin_email || 'campmeeting@imsda.org'
       }
     );
 
@@ -77,60 +81,24 @@ function sendWaitlistOfferEmail(waitlistId, name, email, housingOption, expiresA
 }
 
 /**
- * Helper: Fetches a single registration object from the sheet
- * Maps columns A-AC to a friendly object
- */
-function getRegistrationByRegId(id) {
-  var ss = getSS();
-  var sheet = ss.getSheetByName('Registrations');
-  var data = sheet.getDataRange().getValues();
-  
-  // Columns map (Index = Column - 1)
-  // A=0, E=4(Name), F=5(Email), M=12(Housing), etc.
-  
-  for (var i = 1; i < data.length; i++) {
-    if (data[i][0] === id) {
-      var row = data[i];
-      return {
-        regId: row[0],
-        primaryName: row[4],
-        email: row[5],
-        phone: row[6],
-        housingOption: row[12],
-        numNights: row[14],
-        housingSubtotal: row[15],
-        adultsCount: row[16],
-        childrenCount: row[17],
-        totalGuests: row[18],
-        mealSubtotal: row[23],
-        subtotal: row[24],
-        totalCharged: row[26],
-        amountPaid: row[27],
-        balanceDue: row[28] // Column AC
-      };
-    }
-  }
-  return null;
-}
-
-/**
  * Sends the HTML reminder email to a registrant
  */
 function sendReminderEmail(regId) {
-  var reg = getRegistrationByRegId(regId);
+  var config = getConfig();
+  var regResult = getRegistration(regId);
 
-  if (!reg) {
+  if (!regResult.success) {
     Logger.log("Error: Registration not found for email " + regId);
     return;
   }
+
+  var reg = regResult.registration;
 
   // Prepare the template
   var template = HtmlService.createTemplateFromFile('ReminderEmailTemplate');
   template.reg = reg;
 
   var emailBody = template.evaluate().getContent();
-
-  var config = getConfig();
 
   // Send the email
   try {
@@ -141,7 +109,7 @@ function sendReminderEmail(regId) {
       {
         htmlBody: emailBody,
         name: 'Iowa-Missouri Conference',
-        replyTo: config.admin_email || ''
+        replyTo: config.admin_email || 'campmeeting@imsda.org'
       }
     );
 

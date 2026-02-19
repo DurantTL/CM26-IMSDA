@@ -3,7 +3,7 @@
 // ==========================================
 
 function getAvailability() {
-  var ss = getSS(); // Uses helper
+  var ss = getSS();
   var housingSheet = ss.getSheetByName('Housing');
   var housingData = housingSheet.getDataRange().getValues();
   
@@ -33,33 +33,95 @@ function getAvailability() {
   };
 }
 
-function checkAvailability(optionId, numUnits) {
+/**
+ * Checks if inventory is available for the given option.
+ * NOW INCLUDES:
+ * 1. Min Nights check (Issue 14)
+ * 2. Real-time counting to avoid formula lag race conditions (Issue 8)
+ */
+function checkAvailability(optionId, numUnits, numNights) {
   if (optionId === 'none') return { available: true };
+  if (!numUnits) numUnits = 1;
 
-  var ss = getSS(); // Uses helper
+  var ss = getSS();
   var housingSheet = ss.getSheetByName('Housing');
   var data = housingSheet.getDataRange().getValues();
+  var housingRow = null;
   
+  // 1. Find the Housing Option
   for (var i = 1; i < data.length; i++) {
     if (data[i][0] === optionId) {
-      var isUnlimited = data[i][8] === 'TRUE' || data[i][8] === true;
-      var available = data[i][4];
-      
-      if (isUnlimited) {
-        return { available: true };
-      }
-      
-      if (available >= numUnits) {
-        return { available: true };
-      } else {
-        return {
-          available: false,
-          message: 'Only ' + available + ' ' + data[i][1] + '(s) available.',
-          currentAvailable: available
-        };
-      }
+      housingRow = data[i];
+      break;
     }
   }
   
-  return { available: false, message: 'Housing option not found.' };
+  if (!housingRow) {
+    return { available: false, message: 'Housing option not found.' };
+  }
+
+  var optionName = housingRow[1];
+  var totalCapacity = housingRow[3];
+  var isUnlimited = housingRow[8] === 'TRUE' || housingRow[8] === true;
+  var minNights = housingRow[9] || 0;
+  var status = housingRow[11];
+
+  // 2. Check Status
+  if (status !== 'active') {
+    return { available: false, message: 'This housing option is currently unavailable.' };
+  }
+
+  // 3. Check Minimum Nights (Issue 14)
+  if (numNights && numNights < minNights) {
+    return {
+      available: false,
+      message: optionName + ' requires a minimum of ' + minNights + ' nights.'
+    };
+  }
+
+  // 4. Check Capacity
+  if (isUnlimited) {
+    return { available: true };
+  }
+
+  // Fix for Issue 8: Don't rely on cached formula column. Count manually.
+  var reservedCount = countReservations(optionId);
+  var available = totalCapacity - reservedCount;
+
+  if (available >= numUnits) {
+    return { available: true };
+  } else {
+    return {
+      available: false,
+      message: 'Only ' + Math.max(0, available) + ' ' + optionName + '(s) available.',
+      currentAvailable: available
+    };
+  }
+}
+
+/**
+ * Helper to count confirmed/pending reservations manually
+ * Prevents race conditions from stale sheet formulas
+ */
+function countReservations(housingOptionId) {
+  var ss = getSS();
+  var regSheet = ss.getSheetByName('Registrations');
+  var data = regSheet.getDataRange().getValues();
+  var count = 0;
+
+  // Iterate registrations
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    // Column M (Index 12) is Housing Option
+    // Column D (Index 3) is Status
+
+    var opt = row[COLUMNS.HOUSING_OPTION];
+    var status = row[COLUMNS.STATUS];
+
+    if (opt === housingOptionId &&
+       (status === 'confirmed' || status === 'pending' || status === 'deposit')) {
+      count++;
+    }
+  }
+  return count;
 }

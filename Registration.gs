@@ -13,7 +13,11 @@ function processRegistration(data) {
   }
   
   try {
-    // Use getSS() helper from Utilities.gs to ensure correct ID access
+    // Input Validation (Issue 16)
+    if (!data.name || !data.email || !data.housingOption) {
+      return { success: false, error: 'Missing required fields (Name, Email, or Housing).' };
+    }
+
     var ss = getSS(); 
     var regSheet = ss.getSheetByName('Registrations');
     var guestSheet = ss.getSheetByName('GuestDetails');
@@ -25,13 +29,13 @@ function processRegistration(data) {
     var today = new Date();
 
     if (today > deadlineDate) {
-      lock.releaseLock();
       return { success: false, error: 'Registration deadline has passed.' };
     }
 
     // 1. Validate Housing Availability
     // Defaults to 1 unit if not specified
-    var availCheck = checkAvailability(data.housingOption, 1);
+    // Pass numNights for minNights check (Issue 14)
+    var availCheck = checkAvailability(data.housingOption, 1, data.numNights || 0);
     
     if (!availCheck.available) {
       // Return specific flag so frontend knows to offer waitlist
@@ -43,11 +47,12 @@ function processRegistration(data) {
     }
     
     // 2. Generate IDs
-    var regId = generateRegId();
+    var regId = generateRegId(); // Atomic (Issue 6)
     var createdDate = new Date();
     
     // 3. Prepare Data for 'Registrations' Sheet
     // This array MUST match the column order (A - AU) in your sheet exactly
+    // Using COLUMNS constant implicitly by order, but comment references helper
     var regRow = [
       regId,                            // A: reg_id
       createdDate,                      // B: created_at
@@ -108,6 +113,9 @@ function processRegistration(data) {
     // 4. Save to Registration Sheet
     regSheet.appendRow(regRow);
     
+    // Flush to ensure row exists before Guests/Meals processing
+    SpreadsheetApp.flush();
+
     // 5. Save Individual Guest Details
     if (data.guests && data.guests.length > 0) {
       var guestRows = [];
@@ -147,14 +155,12 @@ function processRegistration(data) {
         notes: 'Initial registration'
       });
     }
-    // 7.5 Send Email (New Line)
+
+    // 7.5 Send Email
     sendConfirmationEmail(regId);
     
     // 8. Log Activity
     logActivity('registration', regId, 'New registration created', 'api');
-    
-    // Release the lock
-    lock.releaseLock();
     
     return {
       success: true,
@@ -163,13 +169,16 @@ function processRegistration(data) {
     };
     
   } catch (error) {
-    lock.releaseLock();
     logActivity('error', 'unknown', error.toString(), 'system');
     return { success: false, error: error.toString() };
+  } finally {
+    lock.releaseLock();
   }
 }
+
 /**
  * Retrieve full registration details by ID
+ * Unified function used by Email.gs and API
  */
 function getRegistration(regId) {
   var ss = getSS();
@@ -177,13 +186,13 @@ function getRegistration(regId) {
   var data = regSheet.getDataRange().getValues();
 
   for (var i = 1; i < data.length; i++) {
-    if (data[i][0] === regId) {
+    if (data[i][COLUMNS.REG_ID] === regId) {
       var row = data[i];
 
       // Parse guest details
       var guests = [];
       try {
-        guests = JSON.parse(row[19] || '[]');
+        guests = JSON.parse(row[COLUMNS.GUEST_DETAILS] || '[]');
       } catch(e) {
         guests = [];
       }
@@ -191,7 +200,7 @@ function getRegistration(regId) {
       // Parse meal selections
       var mealSelections = {};
       try {
-        mealSelections = JSON.parse(row[20] || '{}');
+        mealSelections = JSON.parse(row[COLUMNS.MEAL_SELECTIONS] || '{}');
       } catch(e) {
         mealSelections = {};
       }
@@ -199,51 +208,51 @@ function getRegistration(regId) {
       return {
         success: true,
         registration: {
-          regId: row[0],
-          createdAt: row[1],
-          regType: row[2],
-          status: row[3],
-          name: row[4],
-          email: row[5],
-          phone: row[6],
-          addressStreet: row[7],
+          regId: row[COLUMNS.REG_ID],
+          createdAt: row[COLUMNS.CREATED_AT],
+          regType: row[COLUMNS.REG_TYPE],
+          status: row[COLUMNS.STATUS],
+          name: row[COLUMNS.PRIMARY_NAME],
+          email: row[COLUMNS.EMAIL],
+          phone: row[COLUMNS.PHONE],
+          addressStreet: row[7], // Not in COLUMNS yet, using index
           addressCity: row[8],
           addressState: row[9],
           addressZip: row[10],
-          church: row[11],
-          housingOption: row[12],
-          nights: row[13],
-          numNights: row[14],
-          housingSubtotal: row[15],
-          adultsCount: row[16],
-          childrenCount: row[17],
-          totalGuests: row[18],
+          church: row[COLUMNS.CHURCH],
+          housingOption: row[COLUMNS.HOUSING_OPTION],
+          nights: row[COLUMNS.NIGHTS],
+          numNights: row[COLUMNS.NUM_NIGHTS],
+          housingSubtotal: row[COLUMNS.HOUSING_SUBTOTAL],
+          adultsCount: row[COLUMNS.ADULTS_COUNT],
+          childrenCount: row[COLUMNS.CHILDREN_COUNT],
+          totalGuests: row[COLUMNS.TOTAL_GUESTS],
           guests: guests,
           mealSelections: mealSelections,
-          dietaryNeeds: row[21],
-          specialNeeds: row[22],
-          mealSubtotal: row[23],
-          subtotal: row[24],
-          processingFee: row[25],
-          totalCharged: row[26],
-          amountPaid: row[27],
-          balanceDue: row[28],
-          paymentMethod: row[29],
-          paymentStatus: row[30],
-          transactionId: row[31],
-          staffRole: row[32],
-          moveable: row[33],
-          roomAssignment: row[34],
-          building: row[35],
-          key1Number: row[36],
-          key2Number: row[37],
-          keyDepositAmount: row[38],
-          keyDepositPaid: row[39],
-          checkedIn: row[44],
-          checkInTime: row[45],
-          checkedOut: row[49],
-          checkOutTime: row[50],
-          qrData: row[53]
+          dietaryNeeds: row[COLUMNS.DIETARY_NEEDS],
+          specialNeeds: row[COLUMNS.SPECIAL_NEEDS],
+          mealSubtotal: row[COLUMNS.MEAL_SUBTOTAL],
+          subtotal: row[COLUMNS.SUBTOTAL],
+          processingFee: row[25], // Z
+          totalCharged: row[COLUMNS.TOTAL_CHARGED],
+          amountPaid: row[COLUMNS.AMOUNT_PAID],
+          balanceDue: row[COLUMNS.BALANCE_DUE],
+          paymentMethod: row[COLUMNS.PAYMENT_METHOD],
+          paymentStatus: row[COLUMNS.PAYMENT_STATUS],
+          transactionId: row[31], // AF
+          staffRole: row[32], // AG
+          moveable: row[33], // AH
+          roomAssignment: row[COLUMNS.ROOM_ASSIGNMENT],
+          building: row[COLUMNS.BUILDING],
+          key1Number: row[COLUMNS.KEY_1_NUMBER],
+          key2Number: row[COLUMNS.KEY_2_NUMBER],
+          keyDepositAmount: row[COLUMNS.KEY_DEPOSIT_AMOUNT],
+          keyDepositPaid: row[COLUMNS.KEY_DEPOSIT_PAID],
+          checkedIn: row[COLUMNS.CHECKED_IN],
+          checkInTime: row[COLUMNS.CHECK_IN_TIME],
+          checkedOut: row[COLUMNS.CHECKED_OUT],
+          checkOutTime: row[COLUMNS.CHECK_OUT_TIME],
+          qrData: row[53] // BB
         }
       };
     }
@@ -273,7 +282,7 @@ function cancelRegistration(data) {
     var regRow = null;
 
     for (var i = 1; i < regData.length; i++) {
-      if (regData[i][0] === regId) {
+      if (regData[i][COLUMNS.REG_ID] === regId) {
         rowIndex = i + 1;
         regRow = regData[i];
         break;
@@ -281,18 +290,16 @@ function cancelRegistration(data) {
     }
 
     if (rowIndex === -1) {
-      lock.releaseLock();
       return { success: false, error: 'Registration not found' };
     }
 
-    var currentStatus = regRow[3]; // D: status
+    var currentStatus = regRow[COLUMNS.STATUS];
     if (currentStatus === 'cancelled') {
-      lock.releaseLock();
       return { success: false, error: 'Registration already cancelled' };
     }
 
-    var amountPaid = regRow[27] || 0; // AB: amount_paid
-    var totalCharged = regRow[26] || 0; // AA: total_charged
+    var amountPaid = regRow[COLUMNS.AMOUNT_PAID] || 0;
+    var totalCharged = regRow[COLUMNS.TOTAL_CHARGED] || 0;
     var refundAmount = 0;
     var cancellationFee = 0;
     var amountRetained = 0;
@@ -319,14 +326,14 @@ function cancelRegistration(data) {
 
     // Update Registration
     // We update status to 'cancelled'
-    regSheet.getRange(rowIndex, 4).setValue('cancelled'); // D: status
+    regSheet.getRange(rowIndex, COLUMNS.STATUS + 1).setValue('cancelled');
 
     // Update Total Charged to reflect what we kept
-    regSheet.getRange(rowIndex, 27).setValue(amountRetained); // AA: total_charged
+    regSheet.getRange(rowIndex, COLUMNS.TOTAL_CHARGED + 1).setValue(amountRetained);
 
     // Record Refund Payment if needed
     if (refundAmount > 0) {
-      // This will update amount_paid (AB)
+      // This will update amount_paid
       recordPayment({
         regId: regId,
         amount: -refundAmount,
@@ -336,16 +343,16 @@ function cancelRegistration(data) {
       });
 
       // recordPayment might change status to 'paid', so force 'cancelled' back
-      regSheet.getRange(rowIndex, 4).setValue('cancelled');
+      regSheet.getRange(rowIndex, COLUMNS.STATUS + 1).setValue('cancelled');
     }
 
     // Release Room Assignment
-    var roomAssignment = regRow[34]; // AI: room_assignment
+    var roomAssignment = regRow[COLUMNS.ROOM_ASSIGNMENT];
     if (roomAssignment) {
       try {
         updateRoomStatus(roomAssignment, 'available', '', '');
-        regSheet.getRange(rowIndex, 35).setValue(''); // Clear AI
-        regSheet.getRange(rowIndex, 36).setValue(''); // Clear AJ
+        regSheet.getRange(rowIndex, COLUMNS.ROOM_ASSIGNMENT + 1).setValue('');
+        regSheet.getRange(rowIndex, COLUMNS.BUILDING + 1).setValue('');
       } catch(e) {
         logActivity('error', regId, 'Failed to release room: ' + e.toString(), 'cancellation');
       }
@@ -353,7 +360,6 @@ function cancelRegistration(data) {
 
     logActivity('cancellation', regId, 'Cancelled. Refund: $' + refundAmount + ', Retained: $' + amountRetained, 'api');
 
-    lock.releaseLock();
     return {
       success: true,
       message: 'Registration cancelled',
@@ -362,8 +368,9 @@ function cancelRegistration(data) {
     };
 
   } catch (error) {
-    lock.releaseLock();
     logActivity('error', 'unknown', error.toString(), 'system');
     return { success: false, error: error.toString() };
+  } finally {
+    lock.releaseLock();
   }
 }

@@ -1,0 +1,13 @@
+{
+  "name": "cm26-pwa-server",
+  "version": "1.0.0",
+  "description": "Serves the CM26 PWAs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.22.1",
+    "playwright": "^1.58.2"
+  }
+}

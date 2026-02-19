@@ -39,19 +39,19 @@ function getUnassignedRegistrations() {
   var unassigned = [];
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
-    var housingOption = row[12];
-    var roomAssignment = row[34];
-    var status = row[3];
+    var housingOption = row[COLUMNS.HOUSING_OPTION];
+    var roomAssignment = row[COLUMNS.ROOM_ASSIGNMENT];
+    var status = row[COLUMNS.STATUS];
     
     if (housingOption === 'dorm' && 
         !roomAssignment && 
         status !== 'cancelled') {
       unassigned.push({
-        regId: row[0],
-        name: row[4],
-        guests: row[18],
-        nights: row[13],
-        specialNeeds: row[22]
+        regId: row[COLUMNS.REG_ID],
+        name: row[COLUMNS.PRIMARY_NAME],
+        guests: row[COLUMNS.TOTAL_GUESTS],
+        nights: row[COLUMNS.NIGHTS],
+        specialNeeds: row[COLUMNS.SPECIAL_NEEDS]
       });
     }
   }
@@ -63,79 +63,91 @@ function getUnassignedRegistrations() {
  * Recalculate totals for all registrations
  */
 function recalculateAllTotals() {
-  var ss = getSS();
-  var regSheet = ss.getSheetByName('Registrations');
-  var config = getConfig();
-  var data = regSheet.getDataRange().getValues();
-  
-  var updated = 0;
-  
-  for (var i = 1; i < data.length; i++) {
-    var row = data[i];
-    var rowNum = i + 1;
-    
-    // Calculate housing subtotal
-    var housingOption = row[12];
-    var numNights = row[14] || 0;
-    var housingPrice = 0;
-    
-    if (housingOption === 'dorm') housingPrice = config.dorm_price;
-    else if (housingOption === 'rv') housingPrice = config.rv_price;
-    else if (housingOption === 'tent') housingPrice = config.tent_price;
-    
-    var housingSubtotal = housingPrice * numNights;
-    
-    // Calculate meal subtotal from selections
-    var mealSelections = {};
-    try {
-      mealSelections = JSON.parse(row[20] || '{}');
-    } catch(e) {}
-    
-    var mealSubtotal = 0;
-    if (mealSelections.breakfast) {
-      mealSubtotal += (mealSelections.breakfast.adult || 0) * config.adult_breakfast;
-      mealSubtotal += (mealSelections.breakfast.child || 0) * config.child_breakfast;
-    }
-    if (mealSelections.lunch) {
-      mealSubtotal += (mealSelections.lunch.adult || 0) * config.adult_lunch;
-      mealSubtotal += (mealSelections.lunch.child || 0) * config.child_lunch;
-    }
-    if (mealSelections.supper) {
-      mealSubtotal += (mealSelections.supper.adult || 0) * config.adult_supper;
-      mealSubtotal += (mealSelections.supper.child || 0) * config.child_supper;
-    }
-    
-    var subtotal = housingSubtotal + mealSubtotal;
-    var balanceDue = (row[26] || 0) - (row[27] || 0);
-    
-    // Store values for batch update
-    data[i][15] = housingSubtotal; // Column 16 (P)
-    data[i][23] = mealSubtotal;    // Column 24 (X)
-    data[i][24] = subtotal;        // Column 25 (Y)
-    data[i][28] = balanceDue;      // Column 29 (AC)
-    
-    updated++;
-  }
-  
-  // Batch update all rows at once to improve performance
-  if (updated > 0) {
-    var numRows = data.length - 1;
-
-    // Update Column P (16)
-    var colPValues = data.slice(1).map(function(r) { return [r[15]]; });
-    regSheet.getRange(2, 16, numRows, 1).setValues(colPValues);
-
-    // Update Columns X-Y (24-25)
-    var colXYValues = data.slice(1).map(function(r) { return [r[23], r[24]]; });
-    regSheet.getRange(2, 24, numRows, 2).setValues(colXYValues);
-
-    // Update Column AC (29)
-    var colACValues = data.slice(1).map(function(r) { return [r[28]]; });
-    regSheet.getRange(2, 29, numRows, 1).setValues(colACValues);
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) {
+    SpreadsheetApp.getUi().alert('System busy. Please try again.');
+    return;
   }
 
-  SpreadsheetApp.getUi().alert('Recalculated ' + updated + ' registrations.');
-  return updated;
+  try {
+    var ss = getSS();
+    var regSheet = ss.getSheetByName('Registrations');
+    var config = getConfig();
+    var data = regSheet.getDataRange().getValues();
+    
+    var updated = 0;
+    
+    for (var i = 1; i < data.length; i++) {
+      var row = data[i];
+
+      // Calculate housing subtotal
+      var housingOption = row[COLUMNS.HOUSING_OPTION];
+      var numNights = row[COLUMNS.NUM_NIGHTS] || 0;
+      var housingPrice = 0;
+
+      if (housingOption === 'dorm') housingPrice = config.dorm_price;
+      else if (housingOption === 'rv') housingPrice = config.rv_price;
+      else if (housingOption === 'tent') housingPrice = config.tent_price;
+
+      var housingSubtotal = housingPrice * numNights;
+
+      // Calculate meal subtotal from selections
+      var mealSelections = {};
+      try {
+        mealSelections = JSON.parse(row[COLUMNS.MEAL_SELECTIONS] || '{}');
+      } catch(e) {}
+
+      var mealSubtotal = 0;
+      if (mealSelections.breakfast) {
+        mealSubtotal += (mealSelections.breakfast.adult || 0) * config.adult_breakfast;
+        mealSubtotal += (mealSelections.breakfast.child || 0) * config.child_breakfast;
+      }
+      if (mealSelections.lunch) {
+        mealSubtotal += (mealSelections.lunch.adult || 0) * config.adult_lunch;
+        mealSubtotal += (mealSelections.lunch.child || 0) * config.child_lunch;
+      }
+      if (mealSelections.supper) {
+        mealSubtotal += (mealSelections.supper.adult || 0) * config.adult_supper;
+        mealSubtotal += (mealSelections.supper.child || 0) * config.child_supper;
+      }
+
+      var subtotal = housingSubtotal + mealSubtotal;
+      var balanceDue = (row[COLUMNS.TOTAL_CHARGED] || 0) - (row[COLUMNS.AMOUNT_PAID] || 0);
+
+      // Store values for batch update
+      data[i][COLUMNS.HOUSING_SUBTOTAL] = housingSubtotal;
+      data[i][COLUMNS.MEAL_SUBTOTAL] = mealSubtotal;
+      data[i][COLUMNS.SUBTOTAL] = subtotal;
+      data[i][COLUMNS.BALANCE_DUE] = balanceDue;
+
+      updated++;
+    }
+    
+    // Batch update all rows at once to improve performance
+    if (updated > 0) {
+      var numRows = data.length - 1;
+
+      // Update Column P (16)
+      var colPValues = data.slice(1).map(function(r) { return [r[COLUMNS.HOUSING_SUBTOTAL]]; });
+      regSheet.getRange(2, COLUMNS.HOUSING_SUBTOTAL + 1, numRows, 1).setValues(colPValues);
+
+      // Update Columns X-Y (24-25)
+      var colXYValues = data.slice(1).map(function(r) { return [r[COLUMNS.MEAL_SUBTOTAL], r[COLUMNS.SUBTOTAL]]; });
+      regSheet.getRange(2, COLUMNS.MEAL_SUBTOTAL + 1, numRows, 2).setValues(colXYValues);
+
+      // Update Column AC (29)
+      var colACValues = data.slice(1).map(function(r) { return [r[COLUMNS.BALANCE_DUE]]; });
+      regSheet.getRange(2, COLUMNS.BALANCE_DUE + 1, numRows, 1).setValues(colACValues);
+
+      SpreadsheetApp.flush();
+    }
+
+    SpreadsheetApp.getUi().alert('Recalculated ' + updated + ' registrations.');
+    return updated;
+
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /**
@@ -147,30 +159,29 @@ function generateKeyReport() {
   var data = regSheet.getDataRange().getValues();
   
   var keysOut = [];
-  var keysReturned = [];
   var depositsPending = 0;
   
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
     
-    if (row[39] === 'yes') { // key_deposit_paid
-      var key1Out = row[41] !== 'yes';
-      var key2Out = row[42] !== 'yes';
+    if (row[COLUMNS.KEY_DEPOSIT_PAID] === 'yes') {
+      var key1Out = row[COLUMNS.KEY_1_RETURNED] !== 'yes';
+      var key2Out = row[COLUMNS.KEY_2_RETURNED] !== 'yes';
       
       if (key1Out || key2Out) {
         keysOut.push({
-          regId: row[0],
-          name: row[4],
-          room: row[34],
-          key1: row[36],
-          key2: row[37],
+          regId: row[COLUMNS.REG_ID],
+          name: row[COLUMNS.PRIMARY_NAME],
+          room: row[COLUMNS.ROOM_ASSIGNMENT],
+          key1: row[COLUMNS.KEY_1_NUMBER],
+          key2: row[COLUMNS.KEY_2_NUMBER],
           key1Out: key1Out,
           key2Out: key2Out,
-          deposit: row[38]
+          deposit: row[COLUMNS.KEY_DEPOSIT_AMOUNT]
         });
         
-        if (row[43] !== 'yes') {
-          depositsPending += row[38] || 0;
+        if (row[COLUMNS.DEPOSIT_REFUNDED] !== 'yes') {
+          depositsPending += row[COLUMNS.KEY_DEPOSIT_AMOUNT] || 0;
         }
       }
     }
@@ -215,94 +226,114 @@ function resendConfirmationEmail(regId) {
  * Move registration to different housing
  */
 function changeHousingType(regId, newHousingType) {
-  var ss = getSS();
-  var regSheet = ss.getSheetByName('Registrations');
-  var config = getConfig();
-  var data = regSheet.getDataRange().getValues();
-  
-  for (var i = 1; i < data.length; i++) {
-    if (data[i][0] === regId) {
-      var row = i + 1;
-      var numNights = data[i][14] || 0;
-      
-      // Get new price
-      var newPrice = 0;
-      if (newHousingType === 'dorm') newPrice = config.dorm_price;
-      else if (newHousingType === 'rv') newPrice = config.rv_price;
-      else if (newHousingType === 'tent') newPrice = config.tent_price;
-      
-      var newHousingSubtotal = newPrice * numNights;
-      
-      // Update housing option
-      regSheet.getRange(row, 13).setValue(newHousingType); // M
-      regSheet.getRange(row, 16).setValue(newHousingSubtotal); // P
-      
-      // Clear room assignment if changing away from dorm
-      if (newHousingType !== 'dorm') {
-        regSheet.getRange(row, 35).setValue(''); // AI
-        regSheet.getRange(row, 36).setValue(''); // AJ
-      }
-      
-      // Recalculate subtotal
-      var mealSubtotal = data[i][23] || 0;
-      var newSubtotal = newHousingSubtotal + mealSubtotal;
-      regSheet.getRange(row, 25).setValue(newSubtotal); // Y
-      
-      logActivity('housing_change', regId, 
-        'Changed from ' + data[i][12] + ' to ' + newHousingType,
-        'admin');
-      
-      return { success: true, newHousingSubtotal: newHousingSubtotal };
-    }
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    return { success: false, error: 'System busy' };
   }
-  
-  return { success: false, error: 'Registration not found' };
+
+  try {
+    var ss = getSS();
+    var regSheet = ss.getSheetByName('Registrations');
+    var config = getConfig();
+    var data = regSheet.getDataRange().getValues();
+
+    for (var i = 1; i < data.length; i++) {
+      if (data[i][0] === regId) {
+        var row = i + 1;
+        var numNights = data[i][COLUMNS.NUM_NIGHTS] || 0;
+
+        // Get new price
+        var newPrice = 0;
+        if (newHousingType === 'dorm') newPrice = config.dorm_price;
+        else if (newHousingType === 'rv') newPrice = config.rv_price;
+        else if (newHousingType === 'tent') newPrice = config.tent_price;
+
+        var newHousingSubtotal = newPrice * numNights;
+
+        // Update housing option
+        regSheet.getRange(row, COLUMNS.HOUSING_OPTION + 1).setValue(newHousingType);
+        regSheet.getRange(row, COLUMNS.HOUSING_SUBTOTAL + 1).setValue(newHousingSubtotal);
+
+        // Clear room assignment if changing away from dorm
+        if (newHousingType !== 'dorm') {
+          regSheet.getRange(row, COLUMNS.ROOM_ASSIGNMENT + 1).setValue('');
+          regSheet.getRange(row, COLUMNS.BUILDING + 1).setValue('');
+        }
+
+        // Recalculate subtotal
+        var mealSubtotal = data[i][COLUMNS.MEAL_SUBTOTAL] || 0;
+        var newSubtotal = newHousingSubtotal + mealSubtotal;
+        regSheet.getRange(row, COLUMNS.SUBTOTAL + 1).setValue(newSubtotal);
+
+        logActivity('housing_change', regId,
+          'Changed from ' + data[i][COLUMNS.HOUSING_OPTION] + ' to ' + newHousingType,
+          'admin');
+
+        return { success: true, newHousingSubtotal: newHousingSubtotal };
+      }
+    }
+
+    return { success: false, error: 'Registration not found' };
+
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /**
  * Promote waitlist entry to confirmed
  */
 function promoteFromWaitlist(waitlistId) {
-  var ss = getSS();
-  var waitSheet = ss.getSheetByName('Waitlist');
-  var waitData = waitSheet.getDataRange().getValues();
-  
-  for (var i = 1; i < waitData.length; i++) {
-    if (waitData[i][0] === waitlistId && waitData[i][9] === 'waiting') {
-      var row = i + 1;
-      
-      // Mark as offered
-      waitSheet.getRange(row, 10).setValue('offered'); // status
-      waitSheet.getRange(row, 11).setValue(new Date()); // offered_at
-      
-      // Set expiration (48 hours)
-      var expires = new Date();
-      expires.setHours(expires.getHours() + 48);
-      waitSheet.getRange(row, 12).setValue(expires); // expires_at
-      
-      // Send notification email to waitlist person
-      sendWaitlistOfferEmail(
-        waitlistId,
-        waitData[i][2], // name
-        waitData[i][3], // email
-        waitData[i][5], // housingOption
-        expires
-      );
-      
-      logActivity('waitlist_offer', waitlistId, 
-        'Spot offered to ' + waitData[i][2],
-        'admin');
-      
-      return { 
-        success: true, 
-        name: waitData[i][2],
-        email: waitData[i][3],
-        expiresAt: expires
-      };
-    }
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    return { success: false, error: 'System busy' };
   }
-  
-  return { success: false, error: 'Waitlist entry not found' };
+
+  try {
+    var ss = getSS();
+    var waitSheet = ss.getSheetByName('Waitlist');
+    var waitData = waitSheet.getDataRange().getValues();
+
+    for (var i = 1; i < waitData.length; i++) {
+      if (waitData[i][0] === waitlistId && waitData[i][9] === 'waiting') {
+        var row = i + 1;
+
+        // Mark as offered
+        waitSheet.getRange(row, 10).setValue('offered'); // status
+        waitSheet.getRange(row, 11).setValue(new Date()); // offered_at
+
+        // Set expiration (48 hours)
+        var expires = new Date();
+        expires.setHours(expires.getHours() + 48);
+        waitSheet.getRange(row, 12).setValue(expires); // expires_at
+
+        // Send notification email to waitlist person
+        sendWaitlistOfferEmail(
+          waitlistId,
+          waitData[i][2], // name
+          waitData[i][3], // email
+          waitData[i][5], // housingOption
+          expires
+        );
+
+        logActivity('waitlist_offer', waitlistId,
+          'Spot offered to ' + waitData[i][2],
+          'admin');
+
+        return {
+          success: true,
+          name: waitData[i][2],
+          email: waitData[i][3],
+          expiresAt: expires
+        };
+      }
+    }
+
+    return { success: false, error: 'Waitlist entry not found' };
+
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /**
@@ -317,19 +348,19 @@ function exportCheckInList() {
   
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
-    var status = row[3];
+    var status = row[COLUMNS.STATUS];
     
     if (status === 'cancelled') continue;
     
     exportData.push([
-      row[0],  // reg_id
-      row[4],  // name
-      row[12], // housing_option
-      row[34], // room_assignment
-      row[18], // total_guests
-      row[28], // balance_due
-      row[3],  // status
-      row[44]  // checked_in
+      row[COLUMNS.REG_ID],
+      row[COLUMNS.PRIMARY_NAME],
+      row[COLUMNS.HOUSING_OPTION],
+      row[COLUMNS.ROOM_ASSIGNMENT],
+      row[COLUMNS.TOTAL_GUESTS],
+      row[COLUMNS.BALANCE_DUE],
+      status,
+      row[COLUMNS.CHECKED_IN]
     ]);
   }
   
@@ -340,6 +371,7 @@ function exportCheckInList() {
   
   SpreadsheetApp.getUi().alert('Export created. See "Check-In Export" tab.\n\nTo download: File → Download → CSV');
 }
+
 /**
  * Process No-Shows
  * Marks confirmed registrations as cancelled/no-show if they missed their first night check-in
@@ -353,78 +385,90 @@ function processNoShows() {
 
   if (result !== ui.Button.YES) return;
 
-  var ss = getSS();
-  var regSheet = ss.getSheetByName('Registrations');
-  var config = getConfig();
-  var data = regSheet.getDataRange().getValues();
-  var today = new Date();
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(30000)) {
+    ui.alert('System busy. Please try again.');
+    return;
+  }
 
-  var dateMap = {
-    'tue': '2026-06-02',
-    'wed': '2026-06-03',
-    'thu': '2026-06-04',
-    'fri': '2026-06-05',
-    'sat': '2026-06-06'
-  };
+  try {
+    var ss = getSS();
+    var regSheet = ss.getSheetByName('Registrations');
+    var config = getConfig();
+    var data = regSheet.getDataRange().getValues();
+    var today = new Date();
 
-  var processedCount = 0;
+    var dateMap = {
+      'tue': '2026-06-02',
+      'wed': '2026-06-03',
+      'thu': '2026-06-04',
+      'fri': '2026-06-05',
+      'sat': '2026-06-06'
+    };
 
-  for (var i = 1; i < data.length; i++) {
-    var row = data[i];
-    var status = row[3];
-    var nights = (row[13] || '').toLowerCase(); // e.g. "tue,wed,thu"
-    var checkedIn = row[44];
+    var processedCount = 0;
 
-    if (status === 'confirmed' && checkedIn !== 'yes' && nights) {
-      // Find first night
-      var nightList = nights.split(',').map(function(n) { return n.trim(); });
-      var firstNight = null;
-      var daysOrder = ['tue', 'wed', 'thu', 'fri', 'sat'];
-      for (var d = 0; d < daysOrder.length; d++) {
-        if (nightList.indexOf(daysOrder[d]) !== -1) {
-          firstNight = dateMap[daysOrder[d]];
-          break;
+    for (var i = 1; i < data.length; i++) {
+      var row = data[i];
+      var status = row[COLUMNS.STATUS];
+      var nights = (row[COLUMNS.NIGHTS] || '').toLowerCase(); // e.g. "tue,wed,thu"
+      var checkedIn = row[COLUMNS.CHECKED_IN];
+
+      if (status === 'confirmed' && checkedIn !== 'yes' && nights) {
+        // Find first night
+        var nightList = nights.split(',').map(function(n) { return n.trim(); });
+        var firstNight = null;
+        var daysOrder = ['tue', 'wed', 'thu', 'fri', 'sat'];
+        for (var d = 0; d < daysOrder.length; d++) {
+          if (nightList.indexOf(daysOrder[d]) !== -1) {
+            firstNight = dateMap[daysOrder[d]];
+            break;
+          }
         }
-      }
 
-      if (firstNight) {
-        var firstNightDate = new Date(firstNight);
-        // Set to end of first night
-        firstNightDate.setHours(23, 59, 59, 999);
+        if (firstNight) {
+          var firstNightDate = new Date(firstNight);
+          // Set to end of first night
+          firstNightDate.setHours(23, 59, 59, 999);
 
-        if (today > firstNightDate) {
-          // Process No-Show
-          var rowNum = i + 1;
-          var amountPaid = row[27] || 0;
-          var depositAmount = Number(config.deposit_amount) || 65;
-          var amountRetained = 0;
+          if (today > firstNightDate) {
+            // Process No-Show
+            var rowNum = i + 1;
+            var amountPaid = row[COLUMNS.AMOUNT_PAID] || 0;
+            var depositAmount = Number(config.deposit_amount) || 65;
+            var amountRetained = 0;
 
-          // Logic: Forfeit deposit.
-          if (amountPaid > depositAmount) {
-             amountRetained = depositAmount;
-          } else {
-             amountRetained = amountPaid;
+            // Logic: Forfeit deposit.
+            if (amountPaid > depositAmount) {
+              amountRetained = depositAmount;
+            } else {
+              amountRetained = amountPaid;
+            }
+
+            regSheet.getRange(rowNum, COLUMNS.STATUS + 1).setValue('no_show');
+            regSheet.getRange(rowNum, COLUMNS.TOTAL_CHARGED + 1).setValue(amountRetained);
+
+            // Release Room
+            var roomAssignment = row[COLUMNS.ROOM_ASSIGNMENT];
+            if (roomAssignment) {
+              try {
+                updateRoomStatus(roomAssignment, 'available', '', '');
+                regSheet.getRange(rowNum, COLUMNS.ROOM_ASSIGNMENT + 1).setValue('');
+                regSheet.getRange(rowNum, COLUMNS.BUILDING + 1).setValue('');
+              } catch(e) {}
+            }
+
+            logActivity('no_show', row[COLUMNS.REG_ID], 'Marked as no-show. First night was ' + firstNight, 'admin');
+            processedCount++;
           }
-
-          regSheet.getRange(rowNum, 4).setValue('no_show'); // Status
-          regSheet.getRange(rowNum, 27).setValue(amountRetained); // Total Charged -> Retained
-
-          // Release Room
-          var roomAssignment = row[34];
-          if (roomAssignment) {
-             try {
-               updateRoomStatus(roomAssignment, 'available', '', '');
-               regSheet.getRange(rowNum, 35).setValue('');
-               regSheet.getRange(rowNum, 36).setValue('');
-             } catch(e) {}
-          }
-
-          logActivity('no_show', row[0], 'Marked as no-show. First night was ' + firstNight, 'admin');
-          processedCount++;
         }
       }
     }
-  }
 
-  ui.alert('Processed ' + processedCount + ' registrations as No-Show.');
+    SpreadsheetApp.flush();
+    ui.alert('Processed ' + processedCount + ' registrations as No-Show.');
+
+  } finally {
+    lock.releaseLock();
+  }
 }
