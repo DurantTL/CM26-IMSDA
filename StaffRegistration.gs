@@ -249,32 +249,6 @@ function sendStaffRegFailureNotification(data, errorMsg) {
   }
 }
 
-/**
- * TEST FUNCTION - Simulates a form submission
- * Run this to test without actually submitting the form
- */
-function testStaffFormSubmit() {
-  // Simulate form submission data
-  var fakeEvent = {
-    namedValues: {
-      'Your Role': ['Pastor'],
-      'Full Name': ['Test Pastor'],
-      'Email': [Session.getEffectiveUser().getEmail()],
-      'Phone': ['515-555-0100'],
-      'Home Church': ['Des Moines Church'],
-      'Housing Preference': ['Dorm Room'],
-      'Nights Attending': ['Tuesday 6/2', 'Wednesday 6/3', 'Thursday 6/4', 'Friday 6/5', 'Saturday 6/6'],
-      'Number of Adults in Party': ['2'],
-      'Number of Children in Party': ['2'],
-      'Family Members (Name & Age)': ['Test Pastor, 45\nSpouse Name, 43\nChild One, 14\nChild Two, 10'],
-      'Dietary Restrictions': ['Vegetarian'],
-      'Special Needs/Requests': ['Ground floor room preferred']
-    }
-  };
-  
-  var result = onStaffFormSubmit(fakeEvent);
-  Logger.log('Test result: ' + JSON.stringify(result));
-}
 
 /**
  * Setup instructions - run once to set up trigger

@@ -106,15 +106,32 @@ function recalculateAllTotals() {
     var subtotal = housingSubtotal + mealSubtotal;
     var balanceDue = (row[26] || 0) - (row[27] || 0);
     
-    // Update cells
-    regSheet.getRange(rowNum, 16).setValue(housingSubtotal); // P
-    regSheet.getRange(rowNum, 24).setValue(mealSubtotal); // X
-    regSheet.getRange(rowNum, 25).setValue(subtotal); // Y
-    regSheet.getRange(rowNum, 29).setValue(balanceDue); // AC
+    // Store values for batch update
+    data[i][15] = housingSubtotal; // Column 16 (P)
+    data[i][23] = mealSubtotal;    // Column 24 (X)
+    data[i][24] = subtotal;        // Column 25 (Y)
+    data[i][28] = balanceDue;      // Column 29 (AC)
     
     updated++;
   }
   
+  // Batch update all rows at once to improve performance
+  if (updated > 0) {
+    var numRows = data.length - 1;
+
+    // Update Column P (16)
+    var colPValues = data.slice(1).map(function(r) { return [r[15]]; });
+    regSheet.getRange(2, 16, numRows, 1).setValues(colPValues);
+
+    // Update Columns X-Y (24-25)
+    var colXYValues = data.slice(1).map(function(r) { return [r[23], r[24]]; });
+    regSheet.getRange(2, 24, numRows, 2).setValues(colXYValues);
+
+    // Update Column AC (29)
+    var colACValues = data.slice(1).map(function(r) { return [r[28]]; });
+    regSheet.getRange(2, 29, numRows, 1).setValues(colACValues);
+  }
+
   SpreadsheetApp.getUi().alert('Recalculated ' + updated + ' registrations.');
   return updated;
 }
