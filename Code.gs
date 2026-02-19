@@ -55,25 +55,3 @@ function doPost(e) {
     return jsonResponse({error: 'System Error: ' + error.toString()}, 500);
   }
 }
-function testConnection() {
-  try {
-    var ss = getSS(); // This uses your ID from Utilities.gs
-    Logger.log("Success! Connected to: " + ss.getName());
-  } catch (e) {
-    Logger.log("FAILED: " + e.toString());
-  }
-}
-function testDoGet() {
-  // Simulate a browser request asking for availability
-  var e = {
-    parameter: {
-      action: 'getAvailability'
-    }
-  };
-  
-  // Call the real function with our fake data
-  var result = doGet(e);
-  
-  // Log the result to the console
-  Logger.log(result.getContent());
-}
