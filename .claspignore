@@ -1,0 +1,11 @@
+# Ignore all files by default
+**/**
+
+# Only allow these specific files/folders to be pushed
+!*.gs
+!*.js
+!*.html
+!appsscript.json
+!**/*.gs
+!**/*.js
+!**/*.html
