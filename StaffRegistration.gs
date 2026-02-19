@@ -230,7 +230,13 @@ function buildStaffMealSelections(adultCount, childCount) {
  */
 function sendStaffRegFailureNotification(data, errorMsg) {
   try {
-    var adminEmail = 'campmeeting@imsda.org'; // Change to your admin email
+    var config = getConfig();
+    var adminEmail = config.admin_email;
+
+    if (!adminEmail) {
+      Logger.log('Admin email not configured in Config sheet. Cannot send notification.');
+      return;
+    }
     
     GmailApp.sendEmail(
       adminEmail,
