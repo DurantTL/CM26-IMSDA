@@ -9,6 +9,9 @@ function doGet(e) {
     switch(action) {
       case 'getAvailability':
         return jsonResponse(getAvailability());
+
+      case 'getRegistration':
+        return jsonResponse(getRegistration(e.parameter.id));
       
       case 'getGuestMeals':
         return jsonResponse(getGuestMeals(e.parameter.id));
@@ -32,6 +35,9 @@ function doPost(e) {
     switch(action) {
       case 'submitRegistration':
         return jsonResponse(processRegistration(data));
+
+      case 'cancelRegistration':
+        return jsonResponse(cancelRegistration(data));
         
       case 'addToWaitlist':
         return jsonResponse(addToWaitlist(data));

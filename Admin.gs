@@ -23,6 +23,8 @@ function onOpen() {
     .addItem('Recalculate All Totals', 'recalculateAllTotals')
     .addItem('Generate Key Report', 'generateKeyReport')
     .addItem('Export Check-In List', 'exportCheckInList')
+    .addSeparator()
+    .addItem('Process No-Shows', 'processNoShows')
     .addToUi();
 }
 
@@ -337,4 +339,92 @@ function exportCheckInList() {
   exportSheet.getRange(1, 1, exportData.length, exportData[0].length).setValues(exportData);
   
   SpreadsheetApp.getUi().alert('Export created. See "Check-In Export" tab.\n\nTo download: File → Download → CSV');
+}
+/**
+ * Process No-Shows
+ * Marks confirmed registrations as cancelled/no-show if they missed their first night check-in
+ */
+function processNoShows() {
+  var ui = SpreadsheetApp.getUi();
+  var result = ui.alert(
+    'Process No-Shows?',
+    'This will CANCEL confirmed registrations that missed their first night check-in. This cannot be undone automatically. Proceed?',
+    ui.ButtonSet.YES_NO);
+
+  if (result !== ui.Button.YES) return;
+
+  var ss = getSS();
+  var regSheet = ss.getSheetByName('Registrations');
+  var config = getConfig();
+  var data = regSheet.getDataRange().getValues();
+  var today = new Date();
+
+  var dateMap = {
+    'tue': '2026-06-02',
+    'wed': '2026-06-03',
+    'thu': '2026-06-04',
+    'fri': '2026-06-05',
+    'sat': '2026-06-06'
+  };
+
+  var processedCount = 0;
+
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    var status = row[3];
+    var nights = (row[13] || '').toLowerCase(); // e.g. "tue,wed,thu"
+    var checkedIn = row[44];
+
+    if (status === 'confirmed' && checkedIn !== 'yes' && nights) {
+      // Find first night
+      var nightList = nights.split(',').map(function(n) { return n.trim(); });
+      var firstNight = null;
+      var daysOrder = ['tue', 'wed', 'thu', 'fri', 'sat'];
+      for (var d = 0; d < daysOrder.length; d++) {
+        if (nightList.indexOf(daysOrder[d]) !== -1) {
+          firstNight = dateMap[daysOrder[d]];
+          break;
+        }
+      }
+
+      if (firstNight) {
+        var firstNightDate = new Date(firstNight);
+        // Set to end of first night
+        firstNightDate.setHours(23, 59, 59, 999);
+
+        if (today > firstNightDate) {
+          // Process No-Show
+          var rowNum = i + 1;
+          var amountPaid = row[27] || 0;
+          var depositAmount = Number(config.deposit_amount) || 65;
+          var amountRetained = 0;
+
+          // Logic: Forfeit deposit.
+          if (amountPaid > depositAmount) {
+             amountRetained = depositAmount;
+          } else {
+             amountRetained = amountPaid;
+          }
+
+          regSheet.getRange(rowNum, 4).setValue('no_show'); // Status
+          regSheet.getRange(rowNum, 27).setValue(amountRetained); // Total Charged -> Retained
+
+          // Release Room
+          var roomAssignment = row[34];
+          if (roomAssignment) {
+             try {
+               updateRoomStatus(roomAssignment, 'available', '', '');
+               regSheet.getRange(rowNum, 35).setValue('');
+               regSheet.getRange(rowNum, 36).setValue('');
+             } catch(e) {}
+          }
+
+          logActivity('no_show', row[0], 'Marked as no-show. First night was ' + firstNight, 'admin');
+          processedCount++;
+        }
+      }
+    }
+  }
+
+  ui.alert('Processed ' + processedCount + ' registrations as No-Show.');
 }
