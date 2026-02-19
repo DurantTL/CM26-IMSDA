@@ -19,6 +19,8 @@ function sendConfirmationEmail(regId) {
   
   var emailBody = template.evaluate().getContent();
   
+  var config = getConfig();
+
   // Send the email
   GmailApp.sendEmail(
     reg.email,
@@ -27,7 +29,7 @@ function sendConfirmationEmail(regId) {
     {
       htmlBody: emailBody,
       name: 'Iowa-Missouri Conference',
-      replyTo: 'campmeeting@imsda.org' 
+      replyTo: config.admin_email || ''
     }
   );
   
