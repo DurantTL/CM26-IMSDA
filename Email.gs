@@ -36,6 +36,35 @@ function sendConfirmationEmail(regId) {
 }
 
 /**
+ * Sends the HTML waitlist offer email
+ */
+function sendWaitlistOfferEmail(waitlistId, name, email, housingOption, expiresAt) {
+  // Prepare the template
+  var template = HtmlService.createTemplateFromFile('WaitlistOfferEmail');
+  template.waitlistId = waitlistId;
+  template.name = name;
+  template.housingOption = housingOption;
+  template.expiresAt = expiresAt;
+
+  var emailBody = template.evaluate().getContent();
+
+  // Send the email
+  GmailApp.sendEmail(
+    email,
+    'Camp Meeting 2026 - Housing Spot Available',
+    'A spot has opened up for your waitlist request. Please view this email in an HTML-compatible client.',
+    {
+      htmlBody: emailBody,
+      name: 'Iowa-Missouri Conference',
+      replyTo: 'campmeeting@imsda.org'
+    }
+  );
+
+  logActivity('waitlist_email_sent', waitlistId, 'Offer email sent to ' + email, 'system');
+  Logger.log("Waitlist offer email sent successfully to " + email);
+}
+
+/**
  * Helper: Fetches a single registration object from the sheet
  * Maps columns A-AC to a friendly object
  */

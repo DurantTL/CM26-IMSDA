@@ -261,7 +261,14 @@ function promoteFromWaitlist(waitlistId) {
       expires.setHours(expires.getHours() + 48);
       waitSheet.getRange(row, 12).setValue(expires); // expires_at
       
-      // TODO: Send notification email to waitlist person
+      // Send notification email to waitlist person
+      sendWaitlistOfferEmail(
+        waitlistId,
+        waitData[i][2], // name
+        waitData[i][3], // email
+        waitData[i][5], // housingOption
+        expires
+      );
       
       logActivity('waitlist_offer', waitlistId, 
         'Spot offered to ' + waitData[i][2],

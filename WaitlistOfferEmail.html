@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; background-color: #f4f4f4; }
+    .container { background: white; margin: 20px auto; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .header { background: #1a365d; color: white; padding: 25px; text-align: center; }
+    .header h1 { margin: 0; font-size: 24px; }
+    .content { padding: 30px; }
+    .section-title { font-size: 18px; color: #1a365d; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 25px; margin-bottom: 15px; font-weight: bold; }
+    .details-table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+    .details-table td { padding: 10px 0; border-bottom: 1px solid #eee; }
+    .label { font-weight: bold; color: #555; width: 40%; }
+    .footer { background: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #eee; }
+    .warning { color: #856404; background-color: #fff3cd; border: 1px solid #ffeeba; padding: 15px; border-radius: 4px; margin-top: 20px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Camp Meeting 2026</h1>
+      <p>Waitlist Update</p>
+    </div>
+
+    <div class="content">
+      <p>Dear <?= name ?>,</p>
+      <p>Good news! A spot has opened up for your requested housing at Camp Meeting 2026.</p>
+
+      <div class="section-title">Offer Details</div>
+      <table class="details-table">
+        <tr>
+          <td class="label">Waitlist ID</td>
+          <td><?= waitlistId ?></td>
+        </tr>
+        <tr>
+          <td class="label">Housing Option</td>
+          <td><?= housingOption ?></td>
+        </tr>
+        <tr>
+          <td class="label">Offer Expires</td>
+          <td><?= expiresAt.toLocaleString() ?></td>
+        </tr>
+      </table>
+
+      <div class="warning">
+        This offer is valid for 48 hours. Please complete your registration before the expiration time to secure your spot.
+      </div>
+
+      <p>To confirm your spot, please contact the conference office or follow the link in your original waitlist confirmation (if applicable).</p>
+
+    </div>
+
+    <div class="footer">
+      <p>Iowa-Missouri Conference of Seventh-day Adventists</p>
+      <p>1005 Grand Ave, West Des Moines, IA 50263</p>
+    </div>
+  </div>
+</body>
+</html>
