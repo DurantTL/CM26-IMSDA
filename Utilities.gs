@@ -118,3 +118,11 @@ var COLUMNS = {
   CHECK_OUT_TIME: 49, // AX
   CHECKED_OUT_BY: 50 // AY
 };
+
+var EVENT_DATES = {
+  tue: '2026-06-02',
+  wed: '2026-06-03',
+  thu: '2026-06-04',
+  fri: '2026-06-05',
+  sat: '2026-06-06'
+};

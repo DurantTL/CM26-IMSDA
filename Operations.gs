@@ -114,7 +114,7 @@ function addToWaitlist(data) {
     }
     var position = count + 1;
 
-    var id = 'WL-' + Utilities.getUuid().slice(0,6);
+    var id = 'WL-' + Utilities.getUuid();
 
     sheet.appendRow([
       id,

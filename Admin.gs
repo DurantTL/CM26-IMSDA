@@ -398,13 +398,7 @@ function processNoShows() {
     var data = regSheet.getDataRange().getValues();
     var today = new Date();
 
-    var dateMap = {
-      'tue': '2026-06-02',
-      'wed': '2026-06-03',
-      'thu': '2026-06-04',
-      'fri': '2026-06-05',
-      'sat': '2026-06-06'
-    };
+    var dateMap = EVENT_DATES;
 
     var processedCount = 0;
 
