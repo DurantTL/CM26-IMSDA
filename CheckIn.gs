@@ -442,7 +442,7 @@ function searchRegistrations(query) {
         totalGuests: row[18],
         balanceDue: row[28],
         checkedIn: row[44],
-        checkedOut: row[49]
+        checkedOut: row[48]
       });
     }
   }
@@ -483,14 +483,14 @@ function getCheckInStats() {
     if (row[44] === 'yes') { // checked_in
       stats.checkedIn++;
       
-      if (row[49] !== 'yes') { // not checked_out
+      if (row[48] !== 'yes') { // not checked_out
         // Count keys still out
-        var key1Out = row[39] === 'yes' && row[41] !== 'yes';
-        var key2Out = row[39] === 'yes' && row[42] !== 'yes';
+        var key1Out = row[39] === 'yes' && row[40] !== 'yes';
+        var key2Out = row[39] === 'yes' && row[41] !== 'yes';
         stats.keysOut += (key1Out ? 1 : 0) + (key2Out ? 1 : 0);
         
         // Deposits held
-        if (row[39] === 'yes' && row[43] !== 'yes') {
+        if (row[39] === 'yes' && row[42] !== 'yes') {
           stats.depositsHeld += row[38] || 0;
         }
       }
@@ -498,7 +498,7 @@ function getCheckInStats() {
       stats.notArrived++;
     }
     
-    if (row[49] === 'yes') {
+    if (row[48] === 'yes') {
       stats.checkedOut++;
     }
     
