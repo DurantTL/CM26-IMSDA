@@ -147,32 +147,25 @@ function processCheckIn(data) {
       if (regData[i][0] === data.regId) {
         var row = i + 1;
         
-        // Update room if provided (shouldn't change if pre-assigned)
-        if (data.room) {
-          regSheet.getRange(row, 35).setValue(data.room); // AI: room_assignment
-        }
-        if (data.building) {
-          regSheet.getRange(row, 36).setValue(data.building); // AJ: building
-        }
-        
-        // Key information
-        if (data.key1) {
-          regSheet.getRange(row, 37).setValue(data.key1); // AK: key_1_number
-        }
-        if (data.key2) {
-          regSheet.getRange(row, 38).setValue(data.key2); // AL: key_2_number
-        }
-        
-        // Key deposit
+        // Batch update room and key info (columns 35-40)
+        var roomKeyValues = [regData[i].slice(34, 40)];
+        if (data.room) roomKeyValues[0][0] = data.room;
+        if (data.building) roomKeyValues[0][1] = data.building;
+        if (data.key1) roomKeyValues[0][2] = data.key1;
+        if (data.key2) roomKeyValues[0][3] = data.key2;
         var depositAmount = data.keyDepositAmount || 10;
-        regSheet.getRange(row, 39).setValue(depositAmount); // AM: key_deposit_amount
-        regSheet.getRange(row, 40).setValue('yes'); // AN: key_deposit_paid
-        
-        // Check-in status
-        regSheet.getRange(row, 45).setValue('yes'); // AS: checked_in
-        regSheet.getRange(row, 46).setValue(new Date()); // AT: check_in_time
-        regSheet.getRange(row, 47).setValue(data.volunteer || 'Unknown'); // AU: checked_in_by
-        regSheet.getRange(row, 48).setValue(data.welcomePacket ? 'yes' : 'no'); // AV: welcome_packet_given
+        roomKeyValues[0][4] = depositAmount;
+        roomKeyValues[0][5] = 'yes';
+        regSheet.getRange(row, 35, 1, 6).setValues(roomKeyValues);
+
+        // Batch update check-in status (columns 45-48)
+        var checkInValues = [[
+          'yes',
+          new Date(),
+          data.volunteer || 'Unknown',
+          data.welcomePacket ? 'yes' : 'no'
+        ]];
+        regSheet.getRange(row, 45, 1, 4).setValues(checkInValues);
         
         // Update room status in Rooms tab
         if (data.room) {
@@ -231,19 +224,14 @@ function processCheckOut(data) {
       if (regData[i][0] === data.regId) {
         var row = i + 1;
         
-        // Key returns
-        if (data.key1Returned) {
-          regSheet.getRange(row, 41).setValue('yes'); // AO: key_1_returned
-        }
-        if (data.key2Returned) {
-          regSheet.getRange(row, 42).setValue('yes'); // AP: key_2_returned
-        }
-        
-        // Deposit refund
+        // Batch update key returns and refund (columns 41-44)
+        var returnValues = [regData[i].slice(40, 44)];
+        if (data.key1Returned) returnValues[0][0] = 'yes';
+        if (data.key2Returned) returnValues[0][1] = 'yes';
         var refundAmount = data.refundAmount || 0;
         if (refundAmount > 0) {
-          regSheet.getRange(row, 43).setValue('yes'); // AQ: deposit_refunded
-          regSheet.getRange(row, 44).setValue(refundAmount); // AR: deposit_refund_amount
+          returnValues[0][2] = 'yes';
+          returnValues[0][3] = refundAmount;
           
           // Record refund
           recordPayment({
@@ -255,15 +243,15 @@ function processCheckOut(data) {
             notes: data.refundNotes || 'Key deposit refund'
           });
         } else if (data.key1Returned && data.key2Returned) {
-          regSheet.getRange(row, 43).setValue('no'); // No refund processed yet
+          returnValues[0][2] = 'no';
         } else {
-          regSheet.getRange(row, 43).setValue('partial');
+          returnValues[0][2] = 'partial';
         }
-        
-        // Check-out status
-        regSheet.getRange(row, 49).setValue('yes'); // AW: checked_out
-        regSheet.getRange(row, 50).setValue(new Date()); // AX: check_out_time
-        regSheet.getRange(row, 51).setValue(data.volunteer || 'Unknown'); // AY: checked_out_by
+        regSheet.getRange(row, 41, 1, 4).setValues(returnValues);
+
+        // Batch update check-out status (columns 49-51)
+        var checkOutValues = [['yes', new Date(), data.volunteer || 'Unknown']];
+        regSheet.getRange(row, 49, 1, 3).setValues(checkOutValues);
         
         // Update room status
         var roomAssignment = regData[i][34];
