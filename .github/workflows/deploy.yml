@@ -3,25 +3,30 @@ name: Deploy to Apps Script
 on:
   push:
     branches:
-      - main  # Runs every time you push to the main branch
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
       - name: Install clasp
         run: npm install -g @google/clasp
 
       - name: Create clasprc file
         run: echo '${{ secrets.CLASPRC_JSON }}' > ~/.clasprc.json
+
+      - name: Inject Script ID into clasp config
+        run: |
+          export SCRIPT_ID=${{ secrets.SCRIPT_ID }}
+          envsubst < .clasp.json > .clasp.json.tmp && mv .clasp.json.tmp .clasp.json
 
       - name: Push to Apps Script
         run: clasp push -f
