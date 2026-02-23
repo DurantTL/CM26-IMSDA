@@ -22,15 +22,14 @@ jobs:
         run: npm install -g @google/clasp
 
       - name: Create clasprc file
-        run: |
-          cat << 'EOF' > ~/.clasprc.json
-          ${{ secrets.CLASPRC_JSON }}
-          EOF
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+        run: echo "$CLASPRC_JSON" > ~/.clasprc.json
 
       - name: Inject Script ID into clasp config
-        run: |
-          export SCRIPT_ID=${{ secrets.SCRIPT_ID }}
-          envsubst < .clasp.json > .clasp.json.tmp && mv .clasp.json.tmp .clasp.json
+        env:
+          SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
+        run: envsubst < .clasp.json > .clasp.json.tmp && mv .clasp.json.tmp .clasp.json
 
       - name: Push to Apps Script
         run: clasp push -f
