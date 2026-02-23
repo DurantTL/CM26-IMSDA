@@ -1,25 +1,7 @@
-# Explicitly ignore directories and files not for GAS
-.git/
-.github/
-pwa/
-node_modules/
-tests/
-verification/
+# 1. Ignore absolutely all files and directories by default
+**
 
-# Ignore project files
-package.json
-package-lock.json
-README.md
-CLAUDE.md
-SUGGESTIONS.md
-PERFORMANCE_BASELINE.md
-DEPLOYMENT.md
-server.js
-.clasp.json
-.claspignore
-.gitignore
-*.md
-
-# Only allow GAS files (implicit if not ignored, but listing excludes others)
-# Clasp pushes everything not ignored.
-# By ignoring the above, we keep .gs, .html, and appsscript.json (if not ignored)
+# 2. Whitelist ONLY Google Apps Script files in the root directory
+!appsscript.json
+!*.gs
+!*.html
