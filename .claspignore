@@ -1,27 +1,7 @@
-# Ignore all files by default
+# 1. Ignore absolutely all files and directories by default
 **
 
-# Whitelist Google Apps Script files in root
+# 2. Whitelist ONLY Google Apps Script files in the root directory
 !appsscript.json
 !*.gs
 !*.html
-
-# Explicitly ignore directories to prevent accidental inclusion via whitelists
-pwa/
-node_modules/
-tests/
-verification/
-.git/
-.github/
-
-# Ignore project metadata files
-README.md
-CLAUDE.md
-SUGGESTIONS.md
-PERFORMANCE_BASELINE.md
-package.json
-package-lock.json
-server.js
-.clasp.json
-.claspignore
-.gitignore
