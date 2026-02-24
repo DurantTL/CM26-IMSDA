@@ -30,11 +30,17 @@ jobs:
           import os
           import google.oauth2.service_account as sa
           import google.auth.transport.requests as req
+
+          # Load service account to get client_id
+          with open('/tmp/sa-key.json') as f:
+            sa_data = json.load(f)
+
           creds = sa.Credentials.from_service_account_file(
             '/tmp/sa-key.json',
             scopes=['https://www.googleapis.com/auth/script.projects']
           )
           creds.refresh(req.Request())
+
           clasprc = {
             "token": {
               "access_token": creds.token,
@@ -44,18 +50,18 @@ jobs:
               "expiry_date": 9999999999999
             },
             "oauth2ClientSettings": {
-              "clientId": "",
+              "clientId": sa_data.get("client_id", ""),
               "clientSecret": "",
               "redirectUri": "http://localhost"
             },
             "isLocalCreds": False
           }
+
           home = os.path.expanduser('~')
           path = os.path.join(home, '.clasprc.json')
           with open(path, 'w') as f:
             json.dump(clasprc, f)
-          print("Written to:", path)
-          print("Contents:", json.dumps(clasprc, indent=2))
+          print("Written successfully, client_id:", sa_data.get("client_id", "NOT FOUND"))
           EOF
 
       - name: Inject Script ID into clasp config
