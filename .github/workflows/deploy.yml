@@ -25,14 +25,28 @@ jobs:
       - name: Generate clasp credentials
         run: |
           pip install google-auth --quiet
-          ACCESS_TOKEN=$(python3 -c "
+          python3 << 'EOF'
+          import json
           import google.oauth2.service_account as sa
           import google.auth.transport.requests as req
-          creds = sa.Credentials.from_service_account_file('/tmp/sa-key.json', scopes=['https://www.googleapis.com/auth/script.projects'])
+          creds = sa.Credentials.from_service_account_file(
+            '/tmp/sa-key.json',
+            scopes=['https://www.googleapis.com/auth/script.projects']
+          )
           creds.refresh(req.Request())
-          print(creds.token)
-          ")
-          echo "{\"token\":{\"access_token\":\"$ACCESS_TOKEN\",\"token_type\":\"Bearer\"}}" > ~/.clasprc.json
+          clasprc = {
+            "token": {
+              "access_token": creds.token,
+              "refresh_token": "",
+              "scope": "https://www.googleapis.com/auth/script.projects",
+              "token_type": "Bearer",
+              "expiry_date": 9999999999999
+            }
+          }
+          with open('/root/.clasprc.json', 'w') as f:
+            json.dump(clasprc, f)
+          print("Credentials written successfully")
+          EOF
 
       - name: Inject Script ID into clasp config
         env:
