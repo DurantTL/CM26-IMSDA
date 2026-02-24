@@ -23,6 +23,9 @@ jobs:
         run: echo '${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}' > /tmp/sa-key.json
 
       - name: Generate clasp credentials
+        env:
+          CLASP_CLIENT_ID: ${{ secrets.CLASP_CLIENT_ID }}
+          CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
         run: |
           pip install google-auth --quiet
           python3 << 'EOF'
@@ -30,10 +33,6 @@ jobs:
           import os
           import google.oauth2.service_account as sa
           import google.auth.transport.requests as req
-
-          # Load service account to get client_id
-          with open('/tmp/sa-key.json') as f:
-            sa_data = json.load(f)
 
           creds = sa.Credentials.from_service_account_file(
             '/tmp/sa-key.json',
@@ -50,18 +49,17 @@ jobs:
               "expiry_date": 9999999999999
             },
             "oauth2ClientSettings": {
-              "clientId": sa_data.get("client_id", ""),
-              "clientSecret": "",
+              "clientId": os.environ['CLASP_CLIENT_ID'],
+              "clientSecret": os.environ['CLASP_CLIENT_SECRET'],
               "redirectUri": "http://localhost"
             },
             "isLocalCreds": False
           }
 
           home = os.path.expanduser('~')
-          path = os.path.join(home, '.clasprc.json')
-          with open(path, 'w') as f:
+          with open(os.path.join(home, '.clasprc.json'), 'w') as f:
             json.dump(clasprc, f)
-          print("Written successfully, client_id:", sa_data.get("client_id", "NOT FOUND"))
+          print("Written successfully")
           EOF
 
       - name: Inject Script ID into clasp config
