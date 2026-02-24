@@ -26,41 +26,27 @@ jobs:
         env:
           CLASP_CLIENT_ID: ${{ secrets.CLASP_CLIENT_ID }}
           CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
+          CLASP_REFRESH_TOKEN: ${{ secrets.CLASP_REFRESH_TOKEN }}
         run: |
-          pip install google-auth --quiet
-          python3 << 'EOF'
-          import json
-          import os
-          import google.oauth2.service_account as sa
-          import google.auth.transport.requests as req
-
-          creds = sa.Credentials.from_service_account_file(
-            '/tmp/sa-key.json',
-            scopes=['https://www.googleapis.com/auth/script.projects']
-          )
-          creds.refresh(req.Request())
-
-          clasprc = {
+          cat > ~/.clasprc.json << EOF
+          {
             "token": {
-              "access_token": creds.token,
-              "refresh_token": "",
+              "access_token": "",
+              "refresh_token": "$CLASP_REFRESH_TOKEN",
               "scope": "https://www.googleapis.com/auth/script.projects",
               "token_type": "Bearer",
-              "expiry_date": 9999999999999
+              "expiry_date": 1
             },
             "oauth2ClientSettings": {
-              "clientId": os.environ['CLASP_CLIENT_ID'],
-              "clientSecret": os.environ['CLASP_CLIENT_SECRET'],
+              "clientId": "$CLASP_CLIENT_ID",
+              "clientSecret": "$CLASP_CLIENT_SECRET",
               "redirectUri": "http://localhost"
             },
-            "isLocalCreds": False
+            "isLocalCreds": false
           }
-
-          home = os.path.expanduser('~')
-          with open(os.path.join(home, '.clasprc.json'), 'w') as f:
-            json.dump(clasprc, f)
-          print("Written successfully")
           EOF
+          echo "File written, checking refresh_token is present:"
+          cat ~/.clasprc.json | grep -o '"refresh_token":"[^"]*"' | cut -c1-30
 
       - name: Inject Script ID into clasp config
         env:
