@@ -42,12 +42,20 @@ jobs:
               "scope": "https://www.googleapis.com/auth/script.projects",
               "token_type": "Bearer",
               "expiry_date": 9999999999999
-            }
+            },
+            "oauth2ClientSettings": {
+              "clientId": "",
+              "clientSecret": "",
+              "redirectUri": "http://localhost"
+            },
+            "isLocalCreds": False
           }
           home = os.path.expanduser('~')
-          with open(os.path.join(home, '.clasprc.json'), 'w') as f:
+          path = os.path.join(home, '.clasprc.json')
+          with open(path, 'w') as f:
             json.dump(clasprc, f)
-          print("Credentials written to", os.path.join(home, '.clasprc.json'))
+          print("Written to:", path)
+          print("Contents:", json.dumps(clasprc, indent=2))
           EOF
 
       - name: Inject Script ID into clasp config
