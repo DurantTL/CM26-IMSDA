@@ -9,6 +9,15 @@ function recordPayment(data) {
   }
 
   try {
+    // Validate required fields
+    if (!data.regId) {
+      return { success: false, error: 'Missing registration ID' };
+    }
+    var amount = parseFloat(data.amount);
+    if (isNaN(amount) || amount === 0) {
+      return { success: false, error: 'Invalid payment amount' };
+    }
+
     var ss = getSS();
     var regSheet = ss.getSheetByName('Registrations');
     var paySheet = ss.getSheetByName('Payments');

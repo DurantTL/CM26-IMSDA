@@ -46,8 +46,18 @@ function doPost(e) {
       return jsonResponse({error: 'No data provided'}, 400);
     }
 
-    var data = JSON.parse(e.postData.contents);
+    var data;
+    try {
+      data = JSON.parse(e.postData.contents);
+    } catch (parseError) {
+      return jsonResponse({error: 'Invalid JSON in request body'}, 400);
+    }
+
     var action = data.action;
+
+    if (!action) {
+      return jsonResponse({error: 'Missing required "action" field'}, 400);
+    }
     
     switch(action) {
       case 'submitRegistration':

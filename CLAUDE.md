@@ -4,7 +4,7 @@
 
 **Camp Meeting 2026 Registration System** for the Iowa-Missouri Conference of Seventh-day Adventists (IMSDA). This is a Google Apps Script backend that manages registration, housing, meal ticketing, payments, check-in/check-out, and admin operations for a multi-day event at Sunnydale Academy Campus (June 2-6, 2026).
 
-**Technology stack:** Google Apps Script (JavaScript, V8 runtime) with Google Sheets as the database.
+**Technology stack:** Google Apps Script (JavaScript, V8 runtime) with Google Sheets as the database. PWA frontends served by Node.js/Express, deployable to Render.com or any self-hosted platform.
 
 ## Architecture
 
@@ -206,7 +206,7 @@ Deployment is manual through the Apps Script editor (Deploy > New deployment > W
 
 1. **Column indices are critical.** The Registrations sheet has 47+ columns (A through AU+). Any column shift breaks multiple files. Always verify column references against the actual sheet.
 
-2. **Two check-in implementations exist.** `Operations.gs` has a simpler check-in/check-out, while `CheckIn.gs` has a more complete version with room/key management. The `Code.gs` router maps `checkIn`/`checkOut` POST actions to the `Operations.gs` versions. The `CheckIn.gs` functions (`processCheckIn`, `processCheckOut`) are called by the Check-In PWA directly.
+2. **Two check-in implementations exist.** `Operations.gs` has a simpler check-in/check-out, while `CheckIn.gs` has a more complete version with room/key management. The `Code.gs` router maps `checkIn`/`checkOut` POST actions to the `CheckIn.gs` versions (`processCheckIn`, `processCheckOut`). The simpler `Operations.gs` versions (`checkInRegistration`, `checkOutRegistration`) are available for admin sidebar use.
 
 3. **Lock discipline.** Any function that writes data and could be called concurrently must acquire a script lock. Always release in both success and error paths.
 
