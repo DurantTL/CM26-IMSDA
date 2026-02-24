@@ -9,56 +9,57 @@ function getCheckInData(regId) {
   var ss = getSS();
   var regSheet = ss.getSheetByName('Registrations');
   var data = regSheet.getDataRange().getValues();
-  
+
   for (var i = 1; i < data.length; i++) {
-    if (data[i][0] === regId) {
+    if (data[i][COLUMNS.REG_ID] === regId) {
       var row = data[i];
-      
+
       // Parse guest details
       var guests = [];
       try {
-        guests = JSON.parse(row[19] || '[]');
+        guests = JSON.parse(row[COLUMNS.GUEST_DETAILS] || '[]');
       } catch(e) {
         guests = [];
       }
-      
+
       return {
         success: true,
         registration: {
-          regId: row[0],
-          regType: row[2],
-          status: row[3],
-          name: row[4],
-          email: row[5],
-          phone: row[6],
-          church: row[11],
-          housingOption: row[12],
-          nights: row[13],
-          numNights: row[14],
-          adultsCount: row[16],
-          childrenCount: row[17],
-          totalGuests: row[18],
+          regId: row[COLUMNS.REG_ID],
+          regType: row[COLUMNS.REG_TYPE],
+          status: row[COLUMNS.STATUS],
+          name: row[COLUMNS.PRIMARY_NAME],
+          email: row[COLUMNS.EMAIL],
+          phone: row[COLUMNS.PHONE],
+          church: row[COLUMNS.CHURCH],
+          housingOption: row[COLUMNS.HOUSING_OPTION],
+          nights: row[COLUMNS.NIGHTS],
+          numNights: row[COLUMNS.NUM_NIGHTS],
+          adultsCount: row[COLUMNS.ADULTS_COUNT],
+          childrenCount: row[COLUMNS.CHILDREN_COUNT],
+          totalGuests: row[COLUMNS.TOTAL_GUESTS],
           guests: guests,
-          dietaryNeeds: row[21],
-          specialNeeds: row[22],
-          totalCharged: row[26],
-          amountPaid: row[27],
-          balanceDue: row[28],
-          paymentStatus: row[30],
-          roomAssignment: row[34],
-          building: row[35],
-          key1Number: row[36],
-          key2Number: row[37],
-          keyDepositAmount: row[38],
-          keyDepositPaid: row[39],
-          checkedIn: row[44],
-          checkInTime: row[45],
+          dietaryNeeds: row[COLUMNS.DIETARY_NEEDS],
+          specialNeeds: row[COLUMNS.SPECIAL_NEEDS],
+          totalCharged: row[COLUMNS.TOTAL_CHARGED],
+          amountPaid: row[COLUMNS.AMOUNT_PAID],
+          balanceDue: row[COLUMNS.BALANCE_DUE],
+          paymentStatus: row[COLUMNS.PAYMENT_STATUS],
+          roomAssignment: row[COLUMNS.ROOM_ASSIGNMENT],
+          building: row[COLUMNS.BUILDING],
+          key1Number: row[COLUMNS.KEY_1_NUMBER],
+          key2Number: row[COLUMNS.KEY_2_NUMBER],
+          keyDepositAmount: row[COLUMNS.KEY_DEPOSIT_AMOUNT],
+          keyDepositPaid: row[COLUMNS.KEY_DEPOSIT_PAID],
+          checkedIn: row[COLUMNS.CHECKED_IN],
+          checkInTime: row[COLUMNS.CHECK_IN_TIME],
+          checkedOut: row[COLUMNS.CHECKED_OUT],
           mealTicketCount: getMealTicketCount(regId)
         }
       };
     }
   }
-  
+
   return { success: false, error: 'Registration not found' };
 }
 
@@ -70,11 +71,11 @@ function getMealTicketCount(regId) {
   var sheet = ss.getSheetByName('MealTickets');
   var data = sheet.getDataRange().getValues();
   var count = 0;
-  
+
   for (var i = 1; i < data.length; i++) {
     if (data[i][1] === regId) count++;
   }
-  
+
   return count;
 }
 
@@ -85,7 +86,7 @@ function getArrivals(dateStr) {
   var ss = getSS();
   var regSheet = ss.getSheetByName('Registrations');
   var data = regSheet.getDataRange().getValues();
-  
+
   // Map date to night abbreviation
   var dateMap = {
     '2026-06-02': 'tue',
@@ -94,33 +95,33 @@ function getArrivals(dateStr) {
     '2026-06-05': 'fri',
     '2026-06-06': 'sat'
   };
-  
+
   var targetNight = dateMap[dateStr] || 'tue';
   var arrivals = [];
-  
+
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
-    var status = row[3];
-    var nights = (row[13] || '').toLowerCase();
-    var checkedIn = row[44];
-    
+    var status = row[COLUMNS.STATUS];
+    var nights = (row[COLUMNS.NIGHTS] || '').toLowerCase();
+    var checkedIn = row[COLUMNS.CHECKED_IN];
+
     // Include if: confirmed/pending, includes this night, not yet checked in
     if ((status === 'confirmed' || status === 'pending' || status === 'deposit') &&
         nights.indexOf(targetNight) !== -1 &&
         checkedIn !== 'yes') {
-      
+
       arrivals.push({
-        regId: row[0],
-        name: row[4],
-        housingOption: row[12],
-        roomAssignment: row[34],
-        totalGuests: row[18],
-        balanceDue: row[28],
-        specialNeeds: row[22]
+        regId: row[COLUMNS.REG_ID],
+        name: row[COLUMNS.PRIMARY_NAME],
+        housingOption: row[COLUMNS.HOUSING_OPTION],
+        roomAssignment: row[COLUMNS.ROOM_ASSIGNMENT],
+        totalGuests: row[COLUMNS.TOTAL_GUESTS],
+        balanceDue: row[COLUMNS.BALANCE_DUE],
+        specialNeeds: row[COLUMNS.SPECIAL_NEEDS]
       });
     }
   }
-  
+
   return {
     success: true,
     date: dateStr,
@@ -137,18 +138,18 @@ function processCheckIn(data) {
   if (!lock.tryLock(10000)) {
     return { success: false, error: 'System busy, please try again' };
   }
-  
+
   try {
     var ss = getSS();
     var regSheet = ss.getSheetByName('Registrations');
     var regData = regSheet.getDataRange().getValues();
-    
+
     for (var i = 1; i < regData.length; i++) {
-      if (regData[i][0] === data.regId) {
+      if (regData[i][COLUMNS.REG_ID] === data.regId) {
         var row = i + 1;
-        
-        // Batch update room and key info (columns 35-40)
-        var roomKeyValues = [regData[i].slice(34, 40)];
+
+        // Batch update room and key info (columns AI-AN, 1-based 35-40)
+        var roomKeyValues = [regData[i].slice(COLUMNS.ROOM_ASSIGNMENT, COLUMNS.KEY_DEPOSIT_PAID + 1)];
         if (data.room) roomKeyValues[0][0] = data.room;
         if (data.building) roomKeyValues[0][1] = data.building;
         if (data.key1) roomKeyValues[0][2] = data.key1;
@@ -156,22 +157,22 @@ function processCheckIn(data) {
         var depositAmount = data.keyDepositAmount || 10;
         roomKeyValues[0][4] = depositAmount;
         roomKeyValues[0][5] = 'yes';
-        regSheet.getRange(row, 35, 1, 6).setValues(roomKeyValues);
+        regSheet.getRange(row, COLUMNS.ROOM_ASSIGNMENT + 1, 1, 6).setValues(roomKeyValues);
 
-        // Batch update check-in status (columns 45-48)
+        // Batch update check-in status (columns AS-AV, 1-based 45-48)
         var checkInValues = [[
           'yes',
           new Date(),
           data.volunteer || 'Unknown',
           data.welcomePacket ? 'yes' : 'no'
         ]];
-        regSheet.getRange(row, 45, 1, 4).setValues(checkInValues);
-        
+        regSheet.getRange(row, COLUMNS.CHECKED_IN + 1, 1, 4).setValues(checkInValues);
+
         // Update room status in Rooms tab
         if (data.room) {
-          updateRoomStatus(data.room, 'occupied', data.regId, regData[i][4]);
+          updateRoomStatus(data.room, 'occupied', data.regId, regData[i][COLUMNS.PRIMARY_NAME]);
         }
-        
+
         // Record key deposit as payment
         recordPayment({
           regId: data.regId,
@@ -181,28 +182,27 @@ function processCheckIn(data) {
           processedBy: data.volunteer || 'Check-in',
           notes: 'Keys: ' + (data.key1 || '') + ', ' + (data.key2 || '')
         });
-        
+
         // Log activity
-        logActivity('check_in', data.regId, 
+        logActivity('check_in', data.regId,
           'Checked in. Room: ' + (data.room || 'N/A') + ', Keys: ' + (data.key1 || '') + '/' + (data.key2 || ''),
           'checkin_pwa');
-        
-        lock.releaseLock();
-        return { 
-          success: true, 
+
+        return {
+          success: true,
           message: 'Check-in complete',
           room: data.room,
           keys: [data.key1, data.key2]
         };
       }
     }
-    
-    lock.releaseLock();
+
     return { success: false, error: 'Registration not found' };
-    
+
   } catch (error) {
-    lock.releaseLock();
     return { success: false, error: error.toString() };
+  } finally {
+    lock.releaseLock();
   }
 }
 
@@ -214,25 +214,25 @@ function processCheckOut(data) {
   if (!lock.tryLock(10000)) {
     return { success: false, error: 'System busy, please try again' };
   }
-  
+
   try {
     var ss = getSS();
     var regSheet = ss.getSheetByName('Registrations');
     var regData = regSheet.getDataRange().getValues();
-    
+
     for (var i = 1; i < regData.length; i++) {
-      if (regData[i][0] === data.regId) {
+      if (regData[i][COLUMNS.REG_ID] === data.regId) {
         var row = i + 1;
-        
-        // Batch update key returns and refund (columns 41-44)
-        var returnValues = [regData[i].slice(40, 44)];
+
+        // Batch update key returns and refund (columns AO-AR, 1-based 41-44)
+        var returnValues = [regData[i].slice(COLUMNS.KEY_1_RETURNED, COLUMNS.DEPOSIT_REFUND_AMOUNT + 1)];
         if (data.key1Returned) returnValues[0][0] = 'yes';
         if (data.key2Returned) returnValues[0][1] = 'yes';
         var refundAmount = data.refundAmount || 0;
         if (refundAmount > 0) {
           returnValues[0][2] = 'yes';
           returnValues[0][3] = refundAmount;
-          
+
           // Record refund
           recordPayment({
             regId: data.regId,
@@ -247,39 +247,38 @@ function processCheckOut(data) {
         } else {
           returnValues[0][2] = 'partial';
         }
-        regSheet.getRange(row, 41, 1, 4).setValues(returnValues);
+        regSheet.getRange(row, COLUMNS.KEY_1_RETURNED + 1, 1, 4).setValues(returnValues);
 
-        // Batch update check-out status (columns 49-51)
+        // Batch update check-out status (columns AW-AY, 1-based 49-51)
         var checkOutValues = [['yes', new Date(), data.volunteer || 'Unknown']];
-        regSheet.getRange(row, 49, 1, 3).setValues(checkOutValues);
-        
+        regSheet.getRange(row, COLUMNS.CHECKED_OUT + 1, 1, 3).setValues(checkOutValues);
+
         // Update room status
-        var roomAssignment = regData[i][34];
+        var roomAssignment = regData[i][COLUMNS.ROOM_ASSIGNMENT];
         if (roomAssignment) {
           updateRoomStatus(roomAssignment, 'available', '', '');
         }
-        
+
         // Log activity
         var keysReturned = (data.key1Returned ? 1 : 0) + (data.key2Returned ? 1 : 0);
-        logActivity('check_out', data.regId, 
+        logActivity('check_out', data.regId,
           'Checked out. Keys returned: ' + keysReturned + '/2. Refund: $' + refundAmount,
           'checkin_pwa');
-        
-        lock.releaseLock();
-        return { 
-          success: true, 
+
+        return {
+          success: true,
           message: 'Check-out complete',
           refundAmount: refundAmount
         };
       }
     }
-    
-    lock.releaseLock();
+
     return { success: false, error: 'Registration not found' };
-    
+
   } catch (error) {
-    lock.releaseLock();
     return { success: false, error: error.toString() };
+  } finally {
+    lock.releaseLock();
   }
 }
 
@@ -290,12 +289,12 @@ function updateRoomStatus(roomId, status, regId, guestName) {
   var ss = getSS();
   var roomSheet = ss.getSheetByName('Rooms');
   var data = roomSheet.getDataRange().getValues();
-  
+
   for (var i = 1; i < data.length; i++) {
     if (data[i][0] === roomId) {
       var row = i + 1;
-      roomSheet.getRange(row, 7).setValue(status); // G: status
-      roomSheet.getRange(row, 8).setValue(regId || ''); // H: assigned_to_reg_id
+      roomSheet.getRange(row, 7).setValue(status);       // G: status
+      roomSheet.getRange(row, 8).setValue(regId || '');   // H: assigned_to_reg_id
       roomSheet.getRange(row, 9).setValue(guestName || ''); // I: assigned_to_name
       return true;
     }
@@ -310,13 +309,13 @@ function getAvailableRooms(housingType) {
   var ss = getSS();
   var roomSheet = ss.getSheetByName('Rooms');
   var data = roomSheet.getDataRange().getValues();
-  
+
   var available = [];
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
     var type = row[1];
     var status = row[6];
-    
+
     if (status === 'available' && (!housingType || type === housingType)) {
       available.push({
         roomId: row[0],
@@ -329,7 +328,7 @@ function getAvailableRooms(housingType) {
       });
     }
   }
-  
+
   return {
     success: true,
     rooms: available,
@@ -344,26 +343,26 @@ function assignRoom(data) {
   var ss = getSS();
   var regSheet = ss.getSheetByName('Registrations');
   var regData = regSheet.getDataRange().getValues();
-  
+
   for (var i = 1; i < regData.length; i++) {
-    if (regData[i][0] === data.regId) {
+    if (regData[i][COLUMNS.REG_ID] === data.regId) {
       var row = i + 1;
-      
+
       // Set room assignment
-      regSheet.getRange(row, 35).setValue(data.roomId); // AI: room_assignment
-      regSheet.getRange(row, 36).setValue(data.building || ''); // AJ: building
-      
+      regSheet.getRange(row, COLUMNS.ROOM_ASSIGNMENT + 1).setValue(data.roomId);
+      regSheet.getRange(row, COLUMNS.BUILDING + 1).setValue(data.building || '');
+
       // Update room status to reserved
-      updateRoomStatus(data.roomId, 'reserved', data.regId, regData[i][4]);
-      
-      logActivity('room_assign', data.regId, 
+      updateRoomStatus(data.roomId, 'reserved', data.regId, regData[i][COLUMNS.PRIMARY_NAME]);
+
+      logActivity('room_assign', data.regId,
         'Room pre-assigned: ' + data.roomId,
         'admin');
-      
+
       return { success: true, roomId: data.roomId };
     }
   }
-  
+
   return { success: false, error: 'Registration not found' };
 }
 
@@ -374,24 +373,24 @@ function recordBalancePayment(data) {
   var ss = getSS();
   var regSheet = ss.getSheetByName('Registrations');
   var regData = regSheet.getDataRange().getValues();
-  
+
   for (var i = 1; i < regData.length; i++) {
-    if (regData[i][0] === data.regId) {
+    if (regData[i][COLUMNS.REG_ID] === data.regId) {
       var row = i + 1;
-      
-      var currentPaid = regData[i][27] || 0;
+
+      var currentPaid = regData[i][COLUMNS.AMOUNT_PAID] || 0;
       var newPaid = currentPaid + parseFloat(data.amount);
-      var totalCharged = regData[i][26];
-      
-      regSheet.getRange(row, 28).setValue(newPaid); // AB: amount_paid
-      
+      var totalCharged = regData[i][COLUMNS.TOTAL_CHARGED];
+
+      regSheet.getRange(row, COLUMNS.AMOUNT_PAID + 1).setValue(newPaid);
+
       // Update payment status
       if (newPaid >= totalCharged) {
-        regSheet.getRange(row, 31).setValue('paid'); // AE: payment_status
+        regSheet.getRange(row, COLUMNS.PAYMENT_STATUS + 1).setValue('paid');
       } else {
-        regSheet.getRange(row, 31).setValue('partial');
+        regSheet.getRange(row, COLUMNS.PAYMENT_STATUS + 1).setValue('partial');
       }
-      
+
       // Record in Payments tab
       recordPayment({
         regId: data.regId,
@@ -401,15 +400,15 @@ function recordBalancePayment(data) {
         processedBy: data.volunteer || 'Check-in',
         notes: 'Balance payment at check-in'
       });
-      
-      return { 
-        success: true, 
+
+      return {
+        success: true,
         newBalance: totalCharged - newPaid,
         paymentStatus: newPaid >= totalCharged ? 'paid' : 'partial'
       };
     }
   }
-  
+
   return { success: false, error: 'Registration not found' };
 }
 
@@ -420,33 +419,33 @@ function searchRegistrations(query) {
   var ss = getSS();
   var regSheet = ss.getSheetByName('Registrations');
   var data = regSheet.getDataRange().getValues();
-  
+
   var results = [];
   var queryLower = query.toLowerCase();
-  
+
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
-    var name = (row[4] || '').toLowerCase();
-    var regId = (row[0] || '').toLowerCase();
-    var status = row[3];
-    
+    var name = (row[COLUMNS.PRIMARY_NAME] || '').toLowerCase();
+    var regId = (row[COLUMNS.REG_ID] || '').toLowerCase();
+    var status = row[COLUMNS.STATUS];
+
     // Skip cancelled
     if (status === 'cancelled') continue;
-    
+
     if (name.indexOf(queryLower) !== -1 || regId.indexOf(queryLower) !== -1) {
       results.push({
-        regId: row[0],
-        name: row[4],
-        housingOption: row[12],
-        roomAssignment: row[34],
-        totalGuests: row[18],
-        balanceDue: row[28],
-        checkedIn: row[44],
-        checkedOut: row[48]
+        regId: row[COLUMNS.REG_ID],
+        name: row[COLUMNS.PRIMARY_NAME],
+        housingOption: row[COLUMNS.HOUSING_OPTION],
+        roomAssignment: row[COLUMNS.ROOM_ASSIGNMENT],
+        totalGuests: row[COLUMNS.TOTAL_GUESTS],
+        balanceDue: row[COLUMNS.BALANCE_DUE],
+        checkedIn: row[COLUMNS.CHECKED_IN],
+        checkedOut: row[COLUMNS.CHECKED_OUT]
       });
     }
   }
-  
+
   return {
     success: true,
     results: results,
@@ -461,7 +460,7 @@ function getCheckInStats() {
   var ss = getSS();
   var regSheet = ss.getSheetByName('Registrations');
   var data = regSheet.getDataRange().getValues();
-  
+
   var stats = {
     totalRegistrations: 0,
     checkedIn: 0,
@@ -471,40 +470,40 @@ function getCheckInStats() {
     depositsHeld: 0,
     balancesDue: 0
   };
-  
+
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
-    var status = row[3];
-    
+    var status = row[COLUMNS.STATUS];
+
     if (status === 'cancelled') continue;
-    
+
     stats.totalRegistrations++;
-    
-    if (row[44] === 'yes') { // checked_in
+
+    if (row[COLUMNS.CHECKED_IN] === 'yes') {
       stats.checkedIn++;
-      
-      if (row[48] !== 'yes') { // not checked_out
+
+      if (row[COLUMNS.CHECKED_OUT] !== 'yes') {
         // Count keys still out
-        var key1Out = row[39] === 'yes' && row[40] !== 'yes';
-        var key2Out = row[39] === 'yes' && row[41] !== 'yes';
+        var key1Out = row[COLUMNS.KEY_DEPOSIT_PAID] === 'yes' && row[COLUMNS.KEY_1_RETURNED] !== 'yes';
+        var key2Out = row[COLUMNS.KEY_DEPOSIT_PAID] === 'yes' && row[COLUMNS.KEY_2_RETURNED] !== 'yes';
         stats.keysOut += (key1Out ? 1 : 0) + (key2Out ? 1 : 0);
-        
+
         // Deposits held
-        if (row[39] === 'yes' && row[42] !== 'yes') {
-          stats.depositsHeld += row[38] || 0;
+        if (row[COLUMNS.KEY_DEPOSIT_PAID] === 'yes' && row[COLUMNS.DEPOSIT_REFUNDED] !== 'yes') {
+          stats.depositsHeld += row[COLUMNS.KEY_DEPOSIT_AMOUNT] || 0;
         }
       }
     } else {
       stats.notArrived++;
     }
-    
-    if (row[48] === 'yes') {
+
+    if (row[COLUMNS.CHECKED_OUT] === 'yes') {
       stats.checkedOut++;
     }
-    
-    stats.balancesDue += row[28] || 0;
+
+    stats.balancesDue += row[COLUMNS.BALANCE_DUE] || 0;
   }
-  
+
   return {
     success: true,
     stats: stats
