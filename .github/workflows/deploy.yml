@@ -27,6 +27,7 @@ jobs:
           pip install google-auth --quiet
           python3 << 'EOF'
           import json
+          import os
           import google.oauth2.service_account as sa
           import google.auth.transport.requests as req
           creds = sa.Credentials.from_service_account_file(
@@ -43,9 +44,10 @@ jobs:
               "expiry_date": 9999999999999
             }
           }
-          with open('/root/.clasprc.json', 'w') as f:
+          home = os.path.expanduser('~')
+          with open(os.path.join(home, '.clasprc.json'), 'w') as f:
             json.dump(clasprc, f)
-          print("Credentials written successfully")
+          print("Credentials written to", os.path.join(home, '.clasprc.json'))
           EOF
 
       - name: Inject Script ID into clasp config
