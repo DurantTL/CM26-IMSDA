@@ -78,7 +78,7 @@ function processRegistration(data) {
       data.specialNeeds || '',          // W: special_needs
       data.mealSubtotal || 0,           // X: meal_subtotal
       data.subtotal || 0,               // Y: subtotal
-      data.processingFee || 0,          // Z: processing_fee
+      parseFloat(data.processingFee) || 0, // Z: processing_fee
       data.totalCharged || 0,           // AA: total_charged
       data.paymentStatus === 'paid' ? data.totalCharged : 0, // AB: amount_paid
       0,                                // AC: balance_due (Calculated by Sheet Formula)

@@ -28,20 +28,20 @@
       <h1>Camp Meeting 2026</h1>
       <p>Registration Confirmation</p>
     </div>
-    
+
     <div class="content">
       <p>Dear <?= reg.name || 'Guest' ?>,</p>
       <p>We are excited to see you at Camp Meeting 2026! Your registration has been received.</p>
-      
+
       <div class="reg-id-box">
         <?= reg.regId ?>
       </div>
-      
+
       <div class="qr-section">
         <img src="https://quickchart.io/qr?text=<?= encodeURIComponent(reg.regId) ?>&size=300&ecLevel=H" alt="Registration QR Code" width="180" height="180">
         <p class="qr-caption">Present this code at Check-In and for Meals</p>
       </div>
-      
+
       <div class="section-title">Registration Details</div>
       <table class="details-table">
         <tr>
@@ -57,7 +57,7 @@
           <td><?= reg.numNights ?></td>
         </tr>
       </table>
-      
+
       <div class="section-title">Payment Summary</div>
       <table class="details-table">
         <tr>
@@ -68,6 +68,12 @@
           <td class="label">Meal Tickets</td>
           <td>$<?= (Number(reg.mealSubtotal) || 0).toFixed(2) ?></td>
         </tr>
+        <? if (parseFloat(reg.processingFee) > 0) { ?>
+        <tr>
+          <td class="label">Processing Fee</td>
+          <td>$<?= parseFloat(reg.processingFee).toFixed(2) ?></td>
+        </tr>
+        <? } ?>
         <tr class="total-row">
           <td class="label">Total Charged</td>
           <td>$<?= (Number(reg.totalCharged) || 0).toFixed(2) ?></td>
@@ -77,16 +83,16 @@
           <td>$<?= (Number(reg.amountPaid) || 0).toFixed(2) ?></td>
         </tr>
       </table>
-      
+
       <? if (reg.balanceDue > 0) { ?>
         <div class="warning">
           <strong>Balance Due: $<?= (Number(reg.balanceDue) || 0).toFixed(2) ?></strong><br>
           Please pay the remaining balance upon arrival.
         </div>
       <? } ?>
-      
+
     </div>
-    
+
     <div class="footer">
       <p>Iowa-Missouri Conference of Seventh-day Adventists</p>
       <p>1005 Grand Ave, West Des Moines, IA 50263</p>
