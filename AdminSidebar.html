@@ -122,6 +122,7 @@
 
   <!-- ── Web Dashboard link (URL injected server-side) ──────── -->
   <div class="section" style="margin-bottom:18px;">
+    <? if (webAppUrl) { ?>
     <a class="dashboard-banner"
        href="<?= webAppUrl ?>"
        target="_blank"
@@ -132,6 +133,15 @@
       Opens the web-based dashboard in a new tab for live stats,
       activity feed, and database setup.
     </p>
+    <? } else { ?>
+    <div style="padding:10px 12px; background:#fef3c7; border:1px solid #fcd34d; border-radius:6px; font-size:12px; color:#92400e; line-height:1.5;">
+      ⚠️ <strong>Dashboard URL not configured.</strong><br>
+      Add <code style="background:#fde68a; padding:1px 4px; border-radius:3px;">web_app_url</code>
+      to the Config sheet with your deployed web app's
+      <code style="background:#fde68a; padding:1px 4px; border-radius:3px;">/exec</code> URL,
+      then re-open this panel.
+    </div>
+    <? } ?>
   </div>
 
   <hr class="dashboard-divider">

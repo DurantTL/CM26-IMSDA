@@ -6,10 +6,19 @@
  * Show admin sidebar, bridged to the web-based Admin Dashboard.
  * Injects the deployed web app URL so the sidebar can link directly
  * to the full AdminDashboard (?action=admin) in a new tab.
+ *
+ * The URL is read from the Config sheet key "web_app_url".  Set that key
+ * to your production /exec URL after each deployment (e.g.
+ * https://script.google.com/macros/s/<DEPLOYMENT_ID>/exec).
+ * ScriptApp.getService().getUrl() is intentionally NOT used here because
+ * it returns the /dev test-deployment URL which requires owner auth and
+ * does not resolve to the correct page for other users.
  */
 function showAdminSidebar() {
   var template = HtmlService.createTemplateFromFile('AdminSidebar');
-  template.webAppUrl = ScriptApp.getService().getUrl() + '?action=admin';
+  var config = getConfig();
+  var baseUrl = (config.web_app_url || '').toString().trim();
+  template.webAppUrl = baseUrl ? baseUrl + '?action=admin' : '';
   var html = template.evaluate()
     .setTitle('CM26 Admin')
     .setWidth(350);
