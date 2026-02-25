@@ -26,7 +26,12 @@ function doGet(e) {
         return jsonResponse(getCheckInStats());
 
       case 'searchRegistrations':
-        return jsonResponse(searchRegistrations(e.parameter.query));
+        return jsonResponse(searchRegistrations({
+          query:     e.parameter.query,
+          firstName: e.parameter.firstName,
+          lastName:  e.parameter.lastName,
+          regId:     e.parameter.regId
+        }));
 
       case 'ping':
         return jsonResponse({success: true, status: 'online'});

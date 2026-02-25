@@ -413,35 +413,61 @@ function recordBalancePayment(data) {
 }
 
 /**
- * Search registrations by name (for check-in lookup)
+ * Search registrations by name or ID (for check-in lookup).
+ * Accepts either a plain string (legacy) or a params object with:
+ *   firstName, lastName, regId, query (general fallback)
  */
-function searchRegistrations(query) {
+function searchRegistrations(params) {
+  // Backward-compat: if called with a plain string, treat as general query
+  if (typeof params === 'string') {
+    params = { query: params };
+  }
+
+  var firstName    = ((params.firstName || '').toLowerCase()).trim();
+  var lastName     = ((params.lastName  || '').toLowerCase()).trim();
+  var regIdFilter  = ((params.regId     || '').toLowerCase()).trim();
+  var generalQuery = ((params.query     || '').toLowerCase()).trim();
+
   var ss = getSS();
   var regSheet = ss.getSheetByName('Registrations');
   var data = regSheet.getDataRange().getValues();
 
   var results = [];
-  var queryLower = query.toLowerCase();
 
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
-    var name = (row[COLUMNS.PRIMARY_NAME] || '').toLowerCase();
-    var regId = (row[COLUMNS.REG_ID] || '').toLowerCase();
-    var status = row[COLUMNS.STATUS];
+    var fullName  = (row[COLUMNS.PRIMARY_NAME] || '').toLowerCase();
+    var rowRegId  = (row[COLUMNS.REG_ID]       || '').toLowerCase();
+    var status    = row[COLUMNS.STATUS];
 
     // Skip cancelled
     if (status === 'cancelled') continue;
 
-    if (name.indexOf(queryLower) !== -1 || regId.indexOf(queryLower) !== -1) {
+    var matches = false;
+
+    if (regIdFilter) {
+      // Exact or prefix match on Registration ID for speed
+      matches = rowRegId === regIdFilter || rowRegId.startsWith(regIdFilter);
+    } else if (firstName || lastName) {
+      // Partial substring match against first and/or last name
+      var firstOk = !firstName || fullName.indexOf(firstName) !== -1;
+      var lastOk  = !lastName  || fullName.indexOf(lastName)  !== -1;
+      matches = firstOk && lastOk;
+    } else if (generalQuery) {
+      // Legacy single-query fallback: match name OR reg ID
+      matches = fullName.indexOf(generalQuery) !== -1 || rowRegId.indexOf(generalQuery) !== -1;
+    }
+
+    if (matches) {
       results.push({
-        regId: row[COLUMNS.REG_ID],
-        name: row[COLUMNS.PRIMARY_NAME],
+        regId:         row[COLUMNS.REG_ID],
+        name:          row[COLUMNS.PRIMARY_NAME],
         housingOption: row[COLUMNS.HOUSING_OPTION],
-        roomAssignment: row[COLUMNS.ROOM_ASSIGNMENT],
-        totalGuests: row[COLUMNS.TOTAL_GUESTS],
-        balanceDue: row[COLUMNS.BALANCE_DUE],
-        checkedIn: row[COLUMNS.CHECKED_IN],
-        checkedOut: row[COLUMNS.CHECKED_OUT]
+        roomAssignment:row[COLUMNS.ROOM_ASSIGNMENT],
+        totalGuests:   row[COLUMNS.TOTAL_GUESTS],
+        balanceDue:    row[COLUMNS.BALANCE_DUE],
+        checkedIn:     row[COLUMNS.CHECKED_IN],
+        checkedOut:    row[COLUMNS.CHECKED_OUT]
       });
     }
   }
@@ -449,7 +475,7 @@ function searchRegistrations(query) {
   return {
     success: true,
     results: results,
-    count: results.length
+    count:   results.length
   };
 }
 
