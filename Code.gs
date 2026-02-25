@@ -89,3 +89,9 @@ function doPost(e) {
     return jsonResponse({error: 'Internal Server Error'}, 500);
   }
 }
+
+// Handle CORS pre-flight OPTIONS requests
+function doOptions(e) {
+  return ContentService.createTextOutput('')
+    .setMimeType(ContentService.MimeType.TEXT);
+}

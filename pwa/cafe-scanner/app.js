@@ -145,7 +145,7 @@ function handleLookup(input) {
     }
 
     // Assume Registration ID (CM26-xxxxx)
-    fetch(`${GOOGLE_SCRIPT_URL}?action=getGuestMeals&id=${encodeURIComponent(input)}`)
+    fetch(`${GOOGLE_SCRIPT_URL}?action=getGuestMeals&id=${encodeURIComponent(input)}`, { redirect: 'follow' })
         .then(r => r.json())
         .then(data => {
             if (data.success) {
@@ -229,14 +229,16 @@ function redeemTicket(ticketId, guestName) {
 
     if (navigator.onLine) {
         // Online: Send immediately
+        // Use text/plain to keep POST as a CORS simple request (no pre-flight).
         fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
-            mode: 'no-cors', // Google Script quirk
-            headers: { 'Content-Type': 'application/json' },
+            mode: 'cors',
+            redirect: 'follow',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify(payload)
         })
+        .then(res => res.json())
         .then(() => {
-            // Because of no-cors, we assume success if no network error
             logActivity(`Redeemed: ${guestName}`, true);
         })
         .catch(err => {
@@ -281,10 +283,12 @@ function processOfflineQueue() {
     queueCopy.forEach(item => {
         fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
+            mode: 'cors',
+            redirect: 'follow',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify(item.payload)
         })
+        .then(res => res.json())
         .then(() => {
             completed++;
             if (completed === queueCopy.length) {

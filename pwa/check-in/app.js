@@ -59,15 +59,18 @@ async function callAPI(action, params = {}, method = 'GET') {
     if (method === 'GET') {
         const query = new URLSearchParams(params).toString();
         url += `&${query}`;
+        options.redirect = 'follow';
     } else {
+        // Use text/plain to keep POST as a CORS simple request (no pre-flight).
+        // GAS receives this as e.postData.contents and parses it normally.
         options.body = JSON.stringify({ action, ...params });
-        options.mode = 'no-cors'; // Google Script quirk for POST
-        options.headers = { 'Content-Type': 'application/json' };
+        options.mode = 'cors';
+        options.redirect = 'follow';
+        options.headers = { 'Content-Type': 'text/plain;charset=utf-8' };
     }
 
     try {
         const res = await fetch(url, options);
-        if (method === 'POST') return { success: true }; // Assume success for no-cors
         return await res.json();
     } catch (err) {
         console.error('API Error:', err);
@@ -271,10 +274,12 @@ function submitAction(data, type) {
     if (navigator.onLine) {
         fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
+            mode: 'cors',
+            redirect: 'follow',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify(data)
         })
+        .then(res => res.json())
         .then(() => {
             logActivity(`${type} Success: ${currentReg.name}`, true);
             loadGuest(currentReg.regId); // Reload to see changes
@@ -321,10 +326,12 @@ function processOfflineQueue() {
     queue.forEach(item => {
         fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
+            mode: 'cors',
+            redirect: 'follow',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify(item.data)
         })
+        .then(res => res.json())
         .then(() => logActivity(`Synced: ${item.desc}`, true))
         .catch(() => {
             offlineQueue.push(item); // Re-queue

@@ -15,10 +15,17 @@ function getSS() {
 }
 
 /**
- * Standard JSON response helper
+ * Standard JSON response helper.
+ * All API responses must go through this function to ensure consistent
+ * JSON formatting and MIME type. Google Apps Script automatically adds
+ * the 'Access-Control-Allow-Origin: *' response header for web apps
+ * deployed with "Anyone, even anonymous" access — custom headers cannot
+ * be set via ContentService. PWA clients must send POST bodies as
+ * 'text/plain;charset=utf-8' (a CORS simple request) to avoid triggering
+ * pre-flight checks that GAS cannot respond to with custom headers.
  */
 function jsonResponse(data, status) {
-  // Add HTTP status simulation if needed, but currently Google Apps Script doesn't support setting HTTP status codes directly.
+  // Note: HTTP status codes cannot be set directly in Google Apps Script.
   return ContentService.createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
 }
