@@ -1,9 +1,11 @@
 name: Deploy to Apps Script
+
 on:
   push:
     branches:
       - main
   workflow_dispatch:
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -19,17 +21,46 @@ jobs:
       - name: Install clasp
         run: npm install -g @google/clasp
 
-      - name: Generate clasp credentials
+      - name: Generate clasp credentials safely
+        env:
+          CLASP_CLIENT_ID: ${{ secrets.CLASP_CLIENT_ID }}
+          CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
+          CLASP_REFRESH_TOKEN: ${{ secrets.CLASP_REFRESH_TOKEN }}
         run: |
-          # Write the entire clasprc.json safely from a single secret
-          cat > ~/.clasprc.json << 'EOF'
-          ${{ secrets.CLASPRC_JSON }}
-          EOF
+          # Use jq to safely construct the JSON file. 
+          # This prevents errors from invisible newlines or special characters in the secrets.
+          jq -n \
+            --arg rt "$CLASP_REFRESH_TOKEN" \
+            --arg cid "$CLASP_CLIENT_ID" \
+            --arg csec "$CLASP_CLIENT_SECRET" \
+            '{
+              token: {
+                access_token: "",
+                refresh_token: $rt,
+                scope: "https://www.googleapis.com/auth/script.projects",
+                token_type: "Bearer",
+                expiry_date: 1
+              },
+              oauth2ClientSettings: {
+                clientId: $cid,
+                clientSecret: $csec,
+                redirectUri: "http://localhost"
+              },
+              isLocalCreds: false
+            }' > ~/.clasprc.json
+          
+          echo "Validating clasprc.json syntax..."
+          jq . ~/.clasprc.json > /dev/null
 
-      - name: Inject Script ID into clasp config
+      - name: Inject Script ID into clasp config safely
         env:
           SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
-        run: envsubst < .clasp.json > .clasp.json.tmp && mv .clasp.json.tmp .clasp.json
+        run: |
+          # Use jq to safely inject the Script ID into the .clasp.json file
+          jq --arg sid "$SCRIPT_ID" '.scriptId = $sid' .clasp.json > .clasp.json.tmp && mv .clasp.json.tmp .clasp.json
+          
+          echo "Validating .clasp.json syntax..."
+          jq . .clasp.json > /dev/null
 
       - name: Push to Apps Script
         run: clasp push -f
