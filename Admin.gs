@@ -373,6 +373,48 @@ function exportCheckInList() {
 }
 
 /**
+ * Get recent activity entries for the Admin Dashboard.
+ * Reads the ActivityLog sheet, reverses the rows so the newest entry is first,
+ * and returns the top 50 as an array of plain objects.
+ *
+ * @returns {{success: boolean, entries: Array<{timestamp, action, regId, user, source, details}>}}
+ */
+function getRecentActivity() {
+  try {
+    var ss = getSS();
+    var logSheet = ss.getSheetByName('ActivityLog');
+
+    if (!logSheet) {
+      return { success: false, error: 'ActivityLog sheet not found. Run initializeDatabase() first.' };
+    }
+
+    var data = logSheet.getDataRange().getValues();
+
+    // Row 0 is the header; slice it off, then reverse so newest is first
+    var rows = data.slice(1).reverse();
+
+    // Take top 50
+    var top50 = rows.slice(0, 50);
+
+    var entries = top50.map(function(row) {
+      return {
+        timestamp: row[0] ? row[0].toString() : '',
+        action:    row[1] || '',
+        regId:     row[2] || '',
+        user:      row[3] || '',
+        source:    row[4] || '',
+        details:   row[5] || ''
+      };
+    });
+
+    return { success: true, entries: entries };
+
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
  * Process No-Shows
  * Marks confirmed registrations as cancelled/no-show if they missed their first night check-in
  */

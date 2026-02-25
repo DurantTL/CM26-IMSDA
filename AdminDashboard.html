@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CM26 Admin Dashboard</title>
+  <style>
+    /* ── Reset & Base ───────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary:      #1d4ed8;
+      --primary-dark: #1e3a8a;
+      --primary-light:#dbeafe;
+      --accent:       #0ea5e9;
+      --success:      #16a34a;
+      --success-bg:   #dcfce7;
+      --warning:      #d97706;
+      --warning-bg:   #fef3c7;
+      --danger:       #dc2626;
+      --danger-bg:    #fef2f2;
+      --text:         #1e293b;
+      --text-muted:   #64748b;
+      --border:       #e2e8f0;
+      --bg:           #f8fafc;
+      --surface:      #ffffff;
+      --sidebar-w:    240px;
+      --topbar-h:     60px;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    /* ── Layout ─────────────────────────────────────────────────────── */
+    .layout {
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ─────────────────────────────────────────────────────── */
+    .sidebar {
+      width: var(--sidebar-w);
+      background: var(--primary-dark);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow-y: auto;
+    }
+
+    .sidebar-brand {
+      padding: 20px 18px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .sidebar-brand .brand-title {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+    .sidebar-brand .brand-sub {
+      font-size: 11px;
+      color: rgba(255,255,255,0.55);
+      margin-top: 2px;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 12px 0;
+    }
+
+    .nav-section-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: rgba(255,255,255,0.4);
+      padding: 14px 18px 6px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 18px;
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: background 0.15s, border-color 0.15s;
+      color: rgba(255,255,255,0.75);
+      font-size: 13.5px;
+      user-select: none;
+    }
+    .nav-item:hover {
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+    }
+    .nav-item.active {
+      background: rgba(255,255,255,0.12);
+      border-left-color: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+    .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+
+    .sidebar-footer {
+      padding: 14px 18px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      font-size: 11px;
+      color: rgba(255,255,255,0.4);
+    }
+
+    /* ── Main area ─────────────────────────────────────────────────── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .topbar {
+      height: var(--topbar-h);
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      flex-shrink: 0;
+    }
+    .topbar-title {
+      font-size: 17px;
+      font-weight: 600;
+    }
+    .topbar-actions { display: flex; gap: 10px; align-items: center; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: opacity 0.15s, background 0.15s;
+      text-decoration: none;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary   { background: var(--primary); color: #fff; }
+    .btn-primary:hover:not(:disabled)   { background: var(--primary-dark); }
+    .btn-success   { background: var(--success); color: #fff; }
+    .btn-success:hover:not(:disabled)   { background: #15803d; }
+    .btn-danger    { background: var(--danger); color: #fff; }
+    .btn-danger:hover:not(:disabled)    { background: #b91c1c; }
+    .btn-outline   { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-outline:hover:not(:disabled)   { background: var(--bg); }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px 24px;
+    }
+
+    /* ── Tab panels ───────────────────────────────────────────────── */
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Page header ──────────────────────────────────────────────── */
+    .page-header {
+      margin-bottom: 24px;
+    }
+    .page-header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .page-header p {
+      color: var(--text-muted);
+      margin-top: 4px;
+      font-size: 13px;
+    }
+
+    /* ── Stat cards ───────────────────────────────────────────────── */
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--primary);
+    }
+    .stat-card.green::before { background: var(--success); }
+    .stat-card.amber::before { background: var(--warning); }
+    .stat-card.red::before   { background: var(--danger); }
+    .stat-card.sky::before   { background: var(--accent); }
+
+    .stat-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .stat-value {
+      font-size: 34px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1;
+    }
+    .stat-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    /* ── Cards / panels ────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .card-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-header h2 {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .card-body { padding: 20px; }
+
+    /* ── Alert / banner ────────────────────────────────────────────── */
+    .alert {
+      padding: 14px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .alert-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+    .alert-body { flex: 1; }
+    .alert-body strong { display: block; margin-bottom: 2px; }
+    .alert-warning { background: var(--warning-bg); border: 1px solid #fcd34d; color: #92400e; }
+    .alert-danger  { background: var(--danger-bg);  border: 1px solid #fca5a5; color: #991b1b; }
+    .alert-success { background: var(--success-bg); border: 1px solid #86efac; color: #166534; }
+    .alert-info    { background: var(--primary-light); border: 1px solid #93c5fd; color: var(--primary-dark); }
+
+    /* ── Toast notification ─────────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      padding: 12px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #fff;
+      max-width: 340px;
+      z-index: 9999;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity 0.25s, transform 0.25s;
+      pointer-events: none;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    #toast.success { background: #15803d; }
+    #toast.error   { background: #b91c1c; }
+    #toast.info    { background: var(--primary); }
+
+    /* ── Activity feed table ────────────────────────────────────────── */
+    .feed-table-wrap {
+      overflow-x: auto;
+      max-height: 560px;
+      overflow-y: auto;
+    }
+    .feed-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12.5px;
+    }
+    .feed-table thead th {
+      background: var(--bg);
+      padding: 9px 12px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .feed-table tbody tr:hover { background: var(--bg); }
+    .feed-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+      max-width: 280px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .feed-table td.details-cell {
+      white-space: normal;
+      word-break: break-word;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-blue    { background: var(--primary-light); color: var(--primary-dark); }
+    .badge-green   { background: var(--success-bg); color: var(--success); }
+    .badge-amber   { background: var(--warning-bg); color: var(--warning); }
+    .badge-red     { background: var(--danger-bg); color: var(--danger); }
+    .badge-gray    { background: #f1f5f9; color: var(--text-muted); }
+
+    /* ── Spinner ─────────────────────────────────────────────────────── */
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-row {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 32px;
+    }
+
+    /* ── Setup section ───────────────────────────────────────────────── */
+    .setup-steps { counter-reset: step; }
+    .setup-step {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      align-items: flex-start;
+    }
+    .setup-step-num {
+      counter-increment: step;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      font-weight: 700;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .setup-step-body { flex: 1; padding-top: 4px; }
+    .setup-step-body strong { font-size: 14px; }
+    .setup-step-body p { color: var(--text-muted); font-size: 12.5px; margin-top: 3px; }
+
+    /* ── Responsive ─────────────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      .sidebar { display: none; }
+      .stat-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ── Sidebar ─────────────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-title">CM26 Admin</div>
+      <div class="brand-sub">Iowa-Missouri Conference SDA</div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Overview</div>
+      <div class="nav-item active" data-tab="dashboard" onclick="switchTab('dashboard', this)">
+        <span class="nav-icon">📊</span> Dashboard
+      </div>
+      <div class="nav-item" data-tab="activity" onclick="switchTab('activity', this)">
+        <span class="nav-icon">📋</span> Activity Feed
+      </div>
+      <div class="nav-section-label">Administration</div>
+      <div class="nav-item" data-tab="setup" onclick="switchTab('setup', this)">
+        <span class="nav-icon">⚙️</span> System Setup
+      </div>
+    </nav>
+
+    <div class="sidebar-footer">Camp Meeting 2026 · June 2–6</div>
+  </aside>
+
+  <!-- ── Main ────────────────────────────────────────────────────── -->
+  <div class="main">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <span class="topbar-title" id="topbar-title">Dashboard</span>
+      <div class="topbar-actions">
+        <button class="btn btn-outline btn-sm" onclick="refreshCurrent()">&#8635; Refresh</button>
+        <span id="last-refreshed" style="font-size:11px;color:var(--text-muted);"></span>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <div class="content">
+
+      <!-- ── Dashboard tab ──────────────────────────────────────── -->
+      <div id="tab-dashboard" class="tab-panel active">
+        <div class="page-header">
+          <h1>Live Check-In Dashboard</h1>
+          <p>Real-time registration and arrival statistics for Camp Meeting 2026.</p>
+        </div>
+
+        <div class="stat-grid" id="stat-grid">
+          <!-- Populated by JS -->
+          <div class="stat-card">
+            <div class="stat-label">Loading…</div>
+            <div class="stat-value"><span class="spinner"></span></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Event Details</h2>
+          </div>
+          <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;font-size:13px;">
+            <div><span style="color:var(--text-muted)">Event:</span> <strong>Camp Meeting 2026</strong></div>
+            <div><span style="color:var(--text-muted)">Location:</span> <strong>Sunnydale Academy Campus</strong></div>
+            <div><span style="color:var(--text-muted)">Dates:</span> <strong>June 2 – 6, 2026</strong></div>
+            <div><span style="color:var(--text-muted)">Conference:</span> <strong>Iowa-Missouri IMSDA</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Activity Feed tab ──────────────────────────────────── -->
+      <div id="tab-activity" class="tab-panel">
+        <div class="page-header">
+          <h1>Activity Feed</h1>
+          <p>The 50 most recent system actions, newest first.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Recent Activity</h2>
+            <button class="btn btn-outline btn-sm" onclick="loadActivity()">&#8635; Refresh</button>
+          </div>
+          <div class="card-body" style="padding:0;">
+            <div class="feed-table-wrap">
+              <table class="feed-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Action</th>
+                    <th>Reg ID</th>
+                    <th>User</th>
+                    <th>Source</th>
+                    <th style="min-width:200px;">Details</th>
+                  </tr>
+                </thead>
+                <tbody id="activity-tbody">
+                  <tr class="loading-row"><td colspan="6"><span class="spinner"></span> Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── System Setup tab ───────────────────────────────────── -->
+      <div id="tab-setup" class="tab-panel">
+        <div class="page-header">
+          <h1>System Setup</h1>
+          <p>Initialize and verify the Google Sheets database structure.</p>
+        </div>
+
+        <div class="alert alert-danger">
+          <div class="alert-icon">⚠️</div>
+          <div class="alert-body">
+            <strong>Important — Read Before Proceeding</strong>
+            This function will create any missing sheets and overwrite the header row of
+            every existing sheet. Existing data rows are <em>not</em> deleted.
+            However, if your headers have drifted from the schema, this will correct them.
+            Only run this during initial setup or after adding new columns — never during
+            live event operations.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h2>Database Initialization</h2></div>
+          <div class="card-body">
+            <p style="margin-bottom:20px;color:var(--text-muted);font-size:13px;">
+              The following sheets will be checked and created if missing:
+              <strong>Registrations, Waitlist, Rooms, MealTickets, ActivityLog, Payments, GuestDetails, Config</strong>.
+              All headers will be refreshed and row 1 will be frozen.
+            </p>
+
+            <div class="setup-steps">
+              <div class="setup-step">
+                <div class="setup-step-num">1</div>
+                <div class="setup-step-body">
+                  <strong>Check Sheets</strong>
+                  <p>Verifies each required sheet exists. Creates it if missing.</p>
+                </div>
+              </div>
+              <div class="setup-step">
+                <div class="setup-step-num">2</div>
+                <div class="setup-step-body">
+                  <strong>Write Headers</strong>
+                  <p>Writes exact column headers aligned with the system's internal column indices.</p>
+                </div>
+              </div>
+              <div class="setup-step">
+                <div class="setup-step-num">3</div>
+                <div class="setup-step-body">
+                  <strong>Format & Freeze</strong>
+                  <p>Makes headers bold and freezes row 1 on every sheet.</p>
+                </div>
+              </div>
+              <div class="setup-step">
+                <div class="setup-step-num">4</div>
+                <div class="setup-step-body">
+                  <strong>Seed Config (if new)</strong>
+                  <p>If the Config sheet is newly created, default event/pricing values are seeded automatically.</p>
+                </div>
+              </div>
+            </div>
+
+            <div id="setup-result" style="margin-bottom:16px;"></div>
+
+            <button class="btn btn-danger" id="init-btn" onclick="runInitDatabase()">
+              ⚙️ Initialize / Verify Database
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h2>Sheet Schema Reference</h2></div>
+          <div class="card-body" style="font-size:12.5px;color:var(--text-muted);">
+            <p>All sheet names, key columns, and their purpose — for reference only.</p>
+            <table style="width:100%;border-collapse:collapse;margin-top:12px;">
+              <thead>
+                <tr style="background:var(--bg);">
+                  <th style="padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;">Sheet</th>
+                  <th style="padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;">Columns</th>
+                  <th style="padding:7px 10px;text-align:left;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;">Purpose</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td style="padding:7px 10px;border-bottom:1px solid var(--border);"><strong>Registrations</strong></td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">A–BB (54)</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">Primary registration data</td></tr>
+                <tr><td style="padding:7px 10px;border-bottom:1px solid var(--border);"><strong>Waitlist</strong></td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">A–M (13)</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">Housing waitlist queue</td></tr>
+                <tr><td style="padding:7px 10px;border-bottom:1px solid var(--border);"><strong>Rooms</strong></td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">A–J (10)</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">Dorm room inventory &amp; status</td></tr>
+                <tr><td style="padding:7px 10px;border-bottom:1px solid var(--border);"><strong>MealTickets</strong></td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">A–L (12)</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">Individual meal ticket records</td></tr>
+                <tr><td style="padding:7px 10px;border-bottom:1px solid var(--border);"><strong>GuestDetails</strong></td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">A–I (9)</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">Per-guest sub-records</td></tr>
+                <tr><td style="padding:7px 10px;border-bottom:1px solid var(--border);"><strong>Payments</strong></td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">A–I (9)</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">Payment ledger</td></tr>
+                <tr><td style="padding:7px 10px;border-bottom:1px solid var(--border);"><strong>ActivityLog</strong></td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">A–F (6)</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">Audit trail of all operations</td></tr>
+                <tr><td style="padding:7px 10px;"><strong>Config</strong></td><td style="padding:7px 10px;">A–B (2)</td><td style="padding:7px 10px;">Key-value configuration store</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /layout -->
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+  // ── Tab navigation ──────────────────────────────────────────────────────
+  var TITLES = {
+    dashboard: 'Dashboard',
+    activity:  'Activity Feed',
+    setup:     'System Setup'
+  };
+
+  function switchTab(tabId, navEl) {
+    // Deactivate all panels and nav items
+    document.querySelectorAll('.tab-panel').forEach(function(p) {
+      p.classList.remove('active');
+    });
+    document.querySelectorAll('.nav-item').forEach(function(n) {
+      n.classList.remove('active');
+    });
+
+    // Activate selected
+    document.getElementById('tab-' + tabId).classList.add('active');
+    if (navEl) navEl.classList.add('active');
+    document.getElementById('topbar-title').textContent = TITLES[tabId] || tabId;
+
+    // Lazy-load data on first visit
+    if (tabId === 'activity' && !window._activityLoaded) {
+      loadActivity();
+    }
+  }
+
+  function refreshCurrent() {
+    var active = document.querySelector('.nav-item.active');
+    if (!active) return;
+    var tabId = active.getAttribute('data-tab');
+    if (tabId === 'dashboard') loadStats();
+    if (tabId === 'activity')  loadActivity();
+  }
+
+  // ── Toast ────────────────────────────────────────────────────────────────
+  var _toastTimer = null;
+  function showToast(msg, type) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'show ' + (type || 'info');
+    if (_toastTimer) clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(function() {
+      el.classList.remove('show');
+    }, 4000);
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  function esc(str) {
+    if (str === null || str === undefined) return '';
+    var d = document.createElement('div');
+    d.textContent = String(str);
+    return d.innerHTML;
+  }
+
+  function fmtDate(val) {
+    if (!val) return '—';
+    try {
+      var d = new Date(val);
+      if (isNaN(d.getTime())) return String(val);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
+             ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    } catch(e) { return String(val); }
+  }
+
+  function setLastRefreshed() {
+    var el = document.getElementById('last-refreshed');
+    el.textContent = 'Updated ' + new Date().toLocaleTimeString();
+  }
+
+  // ── Load Stats ──────────────────────────────────────────────────────────
+  function loadStats() {
+    var grid = document.getElementById('stat-grid');
+    grid.innerHTML = '<div class="stat-card"><div class="stat-label">Loading…</div>' +
+      '<div class="stat-value"><span class="spinner"></span></div></div>';
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (!result || !result.success) {
+          grid.innerHTML = '<div class="alert alert-danger">Failed to load stats: ' +
+            esc((result && result.error) || 'Unknown error') + '</div>';
+          return;
+        }
+        renderStats(result.stats);
+        setLastRefreshed();
+      })
+      .withFailureHandler(function(err) {
+        grid.innerHTML = '<div class="alert alert-danger">Error: ' + esc(err.message) + '</div>';
+      })
+      .getCheckInStats();
+  }
+
+  function renderStats(s) {
+    var grid = document.getElementById('stat-grid');
+    var expected = (s.totalRegistrations || 0) - (s.checkedOut || 0);
+
+    grid.innerHTML =
+      statCard('Total Registrations', s.totalRegistrations, 'All non-cancelled', '', '') +
+      statCard('Checked In',          s.checkedIn,         'Currently on-site', 'green', '') +
+      statCard('Not Yet Arrived',     s.notArrived,        'Expected but not in', 'amber', '') +
+      statCard('Checked Out',         s.checkedOut,        'Departed', 'sky', '') +
+      statCard('Keys Out',            s.keysOut,           'Unreturned keys', 'red', '') +
+      statCard('Deposits Held',       '$' + (s.depositsHeld || 0).toFixed(2), 'Key deposits pending refund', '', '') +
+      statCard('Balances Due',        '$' + (s.balancesDue || 0).toFixed(2),  'Outstanding balances', 'amber', '');
+  }
+
+  function statCard(label, value, desc, color, _unused) {
+    return '<div class="stat-card ' + esc(color) + '">' +
+      '<div class="stat-label">' + esc(label) + '</div>' +
+      '<div class="stat-value">' + esc(value) + '</div>' +
+      '<div class="stat-desc">' + esc(desc) + '</div>' +
+      '</div>';
+  }
+
+  // ── Load Activity Feed ──────────────────────────────────────────────────
+  function loadActivity() {
+    window._activityLoaded = true;
+    var tbody = document.getElementById('activity-tbody');
+    tbody.innerHTML = '<tr class="loading-row"><td colspan="6"><span class="spinner"></span> Loading…</td></tr>';
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (!result || !result.success) {
+          tbody.innerHTML = '<tr class="loading-row"><td colspan="6">Failed to load: ' +
+            esc((result && result.error) || 'Unknown error') + '</td></tr>';
+          return;
+        }
+        renderActivity(result.entries);
+        setLastRefreshed();
+      })
+      .withFailureHandler(function(err) {
+        tbody.innerHTML = '<tr class="loading-row"><td colspan="6">Error: ' + esc(err.message) + '</td></tr>';
+      })
+      .getRecentActivity();
+  }
+
+  function actionBadge(action) {
+    if (!action) return '<span class="badge badge-gray">—</span>';
+    var a = String(action).toLowerCase();
+    var cls = 'badge-gray';
+    if (a.indexOf('check_in')   !== -1) cls = 'badge-green';
+    else if (a.indexOf('check_out')  !== -1) cls = 'badge-blue';
+    else if (a.indexOf('payment')    !== -1) cls = 'badge-green';
+    else if (a.indexOf('meal')       !== -1) cls = 'badge-blue';
+    else if (a.indexOf('error')      !== -1) cls = 'badge-red';
+    else if (a.indexOf('cancel')     !== -1) cls = 'badge-red';
+    else if (a.indexOf('waitlist')   !== -1) cls = 'badge-amber';
+    else if (a.indexOf('register')   !== -1) cls = 'badge-green';
+    else if (a.indexOf('init')       !== -1) cls = 'badge-blue';
+    return '<span class="badge ' + cls + '">' + esc(action) + '</span>';
+  }
+
+  function renderActivity(entries) {
+    var tbody = document.getElementById('activity-tbody');
+    if (!entries || entries.length === 0) {
+      tbody.innerHTML = '<tr class="loading-row"><td colspan="6">No activity found.</td></tr>';
+      return;
+    }
+
+    var rows = entries.map(function(e) {
+      return '<tr>' +
+        '<td style="white-space:nowrap;color:var(--text-muted);">' + esc(fmtDate(e.timestamp)) + '</td>' +
+        '<td>' + actionBadge(e.action) + '</td>' +
+        '<td style="font-family:monospace;font-size:12px;">' + esc(e.regId || '—') + '</td>' +
+        '<td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;">' + esc(e.user || '—') + '</td>' +
+        '<td><span class="badge badge-gray">' + esc(e.source || '—') + '</span></td>' +
+        '<td class="details-cell">' + esc(e.details || '') + '</td>' +
+        '</tr>';
+    });
+
+    tbody.innerHTML = rows.join('');
+  }
+
+  // ── Database Init ────────────────────────────────────────────────────────
+  function runInitDatabase() {
+    var btn = document.getElementById('init-btn');
+    var resultEl = document.getElementById('setup-result');
+
+    if (!confirm('Initialize the database?\n\nThis will create missing sheets and overwrite all header rows. ' +
+        'Data rows will NOT be deleted. Proceed?')) {
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Running…';
+    resultEl.innerHTML = '';
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        btn.disabled = false;
+        btn.innerHTML = '⚙️ Initialize / Verify Database';
+
+        if (!result || !result.success) {
+          resultEl.innerHTML = '<div class="alert alert-danger">' +
+            '<div class="alert-icon">❌</div>' +
+            '<div class="alert-body"><strong>Initialization failed</strong>' + esc((result && result.error) || 'Unknown error') + '</div></div>';
+          showToast('Initialization failed', 'error');
+          return;
+        }
+
+        var createdTxt = result.sheetsCreated.length
+          ? 'Created: <strong>' + result.sheetsCreated.map(esc).join(', ') + '</strong>'
+          : 'No new sheets needed.';
+        var updatedTxt = result.sheetsUpdated.length
+          ? 'Headers refreshed on: <strong>' + result.sheetsUpdated.map(esc).join(', ') + '</strong>'
+          : '';
+
+        resultEl.innerHTML = '<div class="alert alert-success">' +
+          '<div class="alert-icon">✅</div>' +
+          '<div class="alert-body"><strong>Success!</strong> ' + createdTxt +
+          (updatedTxt ? '<br>' + updatedTxt : '') + '</div></div>';
+
+        showToast('Database initialized successfully!', 'success');
+      })
+      .withFailureHandler(function(err) {
+        btn.disabled = false;
+        btn.innerHTML = '⚙️ Initialize / Verify Database';
+        resultEl.innerHTML = '<div class="alert alert-danger">' +
+          '<div class="alert-icon">❌</div>' +
+          '<div class="alert-body"><strong>Error</strong>' + esc(err.message) + '</div></div>';
+        showToast('Error: ' + err.message, 'error');
+      })
+      .initializeDatabase();
+  }
+
+  // ── Bootstrap ────────────────────────────────────────────────────────────
+  window.addEventListener('DOMContentLoaded', function() {
+    loadStats();
+  });
+</script>
+</body>
+</html>
