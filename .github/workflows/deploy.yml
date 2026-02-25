@@ -1,39 +1,35 @@
-name: Deploy to Google Apps Script
-
+name: Deploy to Apps Script
 on:
   push:
     branches:
-      - main # Or your primary branch name
-
+      - main
+  workflow_dispatch:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Repository
+      - name: Checkout Repo
         uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
 
-      - name: Install Clasp
+      - name: Install clasp
         run: npm install -g @google/clasp
 
-      - name: Setup Clasp Credentials
+      - name: Generate clasp credentials
         run: |
-          # Write the authentication token from GitHub Secrets
-          cat > ~/.clasprc.json << EOF
+          # Write the entire clasprc.json safely from a single secret
+          cat > ~/.clasprc.json << 'EOF'
           ${{ secrets.CLASPRC_JSON }}
           EOF
 
-      - name: Inject Script ID
+      - name: Inject Script ID into clasp config
         env:
           SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
-        run: |
-          # Replace the ${SCRIPT_ID} placeholder in .clasp.json with the actual secret
-          envsubst < .clasp.json > .clasp.json.tmp && mv .clasp.json.tmp .clasp.json
+        run: envsubst < .clasp.json > .clasp.json.tmp && mv .clasp.json.tmp .clasp.json
 
-      - name: Push Code to Apps Script
+      - name: Push to Apps Script
         run: clasp push -f
