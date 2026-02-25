@@ -38,13 +38,37 @@
 
         <!-- SEARCH & SCAN -->
         <div class="search-section">
-            <div class="input-group">
-                <input type="text" id="search-input" placeholder="Search name or Reg ID...">
-                <button id="search-btn" class="btn btn-primary">🔍</button>
+
+            <!-- Search Tabs -->
+            <div class="search-tabs">
+                <button class="tab-btn active" id="tab-name-btn" onclick="switchTab('name')">By Name</button>
+                <button class="tab-btn" id="tab-id-btn" onclick="switchTab('id')">By ID</button>
             </div>
+
+            <!-- By Name Panel -->
+            <div id="search-name-panel" class="tab-panel">
+                <div class="name-inputs">
+                    <input type="text" id="search-first" placeholder="First Name" autocomplete="given-name">
+                    <input type="text" id="search-last" placeholder="Last Name" autocomplete="family-name">
+                </div>
+                <button id="search-name-btn" class="btn btn-primary full-width">🔍 Search by Name</button>
+            </div>
+
+            <!-- By ID Panel -->
+            <div id="search-id-panel" class="tab-panel" style="display:none;">
+                <div class="input-group">
+                    <input type="text" id="search-reg-id" placeholder="Reg ID (e.g. CM26-0001)" autocomplete="off">
+                    <button id="search-id-btn" class="btn btn-primary">🔍</button>
+                </div>
+            </div>
+
+            <!-- Scan + Arrivals row -->
             <div class="action-row">
-                <button id="scan-btn" class="btn btn-secondary full-width">📷 Scan QR</button>
-                <button id="arrivals-btn" class="btn btn-outline full-width">📋 View Arrivals</button>
+                <button id="scan-btn" class="btn btn-secondary">📷 Scan QR</button>
+                <div class="arrivals-group">
+                    <input type="date" id="arrivals-date" title="Select date for arrivals">
+                    <button id="arrivals-btn" class="btn btn-outline">📋 Arrivals</button>
+                </div>
             </div>
         </div>
 
