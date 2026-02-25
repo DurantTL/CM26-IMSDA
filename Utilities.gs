@@ -4,7 +4,7 @@
 
 // *** ACTION REQUIRED ***
 // Paste your Spreadsheet ID inside the quotes below
-var SPREADSHEET_ID = '1Zx-XPcbg3oI5DK5OCH8Ryg7LC4rYKRjcRDOIxTQsyy8'; 
+var SPREADSHEET_ID = '1Zx-XPcbg3oI5DK5OCH8Ryg7LC4rYKRjcRDOIxTQsyy8';
 
 /**
  * HELPER: Always opens the correct spreadsheet by ID
@@ -65,18 +65,48 @@ function logActivity(action, regId, details, source) {
   try {
     var ss = getSS();
     var logSheet = ss.getSheetByName('ActivityLog');
-    
+
     logSheet.appendRow([
       new Date(),
       action,
       regId,
-      Session.getEffectiveUser().getEmail(), 
+      Session.getEffectiveUser().getEmail(),
       source,
       details
     ]);
   } catch (e) {
     console.error('Logging failed: ' + e.toString());
   }
+}
+
+/**
+ * Calculates the Square processing fee using the pass-on (reverse) formula
+ * so the organization receives exactly the subtotal amount.
+ *
+ * Standard formula charges the customer:
+ *   Total = (Subtotal + Fixed) / (1 - Percent)
+ *   Fee   = Total - Subtotal
+ *
+ * Config keys used:
+ *   square_fee_percent  — e.g. 0.029 (2.9%)
+ *   square_fee_fixed    — e.g. 0.30  ($0.30)
+ *
+ * @param {number} subtotal  The net amount the organization should receive.
+ * @returns {number} The fee to add to the subtotal, rounded to 2 decimal places.
+ *                   Returns 0 if subtotal is falsy or non-positive.
+ */
+function calculateSquareFee(subtotal) {
+  if (!subtotal || subtotal <= 0) return 0;
+  var config = getConfig();
+  var fixed = parseFloat(config.square_fee_fixed || 0.30);
+  var percent = parseFloat(config.square_fee_percent || 0.029);
+
+  // Pass-on formula: Total = (Subtotal + Fixed) / (1 - Percent)
+  var totalCharge = (subtotal + fixed) / (1 - percent);
+  var fee = totalCharge - subtotal;
+
+  // Return rounded to 2 decimal places
+  return Math.round(fee * 100) / 100;
 }
 
 // Column Indices (0-based) for consistency
