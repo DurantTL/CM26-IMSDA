@@ -263,7 +263,8 @@ function _seedDefaultConfig(configSheet) {
     ['square_fee_fixed',       '0.30'],
     ['dorm_capacity',          '100'],
     ['rv_capacity',            '50'],
-    ['tent_capacity',          '200']
+    ['tent_capacity',          '200'],
+    ['web_app_url',            '']    // Set to your /exec URL after deployment
   ];
 
   configSheet.getRange(2, 1, defaults.length, 2).setValues(defaults);
