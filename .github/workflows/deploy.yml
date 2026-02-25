@@ -1,57 +1,39 @@
-name: Deploy to Apps Script
+name: Deploy to Google Apps Script
+
 on:
   push:
     branches:
-      - main
-  workflow_dispatch:
+      - main # Or your primary branch name
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout Repo
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '18'
 
-      - name: Install clasp
+      - name: Install Clasp
         run: npm install -g @google/clasp
 
-      - name: Write service account key
-        run: echo '${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}' > /tmp/sa-key.json
-
-      - name: Generate clasp credentials
-        env:
-          CLASP_CLIENT_ID: ${{ secrets.CLASP_CLIENT_ID }}
-          CLASP_CLIENT_SECRET: ${{ secrets.CLASP_CLIENT_SECRET }}
-          CLASP_REFRESH_TOKEN: ${{ secrets.CLASP_REFRESH_TOKEN }}
+      - name: Setup Clasp Credentials
         run: |
+          # Write the authentication token from GitHub Secrets
           cat > ~/.clasprc.json << EOF
-          {
-            "token": {
-              "access_token": "",
-              "refresh_token": "$CLASP_REFRESH_TOKEN",
-              "scope": "https://www.googleapis.com/auth/script.projects",
-              "token_type": "Bearer",
-              "expiry_date": 1
-            },
-            "oauth2ClientSettings": {
-              "clientId": "$CLASP_CLIENT_ID",
-              "clientSecret": "$CLASP_CLIENT_SECRET",
-              "redirectUri": "http://localhost"
-            },
-            "isLocalCreds": false
-          }
+          ${{ secrets.CLASPRC_JSON }}
           EOF
-          echo "File written, checking refresh_token is present:"
-          cat ~/.clasprc.json | grep -o '"refresh_token":"[^"]*"' | cut -c1-30
 
-      - name: Inject Script ID into clasp config
+      - name: Inject Script ID
         env:
           SCRIPT_ID: ${{ secrets.SCRIPT_ID }}
-        run: envsubst < .clasp.json > .clasp.json.tmp && mv .clasp.json.tmp .clasp.json
+        run: |
+          # Replace the ${SCRIPT_ID} placeholder in .clasp.json with the actual secret
+          envsubst < .clasp.json > .clasp.json.tmp && mv .clasp.json.tmp .clasp.json
 
-      - name: Push to Apps Script
+      - name: Push Code to Apps Script
         run: clasp push -f
