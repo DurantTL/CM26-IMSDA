@@ -4,7 +4,14 @@
 
 function doGet(e) {
   var action = e.parameter.action || 'ping';
-  
+
+  // Serve the Admin Dashboard as an HTML page when action=admin
+  if (action === 'admin') {
+    return HtmlService.createHtmlOutputFromFile('AdminDashboard')
+      .setTitle('CM26 Admin Dashboard')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+
   try {
     switch(action) {
       case 'getAvailability':
@@ -12,10 +19,10 @@ function doGet(e) {
 
       case 'getRegistration':
         return jsonResponse(getRegistration(e.parameter.id));
-      
+
       case 'getGuestMeals':
         return jsonResponse(getGuestMeals(e.parameter.id));
-        
+
       case 'getCheckInData':
         return jsonResponse(getCheckInData(e.parameter.id));
 
@@ -35,7 +42,7 @@ function doGet(e) {
 
       case 'ping':
         return jsonResponse({success: true, status: 'online'});
-        
+
       default:
         return jsonResponse({error: 'Unknown action'}, 400);
     }
