@@ -51,6 +51,17 @@ function processRegistration(data) {
     var createdDate = new Date();
     
     // 3. Prepare Data for 'Registrations' Sheet
+    // Compute fee and total: prefer frontend-supplied values (guarantees an
+    // exact match with what Square actually charged the customer) and fall
+    // back to server-side calculation via calculateSquareFee() if absent.
+    var calculatedSubtotal = (data.housingSubtotal || 0) + (data.mealSubtotal || 0);
+    var processingFee = data.processingFee !== undefined
+      ? parseFloat(data.processingFee)
+      : calculateSquareFee(calculatedSubtotal);
+    var totalCharged = data.totalCharged !== undefined
+      ? parseFloat(data.totalCharged)
+      : (calculatedSubtotal + processingFee);
+
     // This array MUST match the column order (A - AU) in your sheet exactly
     var regRow = [
       regId,                            // A: reg_id
@@ -78,9 +89,9 @@ function processRegistration(data) {
       data.specialNeeds || '',          // W: special_needs
       data.mealSubtotal || 0,           // X: meal_subtotal
       data.subtotal || 0,               // Y: subtotal
-      parseFloat(data.processingFee) || 0, // Z: processing_fee
-      data.totalCharged || 0,           // AA: total_charged
-      data.paymentStatus === 'paid' ? data.totalCharged : 0, // AB: amount_paid
+      processingFee,                    // Z: processing_fee
+      totalCharged,                     // AA: total_charged
+      data.paymentStatus === 'paid' ? totalCharged : 0, // AB: amount_paid
       0,                                // AC: balance_due (Calculated by Sheet Formula)
       data.paymentMethod || 'square',   // AD: payment_method
       data.paymentStatus || 'pending',  // AE: payment_status
@@ -155,10 +166,10 @@ function processRegistration(data) {
     
     // 7. Record Payment
     // If they paid immediately via Square, log it in Payments tab
-    if (data.totalCharged > 0 && data.paymentStatus === 'paid') {
+    if (totalCharged > 0 && data.paymentStatus === 'paid') {
       recordPayment({
         regId: regId,
-        amount: data.totalCharged,
+        amount: totalCharged,
         method: data.paymentMethod || 'square',
         type: 'full',
         transactionId: data.transactionId,

@@ -67,8 +67,9 @@ function recordPayment(data) {
     regSheet.getRange(row, COLUMNS.BALANCE_DUE + 1).setValue(balance);
 
     // Update Payment Status
+    // Compare in integer cents to eliminate floating-point rounding errors
     var status = 'partial';
-    if (newPaid >= totalCharged - 0.01) { // Tolerance for float math
+    if (Math.round(parseFloat(newPaid) * 100) >= Math.round(parseFloat(totalCharged) * 100)) {
       status = 'paid';
     }
     regSheet.getRange(row, COLUMNS.PAYMENT_STATUS + 1).setValue(status);
