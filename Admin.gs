@@ -3,11 +3,15 @@
 // ==========================================
 
 /**
- * Show admin sidebar
+ * Show admin sidebar, bridged to the web-based Admin Dashboard.
+ * Injects the deployed web app URL so the sidebar can link directly
+ * to the full AdminDashboard (?action=admin) in a new tab.
  */
 function showAdminSidebar() {
-  var html = HtmlService.createHtmlOutputFromFile('AdminSidebar')
-    .setTitle('Camp Meeting Admin')
+  var template = HtmlService.createTemplateFromFile('AdminSidebar');
+  template.webAppUrl = ScriptApp.getService().getUrl() + '?action=admin';
+  var html = template.evaluate()
+    .setTitle('CM26 Admin')
     .setWidth(350);
   SpreadsheetApp.getUi().showSidebar(html);
 }

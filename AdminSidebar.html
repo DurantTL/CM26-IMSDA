@@ -88,13 +88,56 @@
       color: #64748b;
       font-style: italic;
     }
+
+    /* ── Dashboard link banner ─────────────────────────────── */
+    .dashboard-banner {
+      display: block;
+      width: 100%;
+      padding: 11px 15px;
+      margin: 0 0 4px 0;
+      font-size: 13px;
+      font-weight: 600;
+      color: #ffffff;
+      background: #1d4ed8;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+      box-sizing: border-box;
+      letter-spacing: 0.2px;
+    }
+    .dashboard-banner:hover {
+      background: #1e3a8a;
+    }
+    .dashboard-divider {
+      border: none;
+      border-top: 2px solid #e2e8f0;
+      margin: 18px 0 6px 0;
+    }
   </style>
 </head>
 <body>
   <h2>🏕️ Camp Meeting Admin</h2>
-  
+
+  <!-- ── Web Dashboard link (URL injected server-side) ──────── -->
+  <div class="section" style="margin-bottom:18px;">
+    <a class="dashboard-banner"
+       href="<?= webAppUrl ?>"
+       target="_blank"
+       rel="noopener noreferrer">
+      📊 Open Full Admin Dashboard ↗
+    </a>
+    <p style="color:#64748b; font-size:11px; margin:5px 0 0 2px;">
+      Opens the web-based dashboard in a new tab for live stats,
+      activity feed, and database setup.
+    </p>
+  </div>
+
+  <hr class="dashboard-divider">
+
   <div id="status" class="status"></div>
-  
+
   <div class="section">
     <h3>📊 Quick Actions</h3>
     <button class="btn btn-primary" onclick="recalculateTotals()">
@@ -110,7 +153,7 @@
       🛑 Process No-Shows
     </button>
   </div>
-  
+
   <div class="section">
     <h3>📧 Resend Confirmation</h3>
     <div class="input-group">
@@ -121,7 +164,7 @@
       Send Confirmation Email
     </button>
   </div>
-  
+
   <div class="section">
     <h3>🚪 Room Assignment</h3>
     <p><span id="unassigned-count">...</span> registrations need rooms</p>
@@ -130,7 +173,7 @@
     </button>
     <div id="unassigned-list" style="margin-top:10px; max-height:200px; overflow-y:auto;"></div>
   </div>
-  
+
   <div class="section">
     <h3>🏠 Change Housing</h3>
     <div class="input-group">
@@ -166,7 +209,7 @@
       el.className = 'status ' + (isError ? 'error' : 'success');
       setTimeout(function() { el.className = 'status'; }, 5000);
     }
-    
+
     function recalculateTotals() {
       showStatus('Recalculating...', false);
       google.script.run
@@ -178,7 +221,7 @@
         })
         .recalculateAllTotals();
     }
-    
+
     function generateKeyReport() {
       showStatus('Generating report...', false);
       google.script.run
@@ -190,7 +233,7 @@
         })
         .generateKeyReport();
     }
-    
+
     function exportCheckIn() {
       showStatus('Exporting...', false);
       google.script.run
@@ -214,7 +257,7 @@
         })
         .processNoShows();
     }
-    
+
     function resendEmail() {
       var regId = document.getElementById('resend-reg-id').value.trim();
       if (!regId) {
@@ -231,7 +274,7 @@
         })
         .resendConfirmationEmail(regId);
     }
-    
+
     function loadUnassigned() {
       document.getElementById('unassigned-list').innerHTML = '<span class="loading">Loading...</span>';
       google.script.run
@@ -257,7 +300,7 @@
         })
         .getUnassignedRegistrations();
     }
-    
+
     function changeHousing() {
       var regId = document.getElementById('change-reg-id').value.trim();
       var newType = document.getElementById('new-housing').value;
@@ -282,7 +325,7 @@
         })
         .changeHousingType(regId, newType);
     }
-    
+
     // Load initial count
     loadUnassigned();
   </script>
