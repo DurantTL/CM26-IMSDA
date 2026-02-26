@@ -1,0 +1,1147 @@
+<?php
+/**
+ * Plugin Name: Camp Meeting 2026 Integration
+ * Description: Connects Fluent Forms to Google Apps Script with field mapping debug.
+ * Version: 5.0
+ * Author: IMC
+ * 
+ * CHANGELOG v5.0:
+ * - Added "View Last Submission" debug feature
+ * - Flexible field name mapping (tries multiple names)
+ * - Better guest list parsing
+ * - Fixed nights handling (supports both number and checkbox)
+ * - Enhanced meal field detection
+ */
+
+if (!defined('ABSPATH')) { exit; }
+
+/**
+ * ==================================================
+ * PRICING CONSTANTS (Match your Config sheet!)
+ * ==================================================
+ */
+define('CM26_DORM_PRICE', 25);
+define('CM26_RV_PRICE', 15);
+define('CM26_TENT_PRICE', 5);
+
+define('CM26_ADULT_BREAKFAST', 7);
+define('CM26_ADULT_LUNCH', 8);
+define('CM26_ADULT_SUPPER', 8);
+
+define('CM26_CHILD_BREAKFAST', 6);
+define('CM26_CHILD_LUNCH', 7);
+define('CM26_CHILD_SUPPER', 7);
+
+// Meal counts per type
+define('CM26_BREAKFAST_DAYS', 4); // Wed, Thu, Fri, Sat
+define('CM26_LUNCH_DAYS', 3);     // Wed, Thu, Fri
+define('CM26_SUPPER_DAYS', 5);    // Tue, Wed, Thu, Fri, Sat
+
+/**
+ * ==================================================
+ * HELPER: Get field value from multiple possible names
+ * ==================================================
+ */
+function cm26_get_field($formData, $possibleNames, $default = '') {
+    foreach ((array)$possibleNames as $name) {
+        // Check direct key
+        if (isset($formData[$name]) && $formData[$name] !== '') {
+            return $formData[$name];
+        }
+        // Check with underscores/dashes converted
+        $altName = str_replace(['-', ' '], '_', strtolower($name));
+        if (isset($formData[$altName]) && $formData[$altName] !== '') {
+            return $formData[$altName];
+        }
+    }
+    return $default;
+}
+
+/**
+ * ==================================================
+ * HELPER: Get nested field value
+ * ==================================================
+ */
+function cm26_get_nested($formData, $key, $subkey, $default = '') {
+    if (isset($formData[$key]) && is_array($formData[$key]) && isset($formData[$key][$subkey])) {
+        return $formData[$key][$subkey];
+    }
+    return $default;
+}
+
+/**
+ * ==================================================
+ * 1. ADMIN SETTINGS PAGE
+ * ==================================================
+ */
+add_action('admin_menu', 'cm26_add_admin_menu');
+function cm26_add_admin_menu() {
+    add_menu_page(
+        'Camp Meeting Settings', 
+        'Camp Meeting', 
+        'manage_options', 
+        'cm26-settings', 
+        'cm26_options_page_html', 
+        'dashicons-calendar-alt', 
+        60
+    );
+}
+
+add_action('admin_init', 'cm26_settings_init');
+function cm26_settings_init() {
+    register_setting('cm26_plugin_options', 'cm26_google_script_url');
+    register_setting('cm26_plugin_options', 'cm26_form_id');
+    register_setting('cm26_plugin_options', 'cm26_debug_mode');
+    
+    add_settings_section('cm26_plugin_main', 'Connection Settings', 'cm26_section_text', 'cm26-settings');
+    add_settings_field('cm26_google_script_url', 'Google Apps Script Web App URL', 'cm26_setting_url_render', 'cm26-settings', 'cm26_plugin_main');
+    add_settings_field('cm26_form_id', 'Fluent Form ID', 'cm26_setting_id_render', 'cm26-settings', 'cm26_plugin_main');
+    add_settings_field('cm26_debug_mode', 'Debug Mode', 'cm26_setting_debug_render', 'cm26-settings', 'cm26_plugin_main');
+}
+
+function cm26_section_text() { 
+    echo '<p>Enter your Google Apps Script Web App URL and the ID of the Fluent Form.</p>'; 
+}
+
+function cm26_setting_url_render() { 
+    $val = get_option('cm26_google_script_url'); 
+    echo "<input name='cm26_google_script_url' size='80' type='text' value='" . esc_attr($val) . "' />";
+    echo "<p class='description'>The deployed Web App URL (must end in /exec).</p>";
+}
+
+function cm26_setting_id_render() { 
+    $val = get_option('cm26_form_id'); 
+    echo "<input name='cm26_form_id' size='10' type='number' value='" . esc_attr($val) . "' />";
+    echo "<p class='description'>Find this in Fluent Forms → Your Form → Settings</p>";
+}
+
+function cm26_setting_debug_render() { 
+    $val = get_option('cm26_debug_mode'); 
+    echo "<label><input name='cm26_debug_mode' type='checkbox' value='1' " . checked(1, $val, false) . " /> ";
+    echo "Enable debug mode (saves raw form data for inspection)</label>";
+    echo "<p class='description'>Turn this ON, submit a test form, then check 'Last Submission Data' below.</p>";
+}
+
+/**
+ * Handle admin actions
+ */
+add_action('admin_init', 'cm26_handle_admin_actions');
+function cm26_handle_admin_actions() {
+    if (!isset($_GET['page']) || $_GET['page'] !== 'cm26-settings') {
+        return;
+    }
+    
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+    
+    // Handle clear debug data action
+    if (isset($_GET['action']) && $_GET['action'] === 'clear_debug') {
+        if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'cm26_clear_debug')) {
+            wp_die('Security check failed');
+        }
+        delete_option('cm26_last_submission_raw');
+        delete_option('cm26_last_submission_mapped');
+        wp_redirect(add_query_arg(['page' => 'cm26-settings', 'debug_cleared' => '1'], admin_url('admin.php')));
+        exit;
+    }
+    
+    // Handle retry action
+    if (isset($_GET['action']) && $_GET['action'] === 'retry') {
+        if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'cm26_retry_action')) {
+            wp_die('Security check failed');
+        }
+        
+        $result = cm26_process_failed_submissions_manual(true);
+        
+        wp_redirect(add_query_arg([
+            'page' => 'cm26-settings',
+            'retry_result' => $result['success'] ? 'success' : 'partial',
+            'retry_processed' => $result['processed'],
+            'retry_succeeded' => $result['succeeded'],
+            'retry_failed' => $result['failed']
+        ], admin_url('admin.php')));
+        exit;
+    }
+    
+    // Handle clear failed action
+    if (isset($_GET['action']) && $_GET['action'] === 'clear_failed') {
+        if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'cm26_clear_action')) {
+            wp_die('Security check failed');
+        }
+        
+        delete_option('cm26_failed_submissions');
+        
+        wp_redirect(add_query_arg(['page' => 'cm26-settings', 'cleared' => '1'], admin_url('admin.php')));
+        exit;
+    }
+    
+    // Handle test payload action
+    if (isset($_GET['action']) && $_GET['action'] === 'test_payload') {
+        if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'cm26_test_action')) {
+            wp_die('Security check failed');
+        }
+        
+        $scriptUrl = trim(get_option('cm26_google_script_url'));
+        
+        $payload = [
+            'action' => 'submitRegistration',
+            'regType' => 'TEST_SIMULATION',
+            'entryId' => 'TEST-' . time(),
+            'name' => 'WP System Test',
+            'email' => get_option('admin_email'),
+            'phone' => '555-0000',
+            'addressStreet' => '123 Test Lane',
+            'addressCity'   => 'Testville',
+            'addressState'  => 'TS',
+            'addressZip'    => '12345',
+            'church'        => 'Test Church',
+            'housingOption' => 'tent',
+            'nights' => 'Fri,Sat',
+            'numNights' => 2,
+            'adultsCount'   => 1,
+            'childrenCount' => 0,
+            'guests' => [['name' => 'WP System Test', 'age' => 99, 'isChild' => false]],
+            'mealSelections' => [
+                'breakfast' => ['adult' => 0, 'child' => 0],
+                'lunch' => ['adult' => 0, 'child' => 0],
+                'supper' => ['adult' => 0, 'child' => 0],
+            ],
+            'dietaryNeeds' => 'None',
+            'specialNeeds' => 'Connection test from WordPress admin.',
+            'housingSubtotal' => 0,
+            'mealSubtotal'    => 0,
+            'subtotal'        => 0,
+            'processingFee'   => 0,
+            'totalCharged'  => 0,
+            'paymentStatus' => 'test',
+            'paymentMethod' => 'system_test',
+            'transactionId' => 'TEST-' . uniqid(),
+            'submittedAt' => current_time('c')
+        ];
+
+        $response = wp_remote_post($scriptUrl, [
+            'method'    => 'POST',
+            'body'      => json_encode($payload),
+            'timeout'   => 45,
+            'redirection' => 0,
+            'headers'   => ['Content-Type' => 'application/json'],
+            'blocking'  => true
+        ]);
+
+        $resultData = [];
+        
+        if (is_wp_error($response)) {
+            $resultData['success'] = false;
+            $resultData['message'] = 'WP Error: ' . $response->get_error_message();
+        } else {
+            $rawBody = wp_remote_retrieve_body($response);
+            $httpCode = wp_remote_retrieve_response_code($response);
+            
+            // Follow 302 redirect
+            if ($httpCode == 302) {
+                $location = wp_remote_retrieve_header($response, 'location');
+                if (empty($location) && preg_match('/HREF="([^"]+)"/', $rawBody, $matches)) {
+                    $location = $matches[1];
+                }
+                if (!empty($location)) {
+                    $redirectResponse = wp_remote_get($location, ['timeout' => 30, 'redirection' => 5]);
+                    if (!is_wp_error($redirectResponse)) {
+                        $rawBody = wp_remote_retrieve_body($redirectResponse);
+                        $httpCode = wp_remote_retrieve_response_code($redirectResponse);
+                    }
+                }
+            }
+            
+            $resultData['http_code'] = $httpCode;
+            $resultData['raw'] = $rawBody;
+            
+            if (strpos($rawBody, '<!DOCTYPE html>') !== false) {
+                $resultData['success'] = false;
+                $resultData['message'] = 'Received HTML instead of JSON. Ensure Web App is deployed as "Anyone".';
+            } else {
+                $json = json_decode($rawBody, true);
+                if ($json && (!empty($json['success']) || (isset($json['result']) && $json['result'] === 'success'))) {
+                    $resultData['success'] = true;
+                    $resultData['message'] = 'Success! Google Script accepted the data.';
+                } else {
+                    $resultData['success'] = false;
+                    $resultData['message'] = 'Script returned error: ' . ($json['error'] ?? 'Unknown');
+                }
+            }
+        }
+        
+        set_transient('cm26_test_result', $resultData, 300);
+        
+        wp_redirect(add_query_arg(['page' => 'cm26-settings', 'test_done' => '1'], admin_url('admin.php')));
+        exit;
+    }
+}
+
+function cm26_options_page_html() {
+    $failed = get_option('cm26_failed_submissions', []);
+    $failedCount = count($failed);
+    $lastRaw = get_option('cm26_last_submission_raw');
+    $lastMapped = get_option('cm26_last_submission_mapped');
+    ?>
+    <div class="wrap">
+        <h1>Camp Meeting 2026 Settings</h1>
+        
+        <?php 
+        // Show messages
+        if (isset($_GET['retry_result'])) {
+            $processed = intval($_GET['retry_processed'] ?? 0);
+            $succeeded = intval($_GET['retry_succeeded'] ?? 0);
+            $failed_count = intval($_GET['retry_failed'] ?? 0);
+            echo '<div class="notice notice-' . ($_GET['retry_result'] === 'success' ? 'success' : 'warning') . '"><p>';
+            echo "Retry: Processed {$processed}, Succeeded: {$succeeded}, Failed: {$failed_count}";
+            echo '</p></div>';
+        }
+        
+        if (isset($_GET['cleared'])) {
+            echo '<div class="notice notice-success"><p>Failed submissions cleared.</p></div>';
+        }
+        
+        if (isset($_GET['debug_cleared'])) {
+            echo '<div class="notice notice-success"><p>Debug data cleared.</p></div>';
+        }
+        
+        // Test result
+        if (isset($_GET['test_done'])) {
+            $testResult = get_transient('cm26_test_result');
+            delete_transient('cm26_test_result');
+            
+            if ($testResult) {
+                $class = $testResult['success'] ? 'notice-success' : 'notice-error';
+                echo '<div class="notice ' . $class . '" style="padding:15px;">';
+                echo '<h3>Test: ' . ($testResult['success'] ? 'Passed ✅' : 'Failed ❌') . '</h3>';
+                echo '<p>' . esc_html($testResult['message']) . '</p>';
+                if (!empty($testResult['raw'])) {
+                    echo '<details><summary>Raw Response</summary><pre>' . esc_html($testResult['raw']) . '</pre></details>';
+                }
+                echo '</div>';
+            }
+        }
+        ?>
+        
+        <!-- Debug: Last Submission Data -->
+        <?php if ($lastRaw): ?>
+        <div class="notice notice-info" style="padding: 15px;">
+            <h3 style="margin-top: 0;">🔍 Last Submission Data (Debug)</h3>
+            <p><strong>This shows exactly what Fluent Forms sent.</strong> Use this to verify field names match.</p>
+            
+            <details open>
+                <summary><strong>📥 Raw Form Data (from Fluent Forms)</strong></summary>
+                <pre style="background:#f0f0f1; padding:15px; overflow:auto; max-height:400px; font-size:12px;"><?php 
+                    echo esc_html(print_r(json_decode($lastRaw, true), true)); 
+                ?></pre>
+            </details>
+            
+            <?php if ($lastMapped): ?>
+            <details>
+                <summary><strong>📤 Mapped Payload (sent to Google)</strong></summary>
+                <pre style="background:#f0f0f1; padding:15px; overflow:auto; max-height:400px; font-size:12px;"><?php 
+                    echo esc_html(print_r(json_decode($lastMapped, true), true)); 
+                ?></pre>
+            </details>
+            <?php endif; ?>
+            
+            <p>
+                <a href="<?php echo wp_nonce_url(admin_url('admin.php?page=cm26-settings&action=clear_debug'), 'cm26_clear_debug'); ?>" 
+                   class="button">Clear Debug Data</a>
+            </p>
+        </div>
+        <?php endif; ?>
+        
+        <!-- Failed Submissions -->
+        <?php if ($failedCount > 0): ?>
+        <div class="notice notice-warning" style="padding: 15px;">
+            <h3 style="margin-top: 0;">⚠️ <?php echo $failedCount; ?> Pending Submission(s)</h3>
+            <table class="widefat" style="margin: 10px 0;">
+                <thead>
+                    <tr><th>Entry ID</th><th>Name</th><th>Email</th><th>Attempts</th><th>Last Error</th></tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($failed as $item): ?>
+                    <tr>
+                        <td><?php echo esc_html($item['entry_id']); ?></td>
+                        <td><?php echo esc_html($item['payload']['name'] ?? 'Unknown'); ?></td>
+                        <td><?php echo esc_html($item['payload']['email'] ?? 'Unknown'); ?></td>
+                        <td><?php echo esc_html($item['attempts']); ?></td>
+                        <td style="color:#d63638;"><?php echo esc_html($item['last_error'] ?? 'Unknown'); ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            <p>
+                <a href="<?php echo wp_nonce_url(admin_url('admin.php?page=cm26-settings&action=retry'), 'cm26_retry_action'); ?>" 
+                   class="button button-primary">🔄 Retry Now</a>
+                <a href="<?php echo wp_nonce_url(admin_url('admin.php?page=cm26-settings&action=clear_failed'), 'cm26_clear_action'); ?>" 
+                   class="button" onclick="return confirm('Delete these from retry queue?');">🗑️ Discard</a>
+            </p>
+        </div>
+        <?php endif; ?>
+        
+        <!-- Settings Form -->
+        <form action="options.php" method="post">
+            <?php
+            settings_fields('cm26_plugin_options');
+            do_settings_sections('cm26-settings');
+            submit_button();
+            ?>
+        </form>
+        
+        <hr>
+        <h2>Testing</h2>
+        <p>
+            <button type="button" class="button" id="cm26-test-btn">Test Ping (Browser)</button>
+            <span id="cm26-test-result" style="margin-left: 10px;"></span>
+        </p>
+        <p>
+            <a href="<?php echo wp_nonce_url(admin_url('admin.php?page=cm26-settings&action=test_payload'), 'cm26_test_action'); ?>" 
+               class="button button-secondary">🚀 Simulate Full Submission</a>
+        </p>
+        
+        <script>
+        document.getElementById('cm26-test-btn').addEventListener('click', function() {
+            var url = document.querySelector('input[name="cm26_google_script_url"]').value;
+            var resultEl = document.getElementById('cm26-test-result');
+            if (!url) { resultEl.innerHTML = '<span style="color:red;">Enter URL first</span>'; return; }
+            resultEl.innerHTML = '<span style="color:#666;">Testing...</span>';
+            fetch(url + '?action=ping')
+                .then(r => r.json())
+                .then(data => {
+                    resultEl.innerHTML = data.success 
+                        ? '<span style="color:green;">✅ Connected!</span>' 
+                        : '<span style="color:red;">❌ ' + (data.error || 'Failed') + '</span>';
+                })
+                .catch(e => { resultEl.innerHTML = '<span style="color:red;">❌ ' + e.message + '</span>'; });
+        });
+        </script>
+    </div>
+    <?php
+}
+
+/**
+ * ==================================================
+ * 2. FLUENT FORMS SUBMISSION HANDLER
+ * ==================================================
+ */
+add_action('fluentform/submission_inserted', 'cm26_send_to_google', 10, 3);
+
+function cm26_send_to_google($entryId, $formData, $form) {
+    $targetFormId = get_option('cm26_form_id');
+    $scriptUrl = trim(get_option('cm26_google_script_url'));
+    $debugMode = get_option('cm26_debug_mode');
+
+    if (empty($targetFormId) || empty($scriptUrl)) {
+        return;
+    }
+    
+    if ($form->id != $targetFormId) {
+        return;
+    }
+
+    // Save raw form data for debugging
+    if ($debugMode) {
+        update_option('cm26_last_submission_raw', json_encode($formData, JSON_PRETTY_PRINT));
+    }
+
+    // =============================================
+    // 1. GET PAYMENT INFO
+    // =============================================
+    $submission = wpFluent()->table('fluentform_submissions')->where('id', $entryId)->first();
+    $paymentStatus = isset($submission->payment_status) ? $submission->payment_status : 'pending';
+    
+    // Use form's calculated subtotal + processing fee (more reliable than FF's payment_total)
+    $subtotalFromForm = floatval($formData['subtotal'] ?? 0);
+    $processingFeeFromForm = floatval($formData['processing_fee'] ?? 0);
+    $totalCharged = $subtotalFromForm + $processingFeeFromForm;
+
+    // =============================================
+    // 2. PARSE GUEST DETAILS (flexible field names)
+    // =============================================
+    $guests = [];
+    
+    // Try multiple possible field names for guest list
+    $guestListNames = ['guest_details', 'guest_list', 'guests', 'family_members', 'attendees'];
+    $guestData = null;
+    
+    foreach ($guestListNames as $fieldName) {
+        if (!empty($formData[$fieldName]) && is_array($formData[$fieldName])) {
+            $guestData = $formData[$fieldName];
+            break;
+        }
+    }
+    
+    if ($guestData) {
+        foreach ($guestData as $guest) {
+            $name = '';
+            $age = 0;
+            
+            // Check if it's a numeric array (Fluent Forms repeater format)
+            // [0] = name, [1] = age
+            if (isset($guest[0]) && is_string($guest[0])) {
+                $name = sanitize_text_field($guest[0]);
+                $age = isset($guest[1]) ? intval($guest[1]) : 0;
+            } else {
+                // Try named keys as fallback
+                foreach (['guest_name', 'name', 'Name', 'full_name', 'fullname'] as $nameField) {
+                    if (!empty($guest[$nameField])) {
+                        $name = sanitize_text_field($guest[$nameField]);
+                        break;
+                    }
+                }
+                
+                foreach (['age', 'Age', 'guest_age'] as $ageField) {
+                    if (isset($guest[$ageField]) && $guest[$ageField] !== '') {
+                        $age = intval($guest[$ageField]);
+                        break;
+                    }
+                }
+            }
+            
+            if ($name) {
+                $guests[] = [
+                    'name'    => $name,
+                    'age'     => $age,
+                    'isChild' => ($age > 0 && $age < 18)
+                ];
+            }
+        }
+    }
+    
+    // If no guests, create from primary registrant
+    if (empty($guests)) {
+        $firstName = cm26_get_nested($formData, 'names', 'first_name', '');
+        $lastName = cm26_get_nested($formData, 'names', 'last_name', '');
+        
+        // Also try 'name' as direct field
+        if (empty($firstName) && !empty($formData['name'])) {
+            $guests[] = [
+                'name' => sanitize_text_field($formData['name']),
+                'age' => 30,
+                'isChild' => false
+            ];
+        } else {
+            $guests[] = [
+                'name' => trim($firstName . ' ' . $lastName),
+                'age' => 30,
+                'isChild' => false
+            ];
+        }
+    }
+
+    // =============================================
+    // 3. HOUSING OPTION
+    // =============================================
+    $housingRaw = cm26_get_field($formData, [
+        'housing_selection', 'housing_type', 'housing', 'payment_item', 
+        'accommodation', 'lodging', 'housing_option'
+    ], '');
+    
+    $housingOption = 'none';
+    $housingLower = strtolower($housingRaw);
+    
+    if (strpos($housingLower, 'dorm') !== false) {
+        $housingOption = 'dorm';
+    } elseif (strpos($housingLower, 'rv') !== false || strpos($housingLower, 'camper') !== false) {
+        $housingOption = 'rv';
+    } elseif (strpos($housingLower, 'tent') !== false) {
+        $housingOption = 'tent';
+    }
+
+    // =============================================
+    // 4. NUMBER OF NIGHTS (supports number or checkbox)
+    // =============================================
+    $nightsRaw = cm26_get_field($formData, [
+        'nights_attending', 'number_of_nights', 'num_nights', 'nights', 
+        'number_of_nights_1_5', 'nights_count'
+    ], '');
+    
+    $numNights = 0;
+    $nightsStr = '';
+    
+    if (is_array($nightsRaw)) {
+        // Checkbox array of days
+        $numNights = count($nightsRaw);
+        $nightsStr = implode(',', $nightsRaw);
+    } elseif (is_numeric($nightsRaw)) {
+        // Single number field
+        $numNights = intval($nightsRaw);
+        // Generate night abbreviations based on count
+        $allNights = ['Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        $nightsStr = implode(',', array_slice($allNights, 0, $numNights));
+    }
+
+    // =============================================
+    // 5. GUEST COUNTS
+    // =============================================
+    $adultsCount = intval(cm26_get_field($formData, [
+        'num_adults', 'number_of_adults', 'adults', 'adult_count', 
+        'number_of_adults_18', 'adults_count'
+    ], 1));
+    
+    $childrenCount = intval(cm26_get_field($formData, [
+        'num_children', 'number_of_children', 'children', 'child_count',
+        'children_count', 'kids'
+    ], 0));
+
+    // =============================================
+    // 6. MEAL SELECTIONS (flexible field names)
+    // =============================================
+    $mealSelections = [
+        'breakfast' => [
+            'adult' => intval(cm26_get_field($formData, [
+                'bf_adult_qty', 'adult_breakfast', 'breakfast_adult', 
+                '_of_adult_breakfast_7ea', 'adult_breakfast_qty'
+            ], 0)),
+            'child' => intval(cm26_get_field($formData, [
+                'bf_child_qty', 'child_breakfast', 'breakfast_child',
+                '_of_child_breakfast_6ea', 'child_breakfast_qty'
+            ], 0))
+        ],
+        'lunch' => [
+            'adult' => intval(cm26_get_field($formData, [
+                'lunch_adult_qty', 'adult_lunch', 'lunch_adult',
+                '_of_adult_lunch_8ea', 'adult_lunch_qty'
+            ], 0)),
+            'child' => intval(cm26_get_field($formData, [
+                'lunch_child_qty', 'child_lunch', 'lunch_child',
+                '_of_child_lunch_7ea', 'child_lunch_qty'
+            ], 0))
+        ],
+        'supper' => [
+            'adult' => intval(cm26_get_field($formData, [
+                'supper_adult_qty', 'adult_supper', 'supper_adult',
+                '_of_adult_supper_8ea', 'adult_supper_qty'
+            ], 0)),
+            'child' => intval(cm26_get_field($formData, [
+                'supper_child_qty', 'child_supper', 'supper_child',
+                '_of_child_supper_7ea', 'child_supper_qty'
+            ], 0))
+        ]
+    ];
+
+    // =============================================
+    // 7. CONTACT INFORMATION
+    // =============================================
+    $firstName = cm26_get_nested($formData, 'names', 'first_name', '');
+    $lastName = cm26_get_nested($formData, 'names', 'last_name', '');
+    $fullName = trim($firstName . ' ' . $lastName);
+    
+    // Fallback to 'name' field if names array is empty
+    if (empty($fullName)) {
+        $fullName = sanitize_text_field(cm26_get_field($formData, ['name', 'full_name', 'registrant_name'], 'Unknown'));
+    }
+    
+    $email = sanitize_email(cm26_get_field($formData, ['email', 'email_address', 'e_mail'], ''));
+    $phone = sanitize_text_field(cm26_get_field($formData, ['phone', 'phone_mobile', 'phone_number', 'mobile'], ''));
+    
+    // Address - try nested first, then flat
+    $addressStreet = cm26_get_nested($formData, 'address', 'address_line_1', '');
+    if (empty($addressStreet)) {
+        $addressStreet = cm26_get_nested($formData, 'address', 'street_address', '');
+    }
+    $addressCity = cm26_get_nested($formData, 'address', 'city', '');
+    $addressState = cm26_get_nested($formData, 'address', 'state', '');
+    $addressZip = cm26_get_nested($formData, 'address', 'zip', '');
+    
+    $church = sanitize_text_field(cm26_get_field($formData, [
+        'church_name', 'home_church', 'church', 'local_church'
+    ], ''));
+
+    // =============================================
+    // 8. CALCULATED TOTALS
+    // =============================================
+    $housingSubtotal = floatval(cm26_get_field($formData, [
+        'housing_total', 'housing_subtotal', 'lodging_total'
+    ], 0));
+    
+    $mealSubtotal = floatval(cm26_get_field($formData, [
+        'meal_total', 'meals_total', 'meal_subtotal', 'food_total'
+    ], 0));
+    
+    $subtotal = floatval(cm26_get_field($formData, [
+        'subtotal', 'sub_total', 'total_before_fees'
+    ], 0));
+    
+    $processingFee = floatval(cm26_get_field($formData, [
+        'processing_fee', 'card_fee', 'square_fee', 'payment_fee'
+    ], 0));
+
+    // =============================================
+    // 9. BUILD PAYLOAD
+    // =============================================
+    $payload = [
+        'action' => 'submitRegistration',
+        'regType' => 'paid',
+        'entryId' => $entryId,
+        
+        // Contact
+        'name' => $fullName,
+        'email' => $email,
+        'phone' => $phone,
+        'addressStreet' => sanitize_text_field($addressStreet),
+        'addressCity'   => sanitize_text_field($addressCity),
+        'addressState'  => sanitize_text_field($addressState),
+        'addressZip'    => sanitize_text_field($addressZip),
+        'church'        => $church,
+        
+        // Housing
+        'housingOption' => $housingOption,
+        'nights' => $nightsStr,
+        'numNights' => $numNights,
+        
+        // Guests
+        'adultsCount'   => $adultsCount,
+        'childrenCount' => $childrenCount,
+        'guests' => $guests,
+        
+        // Meals
+        'mealSelections' => $mealSelections,
+        
+        // Notes
+        'dietaryNeeds' => sanitize_textarea_field(cm26_get_field($formData, [
+            'dietary_restrictions', 'dietary', 'allergies', 'food_allergies'
+        ], '')),
+        'specialNeeds' => sanitize_textarea_field(cm26_get_field($formData, [
+            'special_needs', 'special_requests', 'accessibility', 'notes'
+        ], '')),
+        
+        // Financials
+        'housingSubtotal' => $housingSubtotal,
+        'mealSubtotal'    => $mealSubtotal,
+        'subtotal'        => $subtotal,
+        'processingFee'   => $processingFee,
+        'totalCharged'    => $totalCharged,
+        'paymentStatus'   => ($paymentStatus === 'paid') ? 'paid' : 'pending',
+        'paymentMethod'   => sanitize_text_field(cm26_get_field($formData, [
+            'payment_method', 'pay_method'
+        ], 'square')),
+        'transactionId'   => 'FF-' . $entryId,
+        
+        'submittedAt' => current_time('c')
+    ];
+
+    // Save mapped payload for debugging
+    if ($debugMode) {
+        update_option('cm26_last_submission_mapped', json_encode($payload, JSON_PRETTY_PRINT));
+    }
+
+    // =============================================
+    // 10. SEND TO GOOGLE
+    // =============================================
+    $payload = cm26_recursive_utf8_clean($payload);
+    $jsonBody = json_encode($payload, JSON_INVALID_UTF8_SUBSTITUTE ?? 0);
+
+    if ($jsonBody === false) {
+        $errorMsg = 'JSON Encoding Error: ' . json_last_error_msg();
+        error_log('CM26 Error [Entry ' . $entryId . ']: ' . $errorMsg);
+        cm26_queue_failed_submission($payload, $entryId, $errorMsg);
+        return;
+    }
+
+    $response = wp_remote_post($scriptUrl, [
+        'method'    => 'POST',
+        'body'      => $jsonBody,
+        'data_format' => 'body',
+        'timeout'   => 45,
+        'redirection' => 0,
+        'headers'   => ['Content-Type' => 'application/json'],
+        'blocking'  => true
+    ]);
+
+    // Handle response
+    if (is_wp_error($response)) {
+        $errorMsg = $response->get_error_message();
+        error_log('CM26 Error [Entry ' . $entryId . ']: ' . $errorMsg);
+        cm26_queue_failed_submission($payload, $entryId, $errorMsg);
+        return;
+    }
+    
+    $httpCode = wp_remote_retrieve_response_code($response);
+    $rawBody = wp_remote_retrieve_body($response);
+
+    // Follow 302 redirect
+    if ($httpCode == 302) {
+        $location = wp_remote_retrieve_header($response, 'location');
+        if (empty($location) && preg_match('/HREF="([^"]+)"/', $rawBody, $matches)) {
+            $location = $matches[1];
+        }
+        if (!empty($location)) {
+            $redirectResponse = wp_remote_get($location, ['timeout' => 30, 'redirection' => 5]);
+            if (!is_wp_error($redirectResponse)) {
+                $rawBody = wp_remote_retrieve_body($redirectResponse);
+                $httpCode = wp_remote_retrieve_response_code($redirectResponse);
+            }
+        }
+    }
+
+    $body = json_decode($rawBody, true);
+    
+    $isSuccess = false;
+    if ($body && (!empty($body['success']) || (isset($body['result']) && $body['result'] === 'success'))) {
+        $isSuccess = true;
+    } elseif (!$body && stripos(trim($rawBody), 'success') === 0) {
+        $isSuccess = true;
+    }
+    
+    if ($isSuccess) {
+        error_log('CM26 Success [Entry ' . $entryId . ']: RegID = ' . ($body['registrationId'] ?? 'unknown'));
+        
+        if (!empty($body['registrationId'])) {
+            wpFluent()->table('fluentform_submission_meta')->insert([
+                'response_id' => $entryId,
+                'form_id' => $form->id,
+                'meta_key' => '_cm26_registration_id',
+                'value' => $body['registrationId'],
+                'created_at' => current_time('mysql')
+            ]);
+        }
+    } else {
+        $errorMsg = $body['error'] ?? 'Invalid response format';
+        if (strpos($rawBody, '<!DOCTYPE html>') !== false) {
+            $errorMsg = 'Received HTML (check Web App permissions)';
+        }
+        error_log('CM26 Failed [Entry ' . $entryId . ']: ' . $errorMsg);
+        cm26_queue_failed_submission($payload, $entryId, $errorMsg);
+    }
+}
+
+/**
+ * ==================================================
+ * 3. RETRY LOGIC
+ * ==================================================
+ */
+function cm26_queue_failed_submission($payload, $entryId, $errorMsg = '') {
+    $failed = get_option('cm26_failed_submissions', []);
+    
+    foreach ($failed as $item) {
+        if ($item['entry_id'] == $entryId) {
+            return;
+        }
+    }
+    
+    $failed[] = [
+        'payload' => $payload,
+        'entry_id' => $entryId,
+        'attempts' => 1,
+        'last_attempt' => time(),
+        'last_error' => $errorMsg
+    ];
+    
+    update_option('cm26_failed_submissions', $failed);
+    
+    if (!wp_next_scheduled('cm26_retry_submissions')) {
+        wp_schedule_single_event(time() + 300, 'cm26_retry_submissions');
+    }
+}
+
+add_action('cm26_retry_submissions', 'cm26_process_failed_submissions');
+
+function cm26_process_failed_submissions() {
+    cm26_process_failed_submissions_manual(false);
+}
+
+function cm26_process_failed_submissions_manual($force = false) {
+    $failed = get_option('cm26_failed_submissions', []);
+    $scriptUrl = trim(get_option('cm26_google_script_url'));
+    
+    $result = ['success' => true, 'processed' => 0, 'succeeded' => 0, 'failed' => 0];
+    
+    if (empty($failed) || empty($scriptUrl)) {
+        return $result;
+    }
+    
+    $stillFailed = [];
+    
+    foreach ($failed as $item) {
+        $result['processed']++;
+        
+        $cleanPayload = cm26_recursive_utf8_clean($item['payload']);
+        
+        $response = wp_remote_post($scriptUrl, [
+            'method'    => 'POST',
+            'body'      => json_encode($cleanPayload, JSON_INVALID_UTF8_SUBSTITUTE ?? 0),
+            'data_format' => 'body',
+            'timeout'   => 45,
+            'redirection' => 0,
+            'headers'   => ['Content-Type' => 'application/json'],
+            'blocking'  => true
+        ]);
+        
+        if (is_wp_error($response)) {
+            $item['attempts']++;
+            $item['last_attempt'] = time();
+            $item['last_error'] = $response->get_error_message();
+            $stillFailed[] = $item;
+            $result['failed']++;
+            continue;
+        }
+        
+        $httpCode = wp_remote_retrieve_response_code($response);
+        $rawBody = wp_remote_retrieve_body($response);
+        
+        if ($httpCode == 302) {
+            $location = wp_remote_retrieve_header($response, 'location');
+            if (empty($location) && preg_match('/HREF="([^"]+)"/', $rawBody, $matches)) {
+                $location = $matches[1];
+            }
+            if (!empty($location)) {
+                $redirectResponse = wp_remote_get($location, ['timeout' => 30, 'redirection' => 5]);
+                if (!is_wp_error($redirectResponse)) {
+                    $rawBody = wp_remote_retrieve_body($redirectResponse);
+                }
+            }
+        }
+        
+        $body = json_decode($rawBody, true);
+        $isSuccess = ($body && (!empty($body['success']) || (isset($body['result']) && $body['result'] === 'success')));
+        
+        if (!$isSuccess) {
+            $item['attempts']++;
+            $item['last_attempt'] = time();
+            $item['last_error'] = $body['error'] ?? 'Invalid response';
+            $stillFailed[] = $item;
+            $result['failed']++;
+        } else {
+            $result['succeeded']++;
+        }
+    }
+    
+    update_option('cm26_failed_submissions', $stillFailed);
+    
+    if (!empty($stillFailed) && !wp_next_scheduled('cm26_retry_submissions')) {
+        wp_schedule_single_event(time() + 900, 'cm26_retry_submissions');
+    }
+    
+    $result['success'] = empty($stillFailed);
+    return $result;
+}
+
+/**
+ * Helper: UTF-8 clean
+ */
+function cm26_recursive_utf8_clean($data) {
+    if (is_array($data) || is_object($data)) {
+        $result = [];
+        foreach ($data as $key => $value) {
+            $result[$key] = cm26_recursive_utf8_clean($value);
+        }
+        return $result;
+    } elseif (is_string($data)) {
+        $data = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $data);
+        return function_exists('mb_convert_encoding') ? mb_convert_encoding($data, 'UTF-8', 'UTF-8') : $data;
+    }
+    return $data;
+}
+
+/**
+ * ==================================================
+ * 4. SHORTCODE: [cm_availability]
+ * ==================================================
+ */
+add_shortcode('cm_availability', 'cm26_render_availability_widget');
+
+function cm26_render_availability_widget($atts) {
+    $atts = shortcode_atts([
+        'style' => 'cards',
+        'refresh' => '60',
+    ], $atts);
+    
+    $scriptUrl = trim(get_option('cm26_google_script_url'));
+    if (empty($scriptUrl)) {
+        return '<p style="color:red;">Camp Meeting: Google Script URL not configured.</p>';
+    }
+
+    // Inline the JS to avoid needing a separate file
+    ob_start();
+    ?>
+    <div id="cm-availability-widget" class="cm-style-<?php echo esc_attr($atts['style']); ?>">
+        <style>
+            .cm-style-cards .cm-grid { 
+                display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; margin: 20px 0; 
+            }
+            .cm-style-cards .cm-card { 
+                flex: 0 1 250px; border: 1px solid #e2e8f0; padding: 24px 20px; border-radius: 12px; 
+                text-align: center; background: linear-gradient(135deg, #fff 0%, #f8fafc 100%);
+                box-shadow: 0 4px 15px rgba(0,0,0,0.05); transition: all 0.3s ease;
+            }
+            .cm-style-cards .cm-card:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+            .cm-style-cards .cm-card h4 { margin: 0 0 8px; color: #1a365d; font-size: 1.1rem; }
+            .cm-style-cards .cm-card .cm-price { font-size: 0.9rem; color: #64748b; margin-bottom: 12px; }
+            .cm-style-cards .cm-stat { font-size: 2rem; font-weight: 700; color: #10b981; margin-bottom: 4px; line-height: 1; }
+            .cm-style-cards .cm-stat.low { color: #f59e0b; }
+            .cm-style-cards .cm-stat.sold-out { color: #ef4444; }
+            .cm-style-cards .cm-label { font-size: 0.85rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+            .cm-style-cards .cm-card.sold-out-card { background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%); border-color: #fecaca; }
+            .cm-style-compact .cm-grid { display: flex; flex-wrap: wrap; gap: 10px; margin: 15px 0; }
+            .cm-style-compact .cm-card { display: inline-flex; align-items: center; gap: 8px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 8px 14px; border-radius: 20px; font-size: 0.9rem; }
+            .cm-style-compact .cm-card h4 { margin: 0; font-size: 0.9rem; font-weight: 500; }
+            .cm-style-compact .cm-stat { font-weight: 700; color: #10b981; }
+            .cm-style-compact .cm-stat.low { color: #f59e0b; }
+            .cm-style-compact .cm-stat.sold-out { color: #ef4444; }
+            .cm-style-compact .cm-price, .cm-style-compact .cm-label { display: none; }
+            .cm-loading { color: #64748b; font-style: italic; padding: 20px; text-align: center; }
+            .cm-error { color: #ef4444; background: #fef2f2; padding: 15px; border-radius: 8px; text-align: center; }
+            .cm-last-updated { font-size: 0.75rem; color: #94a3b8; text-align: right; margin-top: 10px; }
+        </style>
+        <div class="cm-loading">⏳ Checking availability...</div>
+        <div class="cm-grid" style="display:none;">
+            <div class="cm-card" id="card-dorm">
+                <h4>🏠 Dorm Rooms</h4>
+                <div class="cm-price">$25/night</div>
+                <div class="cm-stat" id="count-dorm">--</div>
+                <div class="cm-label">Available</div>
+            </div>
+            <div class="cm-card" id="card-rv">
+                <h4>🚐 RV Hookups</h4>
+                <div class="cm-price">$15/night</div>
+                <div class="cm-stat" id="count-rv">--</div>
+                <div class="cm-label">Available</div>
+            </div>
+            <div class="cm-card" id="card-tent">
+                <h4>⛺ Tent Sites</h4>
+                <div class="cm-price">$5/night</div>
+                <div class="cm-stat" id="count-tent">∞</div>
+                <div class="cm-label">Unlimited</div>
+            </div>
+        </div>
+        <div class="cm-last-updated" style="display:none;">Last updated: <span id="cm-timestamp">--</span></div>
+    </div>
+    <script>
+    (function() {
+        var apiUrl = <?php echo json_encode($scriptUrl); ?>;
+        var refreshInterval = <?php echo intval($atts['refresh']) * 1000; ?>;
+        var widget = document.getElementById('cm-availability-widget');
+        var loading = widget.querySelector('.cm-loading');
+        var grid = widget.querySelector('.cm-grid');
+        var lastUpdated = widget.querySelector('.cm-last-updated');
+        var timestamp = document.getElementById('cm-timestamp');
+        
+        function loadAvailability() {
+            fetch(apiUrl + '?action=getAvailability')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success && data.housing) {
+                        data.housing.forEach(function(item) {
+                            var countEl = document.getElementById('count-' + item.optionId);
+                            var cardEl = document.getElementById('card-' + item.optionId);
+                            if (!countEl) return;
+                            
+                            countEl.className = 'cm-stat';
+                            if (cardEl) cardEl.className = 'cm-card';
+                            
+                            if (item.isUnlimited) {
+                                countEl.textContent = '∞';
+                            } else if (item.available <= 0) {
+                                countEl.textContent = 'SOLD OUT';
+                                countEl.classList.add('sold-out');
+                                if (cardEl) cardEl.classList.add('sold-out-card');
+                            } else {
+                                countEl.textContent = item.available;
+                                if (item.available < 10) countEl.classList.add('low');
+                            }
+                        });
+                        
+                        loading.style.display = 'none';
+                        grid.style.display = 'flex';
+                        lastUpdated.style.display = 'block';
+                        timestamp.textContent = new Date().toLocaleTimeString();
+                    }
+                })
+                .catch(function(e) {
+                    loading.innerHTML = '<span class="cm-error">⚠️ Unable to load availability</span>';
+                });
+        }
+        
+        loadAvailability();
+        if (refreshInterval > 0) {
+            setInterval(loadAvailability, refreshInterval);
+        }
+    })();
+    </script>
+    <?php
+    return ob_get_clean();
+}
+
+/**
+ * ==================================================
+ * 5. FORM PAGE INTEGRATION
+ * Disables sold-out options in forms
+ * ==================================================
+ */
+add_action('wp_footer', 'cm26_form_availability_script');
+
+function cm26_form_availability_script() {
+    $formId = get_option('cm26_form_id');
+    $scriptUrl = trim(get_option('cm26_google_script_url'));
+    
+    if (empty($formId) || empty($scriptUrl)) {
+        return;
+    }
+    ?>
+    <script>
+    (function() {
+        var formEl = document.querySelector('.fluentform[data-form_id="<?php echo esc_js($formId); ?>"]');
+        if (!formEl) return;
+        
+        fetch('<?php echo esc_js($scriptUrl); ?>?action=getAvailability')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success || !data.housing) return;
+                
+                data.housing.forEach(function(item) {
+                    // Find inputs that contain the housing type in their value or label
+                    var inputs = formEl.querySelectorAll('input[type="radio"], input[type="checkbox"]');
+                    
+                    inputs.forEach(function(input) {
+                        var label = input.closest('label') || input.parentElement;
+                        var labelText = label ? label.textContent.toLowerCase() : '';
+                        
+                        // Check if this input is for this housing type
+                        var isMatch = false;
+                        if (item.optionId === 'dorm' && labelText.indexOf('dorm') !== -1) isMatch = true;
+                        if (item.optionId === 'rv' && (labelText.indexOf('rv') !== -1 || labelText.indexOf('camper') !== -1)) isMatch = true;
+                        if (item.optionId === 'tent' && labelText.indexOf('tent') !== -1) isMatch = true;
+                        
+                        if (!isMatch) return;
+                        
+                        if (!item.isUnlimited && item.available <= 0) {
+                            input.disabled = true;
+                            if (label) {
+                                label.style.opacity = '0.5';
+                                label.style.cursor = 'not-allowed';
+                                var badge = document.createElement('span');
+                                badge.textContent = ' (SOLD OUT)';
+                                badge.style.color = '#ef4444';
+                                badge.style.fontWeight = 'bold';
+                                label.appendChild(badge);
+                            }
+                        } else if (!item.isUnlimited && item.available < 10) {
+                            if (label) {
+                                var badge = document.createElement('span');
+                                badge.textContent = ' (' + item.available + ' left)';
+                                badge.style.color = '#f59e0b';
+                                badge.style.fontSize = '0.85em';
+                                label.appendChild(badge);
+                            }
+                        }
+                    });
+                });
+            })
+            .catch(function(e) {
+                console.log('CM26: Could not load availability', e);
+            });
+    })();
+    </script>
+    <?php
+}
+
+/**
+ * Deactivation cleanup
+ */
+register_deactivation_hook(__FILE__, function() {
+    wp_clear_scheduled_hook('cm26_retry_submissions');
+});
