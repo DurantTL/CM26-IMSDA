@@ -17,7 +17,7 @@ function onStaffFormSubmit(e) {
     var responses = e.namedValues;
 
     // Parse guest list first so counts can be derived from it
-    var guests = parseGuestDetails(responses['Family Members (Name & Age)'] ? responses['Family Members (Name & Age)'][0] : '');
+    var guests = parseGuestDetails(responses['Family Members Attending'] ? responses['Family Members Attending'][0] : '');
 
     // Derive party counts from parsed guest list
     // Primary registrant is always counted as an adult (+1)
@@ -129,46 +129,122 @@ function mapHousingOption(selection) {
     'Dorm Room': 'dorm',
     'RV/Camper Hookup': 'rv',
     'Tent Campsite': 'tent',
-    'No Housing Needed': 'none'
+    'No Housing Needed': 'none',
+    'Special Requests (Requires Administration Approval)': 'none'
   };
   return map[selection] || 'none';
 }
 
 /**
- * Parse guest details from text area
- * Expected format: "Name, Age" on each line
+ * Parse guest details from free-text input.
+ * Handles formats:
+ *   - "Name Age Name Age ..." (no newlines, no commas)
+ *   - "Name, Name, Name" (comma-separated, no ages)
+ *   - "Name, Age\nName, Age" (newline-separated with comma+age)
+ *   - Mixed real-world inputs
  */
 function parseGuestDetails(text) {
   if (!text) return [];
-  
+
   var guests = [];
-  var lines = text.split('\n');
-  
-  for (var i = 0; i < lines.length; i++) {
-    var line = lines[i].trim();
-    if (!line) continue;
-    
-    // Try to parse "Name, Age" format
-    var parts = line.split(',');
-    var name = parts[0] ? parts[0].trim() : '';
-    var age = 30; // Default age
-    
-    if (parts[1]) {
-      var parsedAge = parseInt(parts[1].trim());
-      if (!isNaN(parsedAge)) {
-        age = parsedAge;
+
+  // Returns true for segments that should be skipped (empty or all-caps notes like "AIRBNB")
+  function isSkippable(s) {
+    s = s.trim();
+    if (!s) return true;
+    // All uppercase letters/digits/spaces/slashes = likely a note, not a name
+    if (/^[A-Z0-9\s\/\-]+$/.test(s)) return true;
+    return false;
+  }
+
+  // Parse a single segment into a guest object.
+  // Handles "Name, Age" (comma) or "First Last Age" (trailing number).
+  function parseSegment(seg) {
+    seg = seg.trim();
+    if (!seg) return null;
+
+    var name, age;
+
+    if (seg.indexOf(',') !== -1) {
+      // Use last comma as name/age boundary
+      var commaIdx = seg.lastIndexOf(',');
+      var namePart = seg.substring(0, commaIdx).trim();
+      var agePart  = seg.substring(commaIdx + 1).trim();
+      name = namePart;
+      var parsedAge = parseInt(agePart);
+      age = !isNaN(parsedAge) ? parsedAge : 30;
+    } else {
+      // Try trailing number: "Caleb Durant 29" → name="Caleb Durant", age=29
+      var m = seg.match(/^(.+?)\s+(\d+)\s*$/);
+      if (m) {
+        name = m[1].trim();
+        age  = parseInt(m[2]);
+      } else {
+        name = seg;
+        age  = 30;
       }
     }
-    
-    if (name) {
-      guests.push({
-        name: name,
-        age: age,
-        isChild: age < 18
-      });
+
+    if (!name || isSkippable(name)) return null;
+    return { name: name, age: age, isChild: age < 18 };
+  }
+
+  var hasNewlines = text.indexOf('\n') !== -1;
+  var hasCommas   = text.indexOf(',')  !== -1;
+
+  if (hasNewlines) {
+    // One person per line; each line may use "Name, Age" or "Name Age" format
+    var lines = text.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      var g = parseSegment(line);
+      if (g) guests.push(g);
+    }
+
+  } else if (hasCommas) {
+    // Comma-separated people, e.g. "McKailah Ramsey, Caleb Durant, Cashmere Durant"
+    // Each comma-delimited token is one person (name only, or name + trailing number)
+    var parts = text.split(',');
+    for (var i = 0; i < parts.length; i++) {
+      var part = parts[i].trim();
+      if (!part) continue;
+      var g = parseSegment(part);
+      if (g) guests.push(g);
+    }
+
+  } else {
+    // No newlines and no commas — detect "Name Age Name Age" by treating
+    // isolated numeric tokens as age boundaries between people.
+    // e.g. "Caleb Durant 29 Cashmere Durant 29 Mark Durant 5 Maddy Durant 8"
+    var tokens = text.split(/\s+/);
+    var nameTokens = [];
+    for (var t = 0; t < tokens.length; t++) {
+      var token = tokens[t].trim();
+      if (!token) continue;
+      if (/^\d+$/.test(token)) {
+        // Numeric token ends the current person's name and supplies their age
+        if (nameTokens.length > 0) {
+          var personName = nameTokens.join(' ');
+          var personAge  = parseInt(token);
+          if (!isSkippable(personName)) {
+            guests.push({ name: personName, age: personAge, isChild: personAge < 18 });
+          }
+          nameTokens = [];
+        }
+      } else {
+        nameTokens.push(token);
+      }
+    }
+    // Remaining tokens = last person with no age provided
+    if (nameTokens.length > 0) {
+      var personName = nameTokens.join(' ');
+      if (!isSkippable(personName)) {
+        guests.push({ name: personName, age: 30, isChild: false });
+      }
     }
   }
-  
+
   return guests;
 }
 
@@ -229,12 +305,7 @@ function sendStaffRegFailureNotification(data, errorMsg) {
  */
 function setupStaffFormTrigger() {
   // Get the active form
-  var form = FormApp.getActiveForm();
-  
-  if (!form) {
-    Logger.log('No form found. Make sure this script is bound to a Google Form.');
-    return;
-  }
+  var form = FormApp.openById('1VnmK-JEntbhvY-Az0mcfPp1g3VYCMLKgCu0_HRST6cI');
   
   // Delete any existing triggers for this function
   var triggers = ScriptApp.getProjectTriggers();
