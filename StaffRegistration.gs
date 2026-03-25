@@ -90,7 +90,7 @@ function onStaffFormSubmit(e) {
     // Deduplication Check
     if (data.email) {
       var ss = getSS();
-      var regSheet = ss.getSheetByName("Registrations");
+      var regSheet = ss.getSheetByName("Worker Registrations");
       var regData = regSheet.getDataRange().getValues();
       for (var i = 1; i < regData.length; i++) {
         if (regData[i][COLUMNS.EMAIL] === data.email && regData[i][COLUMNS.STATUS] !== "cancelled") {
