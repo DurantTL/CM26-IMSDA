@@ -209,6 +209,7 @@ function cm26_handle_admin_actions() {
             ],
             'dietaryNeeds' => 'None',
             'specialNeeds' => 'Connection test from WordPress admin.',
+            'specialRequests' => 'Test special request — admin approval needed',
             'housingSubtotal' => 0,
             'mealSubtotal'    => 0,
             'subtotal'        => 0,
@@ -541,14 +542,26 @@ function cm26_send_to_google($entryId, $formData, $form) {
     ], '');
     
     $housingOption = 'none';
-    $housingLower = strtolower($housingRaw);
-    
-    if (strpos($housingLower, 'dorm') !== false) {
-        $housingOption = 'dorm';
-    } elseif (strpos($housingLower, 'rv') !== false || strpos($housingLower, 'camper') !== false) {
-        $housingOption = 'rv';
-    } elseif (strpos($housingLower, 'tent') !== false) {
-        $housingOption = 'tent';
+    $knownOptions  = ['dorm', 'rv', 'tent', 'none'];
+
+    if (in_array($housingRaw, $knownOptions, true)) {
+        // Exact match on a known option ID — use it directly
+        $housingOption = $housingRaw;
+    } else {
+        // Fall back to label-text substring matching
+        $housingLower = strtolower($housingRaw);
+        if (strpos($housingLower, 'dorm') !== false) {
+            $housingOption = 'dorm';
+        } elseif (strpos($housingLower, 'rv') !== false || strpos($housingLower, 'camper') !== false) {
+            $housingOption = 'rv';
+        } elseif (strpos($housingLower, 'tent') !== false) {
+            $housingOption = 'tent';
+        } else {
+            $housingOption = 'none';
+            if (!empty($housingRaw)) {
+                error_log('CM26 Warning: Unrecognized housing option value "' . $housingRaw . '" — defaulting to none');
+            }
+        }
     }
 
     // =============================================
@@ -705,8 +718,15 @@ function cm26_send_to_google($entryId, $formData, $form) {
         'dietaryNeeds' => sanitize_textarea_field(cm26_get_field($formData, [
             'dietary_restrictions', 'dietary', 'allergies', 'food_allergies'
         ], '')),
+        // Accessibility / general special needs — 'special_requests' intentionally excluded
+        // to avoid collision with the admin-approval specialRequests field below
         'specialNeeds' => sanitize_textarea_field(cm26_get_field($formData, [
-            'special_needs', 'special_requests', 'accessibility', 'notes'
+            'special_needs', 'accessibility', 'accessibility_needs', 'notes'
+        ], '')),
+        // Items requiring administration approval (separate from accessibility needs)
+        'specialRequests' => sanitize_textarea_field(cm26_get_field($formData, [
+            'special_requests_requires_administration_approval', 'special_requests_admin',
+            'special_requests_approval', 'admin_requests', 'requests_approval'
         ], '')),
         
         // Financials
@@ -742,70 +762,83 @@ function cm26_send_to_google($entryId, $formData, $form) {
         return;
     }
 
+    // Non-blocking POST: fire and forget so the Fluent Forms confirmation
+    // page shows immediately without waiting for GAS to finish.
     $response = wp_remote_post($scriptUrl, [
-        'method'    => 'POST',
-        'body'      => $jsonBody,
+        'method'      => 'POST',
+        'body'        => $jsonBody,
         'data_format' => 'body',
-        'timeout'   => 45,
+        'timeout'     => 5,
         'redirection' => 0,
-        'headers'   => ['Content-Type' => 'application/json'],
-        'blocking'  => true
+        'headers'     => ['Content-Type' => 'application/json'],
+        'blocking'    => false
     ]);
 
-    // Handle response
     if (is_wp_error($response)) {
+        // Network-level failure before the request could even be sent
         $errorMsg = $response->get_error_message();
-        error_log('CM26 Error [Entry ' . $entryId . ']: ' . $errorMsg);
+        error_log('CM26 Error [Entry ' . $entryId . ']: Could not initiate request: ' . $errorMsg);
         cm26_queue_failed_submission($payload, $entryId, $errorMsg);
         return;
     }
-    
-    $httpCode = wp_remote_retrieve_response_code($response);
-    $rawBody = wp_remote_retrieve_body($response);
 
-    // Follow 302 redirect
-    if ($httpCode == 302) {
-        $location = wp_remote_retrieve_header($response, 'location');
-        if (empty($location) && preg_match('/HREF="([^"]+)"/', $rawBody, $matches)) {
-            $location = $matches[1];
-        }
-        if (!empty($location)) {
-            $redirectResponse = wp_remote_get($location, ['timeout' => 30, 'redirection' => 5]);
-            if (!is_wp_error($redirectResponse)) {
-                $rawBody = wp_remote_retrieve_body($redirectResponse);
-                $httpCode = wp_remote_retrieve_response_code($redirectResponse);
+    // Schedule a verification check 30 seconds later to confirm GAS received it
+    wp_schedule_single_event(time() + 30, 'cm26_verify_submission', [$entryId, $payload]);
+    error_log('CM26: Submission fired for entry ' . $entryId . '. Verification scheduled in 30s.');
+}
+
+/**
+ * Scheduled verification handler: confirms the registration was saved by GAS.
+ * Queues to cm26_failed_submissions if the record cannot be found.
+ */
+add_action('cm26_verify_submission', 'cm26_handle_verify_submission', 10, 2);
+
+function cm26_handle_verify_submission($entryId, $payload) {
+    $scriptUrl = trim(get_option('cm26_google_script_url'));
+    if (empty($scriptUrl)) {
+        return;
+    }
+
+    $verifyUrl = add_query_arg([
+        'action' => 'getRegistration',
+        'id'     => 'FF-' . $entryId
+    ], $scriptUrl);
+
+    $response = wp_remote_get($verifyUrl, [
+        'timeout'     => 15,
+        'redirection' => 5
+    ]);
+
+    if (is_wp_error($response)) {
+        $errorMsg = $response->get_error_message();
+        error_log('CM26 Verify Error [Entry ' . $entryId . ']: ' . $errorMsg);
+        cm26_queue_failed_submission($payload, $entryId, 'Verification GET failed: ' . $errorMsg);
+        return;
+    }
+
+    $rawBody = wp_remote_retrieve_body($response);
+    $body    = json_decode($rawBody, true);
+
+    if ($body && !empty($body['success']) && !empty($body['registration'])) {
+        $regId = $body['registration']['regId'] ?? '';
+        error_log('CM26 Verified [Entry ' . $entryId . ']: RegID = ' . $regId);
+
+        if (!empty($regId)) {
+            $submission = wpFluent()->table('fluentform_submissions')->where('id', $entryId)->first();
+            if ($submission) {
+                wpFluent()->table('fluentform_submission_meta')->insert([
+                    'response_id' => $entryId,
+                    'form_id'     => $submission->form_id,
+                    'meta_key'    => '_cm26_registration_id',
+                    'value'       => $regId,
+                    'created_at'  => current_time('mysql')
+                ]);
             }
         }
-    }
-
-    $body = json_decode($rawBody, true);
-    
-    $isSuccess = false;
-    if ($body && (!empty($body['success']) || (isset($body['result']) && $body['result'] === 'success'))) {
-        $isSuccess = true;
-    } elseif (!$body && stripos(trim($rawBody), 'success') === 0) {
-        $isSuccess = true;
-    }
-    
-    if ($isSuccess) {
-        error_log('CM26 Success [Entry ' . $entryId . ']: RegID = ' . ($body['registrationId'] ?? 'unknown'));
-        
-        if (!empty($body['registrationId'])) {
-            wpFluent()->table('fluentform_submission_meta')->insert([
-                'response_id' => $entryId,
-                'form_id' => $form->id,
-                'meta_key' => '_cm26_registration_id',
-                'value' => $body['registrationId'],
-                'created_at' => current_time('mysql')
-            ]);
-        }
     } else {
-        $errorMsg = $body['error'] ?? 'Invalid response format';
-        if (strpos($rawBody, '<!DOCTYPE html>') !== false) {
-            $errorMsg = 'Received HTML (check Web App permissions)';
-        }
-        error_log('CM26 Failed [Entry ' . $entryId . ']: ' . $errorMsg);
-        cm26_queue_failed_submission($payload, $entryId, $errorMsg);
+        $errorMsg = $body['error'] ?? 'Registration not found during verification';
+        error_log('CM26 Verify Failed [Entry ' . $entryId . ']: ' . $errorMsg);
+        cm26_queue_failed_submission($payload, $entryId, 'Verification: ' . $errorMsg);
     }
 }
 
@@ -1144,4 +1177,5 @@ function cm26_form_availability_script() {
  */
 register_deactivation_hook(__FILE__, function() {
     wp_clear_scheduled_hook('cm26_retry_submissions');
+    wp_clear_scheduled_hook('cm26_verify_submission');
 });

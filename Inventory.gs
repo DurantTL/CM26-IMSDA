@@ -100,26 +100,36 @@ function checkAvailability(optionId, numUnits, numNights) {
 }
 
 /**
- * Helper to count confirmed/pending reservations manually
- * Prevents race conditions from stale sheet formulas
+ * Helper to count confirmed/pending reservations manually.
+ * Prevents race conditions from stale sheet formulas.
+ *
+ * Reads only the two required columns (STATUS and HOUSING_OPTION) rather
+ * than getDataRange() so that performance stays bounded as registrations grow.
+ * Concurrency safety is provided by the script lock held in Registration.gs.
  */
 function countReservations(housingOptionId) {
   var ss = getSS();
   var regSheet = ss.getSheetByName('Registrations');
-  var data = regSheet.getDataRange().getValues();
+  var lastRow = regSheet.getLastRow();
+
+  if (lastRow < 2) return 0; // Header only — no registrations yet
+
+  var numRows = lastRow - 1; // Exclude header row
+
+  // getRange uses 1-based column indices; COLUMNS values are 0-based
+  var housingValues = regSheet
+    .getRange(2, COLUMNS.HOUSING_OPTION + 1, numRows, 1)
+    .getValues();
+  var statusValues = regSheet
+    .getRange(2, COLUMNS.STATUS + 1, numRows, 1)
+    .getValues();
+
   var count = 0;
-
-  // Iterate registrations
-  for (var i = 1; i < data.length; i++) {
-    var row = data[i];
-    // Column M (Index 12) is Housing Option
-    // Column D (Index 3) is Status
-
-    var opt = row[COLUMNS.HOUSING_OPTION];
-    var status = row[COLUMNS.STATUS];
-
+  for (var i = 0; i < numRows; i++) {
+    var opt    = housingValues[i][0];
+    var status = statusValues[i][0];
     if (opt === housingOptionId &&
-       (status === 'confirmed' || status === 'pending' || status === 'deposit')) {
+        (status === 'confirmed' || status === 'pending' || status === 'deposit')) {
       count++;
     }
   }

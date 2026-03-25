@@ -178,8 +178,8 @@ function processRegistration(data) {
       });
     }
 
-    // 7.5 Send Email
-    sendConfirmationEmail(regId);
+    // 7.5 Queue Email (async — returns immediately so WordPress isn't kept waiting)
+    queueConfirmationEmail(regId);
     
     // 8. Log Activity
     logActivity('registration', regId, 'New registration created', 'api');
