@@ -15,6 +15,25 @@
 function onStaffFormSubmit(e) {
   try {
     var responses = e.namedValues;
+    // Fallback: when triggered from a sheet-bound script, e.response
+    // may be provided instead of e.namedValues
+    if (!responses && e.response) {
+      responses = {};
+      var itemResponses = e.response.getItemResponses();
+      for (var r = 0; r < itemResponses.length; r++) {
+        var ir = itemResponses[r];
+        responses[ir.getItem().getTitle()] = [ir.getResponse()];
+      }
+    }
+    // Email is a form setting, not a question item — pull it separately
+    if (e.response && (!responses['Email'] || !responses['Email'][0])) {
+      responses['Email'] = [e.response.getRespondentEmail()];
+    }
+    // Safety net
+    if (!responses) {
+      Logger.log('No responses found in event object: ' + JSON.stringify(e));
+      return { success: false, error: 'No form response data received.' };
+    }
 
     // Parse guest list first so counts can be derived from it
     var guests = parseGuestDetails(responses['Family Members Attending'] ? responses['Family Members Attending'][0] : '');
@@ -78,14 +97,12 @@ function onStaffFormSubmit(e) {
     // Calculate total guests
     data.totalGuests = data.adultsCount + data.childrenCount;
 
-    // If no family members were provided, create a placeholder for the primary registrant only
-    if (data.guests.length === 0) {
-      data.guests.push({
-        name: data.name,
-        age: 30,
-        isChild: false
-      });
-    }
+    // Always insert the primary registrant at the front of the guest list
+    data.guests.unshift({
+      name: data.name,
+      age: 30,
+      isChild: false
+    });
     
     // Deduplication Check
     if (data.email) {
