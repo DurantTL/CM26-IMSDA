@@ -117,7 +117,8 @@ function processRegistration(data) {
       '',                               // AY: checked_out_by
       '',                               // AZ: notes
       data.entryId || '',               // BA: fluent_entry_id
-      regId                             // BB: qr_data
+      regId,                            // BB: qr_data
+      data.specialRequests || ''        // BC: special_requests
     ];
     
     // 4. Save to Registration Sheet

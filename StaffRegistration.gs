@@ -15,41 +15,53 @@
 function onStaffFormSubmit(e) {
   try {
     var responses = e.namedValues;
-    
+
+    // Parse guest list first so counts can be derived from it
+    var guests = parseGuestDetails(responses['Family Members (Name & Age)'] ? responses['Family Members (Name & Age)'][0] : '');
+
+    // Derive party counts from parsed guest list
+    // Primary registrant is always counted as an adult (+1)
+    var adultsCount = 1;
+    var childrenCount = 0;
+    for (var g = 0; g < guests.length; g++) {
+      if (guests[g].isChild === false) {
+        adultsCount++;
+      } else {
+        childrenCount++;
+      }
+    }
+
     // Build data object from form responses
     var data = {
       action: 'submitRegistration',
       regType: 'staff',
-      
+
       // Basic info
       staffRole: responses['Your Role'] ? responses['Your Role'][0] : 'Staff',
       name: responses['Full Name'] ? responses['Full Name'][0] : '',
       email: responses['Email'] ? responses['Email'][0] : '',
       phone: responses['Phone'] ? responses['Phone'][0] : '',
-      church: responses['Home Church'] ? responses['Home Church'][0] : '',
-      
-      // Housing
+
+      // Housing — all workers attend the full event (June 2–6)
       housingOption: mapHousingOption(responses['Housing Preference'] ? responses['Housing Preference'][0] : ''),
-      nights: mapNights(responses['Nights Attending']),
-      numNights: responses['Nights Attending'] ? responses['Nights Attending'].length : 0,
-      
-      // Party composition
-      adultsCount: parseInt(responses['Number of Adults in Party'] ? responses['Number of Adults in Party'][0] : '1') || 1,
-      childrenCount: parseInt(responses['Number of Children in Party'] ? responses['Number of Children in Party'][0] : '0') || 0,
-      
-      // Parse guest details from text field
-      guests: parseGuestDetails(responses['Family Members (Name & Age)'] ? responses['Family Members (Name & Age)'][0] : ''),
-      
+      nights: 'tue,wed,thu,fri,sat',
+      numNights: 5,
+
+      // Party composition (derived from parsed guest list)
+      adultsCount: adultsCount,
+      childrenCount: childrenCount,
+
+      // Guest list
+      guests: guests,
+
       // Build meal selections (staff get all meals for their whole family)
-      mealSelections: buildStaffMealSelections(
-        parseInt(responses['Number of Adults in Party'] ? responses['Number of Adults in Party'][0] : '1') || 1,
-        parseInt(responses['Number of Children in Party'] ? responses['Number of Children in Party'][0] : '0') || 0
-      ),
-      
+      mealSelections: buildStaffMealSelections(adultsCount, childrenCount),
+
       // Notes
       dietaryNeeds: responses['Dietary Restrictions'] ? responses['Dietary Restrictions'][0] : '',
       specialNeeds: responses['Special Needs/Requests'] ? responses['Special Needs/Requests'][0] : '',
-      
+      specialRequests: responses['Special Requests (Requires Administration Approval)'] ? responses['Special Requests (Requires Administration Approval)'][0] : '',
+
       // Staff = free
       paymentMethod: 'free',
       paymentStatus: 'paid',
@@ -58,40 +70,21 @@ function onStaffFormSubmit(e) {
       processingFee: 0,
       housingSubtotal: 0,
       mealSubtotal: 0,
-      
+
       // Metadata
       submittedAt: new Date().toISOString()
     };
-    
+
     // Calculate total guests
     data.totalGuests = data.adultsCount + data.childrenCount;
-    
-    // If no guests were provided in text field, create placeholder based on counts
+
+    // If no family members were provided, create a placeholder for the primary registrant only
     if (data.guests.length === 0) {
-      // Add primary registrant
       data.guests.push({
         name: data.name,
-        age: 30, // Assume adult
+        age: 30,
         isChild: false
       });
-      
-      // Add additional adults
-      for (var a = 1; a < data.adultsCount; a++) {
-        data.guests.push({
-          name: data.name + ' Family Adult ' + (a + 1),
-          age: 30,
-          isChild: false
-        });
-      }
-      
-      // Add children
-      for (var c = 0; c < data.childrenCount; c++) {
-        data.guests.push({
-          name: data.name + ' Family Child ' + (c + 1),
-          age: 10,
-          isChild: true
-        });
-      }
     }
     
     // Deduplication Check
@@ -134,49 +127,11 @@ function onStaffFormSubmit(e) {
 function mapHousingOption(selection) {
   var map = {
     'Dorm Room': 'dorm',
-    'RV/Camper': 'rv',
     'RV/Camper Hookup': 'rv',
-    'Tent': 'tent',
     'Tent Campsite': 'tent',
-    'No Housing Needed': 'none',
-    'No Housing': 'none'
+    'No Housing Needed': 'none'
   };
   return map[selection] || 'none';
-}
-
-/**
- * Convert day selections to comma-separated abbreviations
- */
-function mapNights(selections) {
-  if (!selections || !Array.isArray(selections)) return '';
-  
-  var map = {
-    'Tuesday 6/2': 'tue',
-    'Tuesday, June 2': 'tue',
-    'Tue 6/2': 'tue',
-    'Wednesday 6/3': 'wed',
-    'Wednesday, June 3': 'wed',
-    'Wed 6/3': 'wed',
-    'Thursday 6/4': 'thu',
-    'Thursday, June 4': 'thu',
-    'Thu 6/4': 'thu',
-    'Friday 6/5': 'fri',
-    'Friday, June 5': 'fri',
-    'Fri 6/5': 'fri',
-    'Saturday 6/6': 'sat',
-    'Saturday, June 6': 'sat',
-    'Sat 6/6': 'sat'
-  };
-  
-  var result = [];
-  for (var i = 0; i < selections.length; i++) {
-    var mapped = map[selections[i]];
-    if (mapped) {
-      result.push(mapped);
-    }
-  }
-  
-  return result.join(',');
 }
 
 /**
