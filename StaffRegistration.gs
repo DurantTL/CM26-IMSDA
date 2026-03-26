@@ -35,7 +35,7 @@ function onStaffFormSubmit(e) {
       return { success: false, error: 'No form response data received.' };
     }
 
-    // Parse guest list first so counts can be derived from it
+    // Parse guest list first (attendance-aware) so counts and meals are derived from it
     var guests = parseGuestDetails(responses['Family Members Attending'] ? responses['Family Members Attending'][0] : '');
 
     // Derive party counts from parsed guest list
@@ -121,7 +121,8 @@ function onStaffFormSubmit(e) {
       attendanceDays: ['tue', 'wed', 'thu', 'fri', 'sat']
     });
 
-    // Build attendance-aware meal selections from the full guest list
+    // Build attendance-aware meal selections from the full parsed guest list
+    // (primary registrant + all parsed family guests)
     data.mealSelections = buildStaffMealSelections(data.guests);
     
     // Deduplication Check
@@ -223,10 +224,16 @@ function parseGuestDetails(text) {
   }
 
   // Legacy fallback: "Name Age Name Age" in a single line
+  // Only run this when the line does not look like attendance-aware input.
   if (lines.length === 1 && raw.indexOf(',') === -1) {
-    var legacyGuests = parseLegacyAgeBlob(raw);
-    if (legacyGuests.length > 0) {
-      return legacyGuests;
+    var ageMatches = raw.match(/\b\d{1,3}\b/g);
+    var hasMultipleAges = ageMatches && ageMatches.length > 1;
+    var hasLikelyAttendanceText = /\b(full|weekend|sabbath|sat|fri|thu|wed|tue|only|all week|full time)\b/i.test(raw);
+    if (hasMultipleAges && !hasLikelyAttendanceText) {
+      var legacyGuests = parseLegacyAgeBlob(raw);
+      if (legacyGuests.length > 0) {
+        return legacyGuests;
+      }
     }
   }
 
@@ -254,6 +261,14 @@ function parseGuestDetails(text) {
       attendanceRaw: attendance.attendanceRaw,
       attendanceDays: attendance.attendanceDays
     });
+
+    Logger.log(
+      '[parseGuestDetails] line="' + line +
+      '" | name="' + parsed.name +
+      '" | age=' + parsed.age +
+      ' | attendanceRaw="' + parsed.attendanceRaw +
+      '" | attendanceType="' + attendance.attendanceType + '"'
+    );
   }
 
   return guests;
@@ -327,7 +342,10 @@ function parseGuestLine(line) {
     attendanceRaw: 'Full Time'
   };
 
-  // Preferred format: Name, Age, Attendance
+  // Preferred comma formats:
+  // - Name, Age, Attendance
+  // - Name, Age
+  // - Legacy comma-separated names are handled in parseGuestDetails
   if (line.indexOf(',') !== -1) {
     var parts = line.split(',');
     if (parts.length >= 2) {
@@ -353,12 +371,26 @@ function parseGuestLine(line) {
     }
   }
 
-  // Backward compatibility: "Name Age"
-  var trailingAge = line.match(/^(.+?)\s+(\d+)\s*$/);
-  if (trailingAge) {
-    result.name = trailingAge[1].trim();
-    result.age = parseInt(trailingAge[2], 10);
-    result.attendanceRaw = 'Full Time';
+  // Non-comma formats:
+  // - Full Name Age Attendance
+  // - Full Name Age
+  // Rule: find first standalone age token; name is before, attendance is after.
+  var tokens = line.split(/\s+/);
+  var ageIndex = -1;
+  var ageValue = 30;
+  var i;
+  for (i = 0; i < tokens.length; i++) {
+    if (/^\d{1,3}$/.test(tokens[i])) {
+      ageIndex = i;
+      ageValue = parseInt(tokens[i], 10);
+      break;
+    }
+  }
+
+  if (ageIndex > 0) {
+    result.name = tokens.slice(0, ageIndex).join(' ').trim();
+    result.age = ageValue;
+    result.attendanceRaw = tokens.slice(ageIndex + 1).join(' ').trim() || 'Full Time';
     return result;
   }
 
@@ -404,7 +436,7 @@ function parseAttendanceDetails(attendanceRaw) {
   var normalized = normalizeAttendanceText(raw);
 
   // Canonical full attendance labels
-  if (/\b(full time|full week|all week|entire time|whole time)\b/.test(normalized)) {
+  if (/\b(full time|full week|all week|entire time|whole time|full)\b/.test(normalized)) {
     return { attendanceType: 'full', attendanceRaw: raw, attendanceDays: fullDays };
   }
 
