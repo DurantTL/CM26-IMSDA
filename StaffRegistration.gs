@@ -102,10 +102,9 @@ function onStaffFormSubmit(e) {
     // Calculate total guests
     data.totalGuests = data.adultsCount + data.childrenCount;
 
-    // Add warnings when attendance text could not be confidently parsed
-    var attendanceWarnings = guests._attendanceWarnings || [];
-    if (attendanceWarnings.length > 0) {
-      var warningNote = 'Attendance review needed: ' + attendanceWarnings.join(' | ');
+    // Add one aggregated parser warning note for admin review
+    var warningNote = guests._adminWarning || '';
+    if (warningNote) {
       data.specialNeeds = data.specialNeeds
         ? data.specialNeeds + ' | ' + warningNote
         : warningNote;
@@ -195,6 +194,7 @@ function parseGuestDetails(text) {
 
   var guests = [];
   guests._attendanceWarnings = [];
+  guests._adminWarning = '';
 
   var raw = String(text).replace(/\r/g, '').trim();
   if (!raw) return guests;
@@ -253,6 +253,11 @@ function parseGuestDetails(text) {
       attendance.attendanceDays = getCampMeetingDays();
     }
 
+    if (parsed.warningMissingAge) {
+      guests._missingAgeWarnings = guests._missingAgeWarnings || [];
+      guests._missingAgeWarnings.push(parsed.name);
+    }
+
     guests.push({
       name: parsed.name,
       age: parsed.age,
@@ -267,9 +272,19 @@ function parseGuestDetails(text) {
       '" | name="' + parsed.name +
       '" | age=' + parsed.age +
       ' | attendanceRaw="' + parsed.attendanceRaw +
-      '" | attendanceType="' + attendance.attendanceType + '"'
+      '" | attendanceType="' + attendance.attendanceType +
+      '" | warning="' + (parsed.warningText || (attendance.attendanceType === 'unknown' ? 'unrecognized attendance' : '')) + '"'
     );
   }
+
+  var warningParts = [];
+  if (guests._missingAgeWarnings && guests._missingAgeWarnings.length > 0) {
+    warningParts.push('Missing age for: ' + guests._missingAgeWarnings.join(', '));
+  }
+  if (guests._attendanceWarnings.length > 0) {
+    warningParts.push('Unrecognized attendance for: ' + guests._attendanceWarnings.join(', '));
+  }
+  guests._adminWarning = warningParts.join(' | ');
 
   return guests;
 }
@@ -339,7 +354,9 @@ function parseGuestLine(line) {
   var result = {
     name: '',
     age: 30,
-    attendanceRaw: 'Full Time'
+    attendanceRaw: 'Full Time',
+    warningMissingAge: false,
+    warningText: ''
   };
 
   // Preferred comma formats:
@@ -364,7 +381,20 @@ function parseGuestLine(line) {
 
       // Backward compatibility: "Name, Attendance" (no age)
       if (isNaN(ageCandidate) && parts.length === 2) {
+        result.warningMissingAge = true;
+        result.warningText = 'missing age';
         result.attendanceRaw = parts[1].trim() || 'Full Time';
+
+        // If attendance not in comma part, try stripping attendance keywords from full line tail.
+        if (!result.attendanceRaw || result.attendanceRaw === 'Full Time') {
+          var commaRecovery = stripAttendanceTailWhenAgeMissing(line);
+          if (commaRecovery && commaRecovery.name) {
+            result.name = commaRecovery.name;
+            if (commaRecovery.attendanceRaw) {
+              result.attendanceRaw = commaRecovery.attendanceRaw;
+            }
+          }
+        }
       }
 
       return result;
@@ -394,10 +424,53 @@ function parseGuestLine(line) {
     return result;
   }
 
-  // Fallback: name only
+  // Missing age fallback: strip recognized attendance phrase from tail if present.
+  var missingAgeRecovery = stripAttendanceTailWhenAgeMissing(line);
+  if (missingAgeRecovery && missingAgeRecovery.name) {
+    result.name = missingAgeRecovery.name;
+    result.attendanceRaw = missingAgeRecovery.attendanceRaw || 'Full Time';
+    result.warningMissingAge = true;
+    result.warningText = 'missing age';
+    return result;
+  }
+
+  // Fallback: name only, age + attendance defaults
   result.name = line.trim();
   result.attendanceRaw = 'Full Time';
+  result.warningMissingAge = true;
+  result.warningText = 'missing age and attendance';
   return result;
+}
+
+/**
+ * When age is missing, remove recognized attendance phrase from the end of a line.
+ * Returns { name, attendanceRaw } or null.
+ */
+function stripAttendanceTailWhenAgeMissing(line) {
+  if (!line) return null;
+
+  var raw = String(line).replace(/\s+/g, ' ').trim();
+  if (!raw) return null;
+
+  var patterns = [
+    /(.*?)(?:,?\s+)(weekend only|just weekend|weekend|fri\s*[-–—]\s*sat|friday\s*[-–—]\s*sabbath)\s*$/i,
+    /(.*?)(?:,?\s+)(sabbath only|just sabbath|sat only|saturday only|sabbath)\s*$/i,
+    /(.*?)(?:,?\s+)(full time|full week|all week|entire time|whole time|full)\s*$/i,
+    /(.*?)(?:,?\s+)((?:tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sabbath)(?:\s*[-–—]\s*(?:tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sabbath))?)\s*$/i
+  ];
+
+  for (var i = 0; i < patterns.length; i++) {
+    var match = raw.match(patterns[i]);
+    if (match) {
+      var possibleName = (match[1] || '').replace(/,\s*$/, '').trim();
+      var attendanceTail = (match[2] || '').trim();
+      if (possibleName) {
+        return { name: possibleName, attendanceRaw: attendanceTail };
+      }
+    }
+  }
+
+  return null;
 }
 
 /**
