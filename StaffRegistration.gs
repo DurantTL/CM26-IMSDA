@@ -73,9 +73,6 @@ function onStaffFormSubmit(e) {
       // Guest list
       guests: guests,
 
-      // Build meal selections (staff get all meals for their whole family)
-      mealSelections: buildStaffMealSelections(adultsCount, childrenCount),
-
       // Notes
       dietaryNeeds: responses['Dietary Restrictions'] ? responses['Dietary Restrictions'][0] : '',
       specialNeeds: responses['Special Needs/Requests'] ? responses['Special Needs/Requests'][0] : '',
@@ -105,12 +102,27 @@ function onStaffFormSubmit(e) {
     // Calculate total guests
     data.totalGuests = data.adultsCount + data.childrenCount;
 
+    // Add warnings when attendance text could not be confidently parsed
+    var attendanceWarnings = guests._attendanceWarnings || [];
+    if (attendanceWarnings.length > 0) {
+      var warningNote = 'Attendance review needed: ' + attendanceWarnings.join(' | ');
+      data.specialNeeds = data.specialNeeds
+        ? data.specialNeeds + ' | ' + warningNote
+        : warningNote;
+    }
+
     // Always insert the primary registrant at the front of the guest list
     data.guests.unshift({
       name: data.name,
       age: 30,
-      isChild: false
+      isChild: false,
+      attendanceType: 'full',
+      attendanceRaw: 'Full Time',
+      attendanceDays: ['tue', 'wed', 'thu', 'fri', 'sat']
     });
+
+    // Build attendance-aware meal selections from the full guest list
+    data.mealSelections = buildStaffMealSelections(data.guests);
     
     // Deduplication Check
     if (data.email) {
@@ -164,141 +176,352 @@ function mapHousingOption(selection) {
 }
 
 /**
+ * Canonical camp meeting days used for attendance and meal calculations.
+ */
+function getCampMeetingDays() {
+  return ['tue', 'wed', 'thu', 'fri', 'sat'];
+}
+
+/**
  * Parse guest details from free-text input.
- * Handles formats:
- *   - "Name Age Name Age ..." (no newlines, no commas)
- *   - "Name, Name, Name" (comma-separated, no ages)
- *   - "Name, Age\nName, Age" (newline-separated with comma+age)
- *   - Mixed real-world inputs
+ * Supports:
+ *   - One per line: "Name, Age, Attendance"
+ *   - Backward compatible: "Name, Age" or "Name Age"
+ *   - Legacy comma-only names: "Name One, Name Two"
  */
 function parseGuestDetails(text) {
   if (!text) return [];
 
   var guests = [];
+  guests._attendanceWarnings = [];
 
-  // Returns true for segments that should be skipped (empty or all-caps notes like "AIRBNB")
-  function isSkippable(s) {
-    s = s.trim();
-    if (!s) return true;
-    // All uppercase letters/digits/spaces/slashes = likely a note, not a name
-    if (/^[A-Z0-9\s\/\-]+$/.test(s)) return true;
-    return false;
-  }
+  var raw = String(text).replace(/\r/g, '').trim();
+  if (!raw) return guests;
 
-  // Parse a single segment into a guest object.
-  // Handles "Name, Age" (comma) or "First Last Age" (trailing number).
-  function parseSegment(seg) {
-    seg = seg.trim();
-    if (!seg) return null;
+  var lines = raw.split('\n');
 
-    var name, age;
-
-    if (seg.indexOf(',') !== -1) {
-      // Use last comma as name/age boundary
-      var commaIdx = seg.lastIndexOf(',');
-      var namePart = seg.substring(0, commaIdx).trim();
-      var agePart  = seg.substring(commaIdx + 1).trim();
-      name = namePart;
-      var parsedAge = parseInt(agePart);
-      age = !isNaN(parsedAge) ? parsedAge : 30;
-    } else {
-      // Try trailing number: "Caleb Durant 29" → name="Caleb Durant", age=29
-      var m = seg.match(/^(.+?)\s+(\d+)\s*$/);
-      if (m) {
-        name = m[1].trim();
-        age  = parseInt(m[2]);
-      } else {
-        name = seg;
-        age  = 30;
-      }
-    }
-
-    if (!name || isSkippable(name)) return null;
-    return { name: name, age: age, isChild: age < 18 };
-  }
-
-  var hasNewlines = text.indexOf('\n') !== -1;
-  var hasCommas   = text.indexOf(',')  !== -1;
-
-  if (hasNewlines) {
-    // One person per line; each line may use "Name, Age" or "Name Age" format
-    var lines = text.split('\n');
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i].trim();
-      if (!line) continue;
-      var g = parseSegment(line);
-      if (g) guests.push(g);
-    }
-
-  } else if (hasCommas) {
-    // Comma-separated people, e.g. "McKailah Ramsey, Caleb Durant, Cashmere Durant"
-    // Each comma-delimited token is one person (name only, or name + trailing number)
-    var parts = text.split(',');
-    for (var i = 0; i < parts.length; i++) {
-      var part = parts[i].trim();
-      if (!part) continue;
-      var g = parseSegment(part);
-      if (g) guests.push(g);
-    }
-
-  } else {
-    // No newlines and no commas — detect "Name Age Name Age" by treating
-    // isolated numeric tokens as age boundaries between people.
-    // e.g. "Caleb Durant 29 Cashmere Durant 29 Mark Durant 5 Maddy Durant 8"
-    var tokens = text.split(/\s+/);
-    var nameTokens = [];
-    for (var t = 0; t < tokens.length; t++) {
-      var token = tokens[t].trim();
-      if (!token) continue;
-      if (/^\d+$/.test(token)) {
-        // Numeric token ends the current person's name and supplies their age
-        if (nameTokens.length > 0) {
-          var personName = nameTokens.join(' ');
-          var personAge  = parseInt(token);
-          if (!isSkippable(personName)) {
-            guests.push({ name: personName, age: personAge, isChild: personAge < 18 });
-          }
-          nameTokens = [];
+  // Legacy fallback: comma-separated names with no line breaks (no attendance data)
+  if (lines.length === 1 && raw.indexOf(',') !== -1) {
+    var commaParts = raw.split(',');
+    var hasLikelyAttendance = /\b(full|weekend|sabbath|tue|wed|thu|fri|sat|only|all week|full time)\b/i.test(raw);
+    if (!hasLikelyAttendance && commaParts.length > 2) {
+      for (var lp = 0; lp < commaParts.length; lp++) {
+        var legacyName = commaParts[lp].trim();
+        if (legacyName) {
+          guests.push({
+            name: legacyName,
+            age: 30,
+            isChild: false,
+            attendanceType: 'full',
+            attendanceRaw: 'Full Time',
+            attendanceDays: getCampMeetingDays()
+          });
         }
-      } else {
-        nameTokens.push(token);
       }
+      return guests;
     }
-    // Remaining tokens = last person with no age provided
-    if (nameTokens.length > 0) {
-      var personName = nameTokens.join(' ');
-      if (!isSkippable(personName)) {
-        guests.push({ name: personName, age: 30, isChild: false });
-      }
+  }
+
+  // Legacy fallback: "Name Age Name Age" in a single line
+  if (lines.length === 1 && raw.indexOf(',') === -1) {
+    var legacyGuests = parseLegacyAgeBlob(raw);
+    if (legacyGuests.length > 0) {
+      return legacyGuests;
     }
+  }
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line) continue;
+
+    var parsed = parseGuestLine(line);
+    if (!parsed || !parsed.name) continue;
+
+    var attendance = parseAttendanceDetails(parsed.attendanceRaw);
+
+    // Unknown attendance does not block registration.
+    // Keep attendanceType='unknown' for audit, but default meal/day handling to full time.
+    if (attendance.attendanceType === 'unknown') {
+      guests._attendanceWarnings.push(parsed.name + ' ("' + (parsed.attendanceRaw || 'blank') + '")');
+      attendance.attendanceDays = getCampMeetingDays();
+    }
+
+    guests.push({
+      name: parsed.name,
+      age: parsed.age,
+      isChild: parsed.age < 18,
+      attendanceType: attendance.attendanceType,
+      attendanceRaw: attendance.attendanceRaw,
+      attendanceDays: attendance.attendanceDays
+    });
   }
 
   return guests;
 }
 
 /**
- * Build meal selections for staff
- * Staff get all meals for all family members (free)
+ * Legacy parser for compact guest blobs like:
+ * "Caleb Durant 29 Cashmere Durant 29 Mark Durant 5"
  */
-function buildStaffMealSelections(adultCount, childCount) {
-  // Multiply by number of days each meal is served:
-  // Breakfast: Wed, Thu, Fri, Sat = 4 days
-  // Lunch: Wed, Thu, Fri = 3 days
-  // Supper: Tue, Wed, Thu, Fri, Sat = 5 days
-  return {
-    breakfast: {
-      adult: adultCount * 4,
-      child: childCount * 4
-    },
-    lunch: {
-      adult: adultCount * 3,
-      child: childCount * 3
-    },
-    supper: {
-      adult: adultCount * 5,
-      child: childCount * 5
+function parseLegacyAgeBlob(text) {
+  var guests = [];
+  var tokens = String(text).split(/\s+/);
+  var nameTokens = [];
+
+  for (var i = 0; i < tokens.length; i++) {
+    var token = tokens[i];
+    if (!token) continue;
+
+    if (/^\d+$/.test(token)) {
+      if (nameTokens.length > 0) {
+        var legacyName = nameTokens.join(' ').trim();
+        var legacyAge = parseInt(token, 10);
+        if (legacyName) {
+          guests.push({
+            name: legacyName,
+            age: legacyAge,
+            isChild: legacyAge < 18,
+            attendanceType: 'full',
+            attendanceRaw: 'Full Time',
+            attendanceDays: getCampMeetingDays()
+          });
+        }
+        nameTokens = [];
+      }
+    } else {
+      nameTokens.push(token);
     }
+  }
+
+  // Remaining tokens without age -> treat as one adult
+  if (nameTokens.length > 0) {
+    guests.push({
+      name: nameTokens.join(' '),
+      age: 30,
+      isChild: false,
+      attendanceType: 'full',
+      attendanceRaw: 'Full Time',
+      attendanceDays: getCampMeetingDays()
+    });
+  }
+
+  // Only use this parser when at least one explicit age was found.
+  var hasExplicitAge = false;
+  for (var g = 0; g < guests.length; g++) {
+    if (guests[g].age !== 30) {
+      hasExplicitAge = true;
+      break;
+    }
+  }
+
+  return hasExplicitAge ? guests : [];
+}
+
+/**
+ * Parse one guest row into name/age/raw attendance text.
+ */
+function parseGuestLine(line) {
+  var result = {
+    name: '',
+    age: 30,
+    attendanceRaw: 'Full Time'
   };
+
+  // Preferred format: Name, Age, Attendance
+  if (line.indexOf(',') !== -1) {
+    var parts = line.split(',');
+    if (parts.length >= 2) {
+      result.name = parts[0].trim();
+
+      var ageCandidate = parseInt(parts[1], 10);
+      if (!isNaN(ageCandidate)) {
+        result.age = ageCandidate;
+      }
+
+      if (parts.length >= 3) {
+        result.attendanceRaw = parts.slice(2).join(',').trim();
+      } else {
+        result.attendanceRaw = 'Full Time';
+      }
+
+      // Backward compatibility: "Name, Attendance" (no age)
+      if (isNaN(ageCandidate) && parts.length === 2) {
+        result.attendanceRaw = parts[1].trim() || 'Full Time';
+      }
+
+      return result;
+    }
+  }
+
+  // Backward compatibility: "Name Age"
+  var trailingAge = line.match(/^(.+?)\s+(\d+)\s*$/);
+  if (trailingAge) {
+    result.name = trailingAge[1].trim();
+    result.age = parseInt(trailingAge[2], 10);
+    result.attendanceRaw = 'Full Time';
+    return result;
+  }
+
+  // Fallback: name only
+  result.name = line.trim();
+  result.attendanceRaw = 'Full Time';
+  return result;
+}
+
+/**
+ * Normalize free-text attendance into a parseable token string.
+ */
+function normalizeAttendanceText(text) {
+  if (!text) return '';
+
+  var normalized = String(text).toLowerCase();
+  normalized = normalized.replace(/[–—]/g, '-');
+  normalized = normalized.replace(/\./g, ' ');
+  normalized = normalized.replace(/\s+/g, ' ').trim();
+
+  // Treat "sabbath" as Saturday in day parsing.
+  normalized = normalized.replace(/sabbath/g, 'sat');
+  normalized = normalized.replace(/saturday/g, 'sat');
+  normalized = normalized.replace(/\bsat\b/g, 'sat');
+  normalized = normalized.replace(/tuesday/g, 'tue');
+  normalized = normalized.replace(/wednesday/g, 'wed');
+  normalized = normalized.replace(/thursday/g, 'thu');
+  normalized = normalized.replace(/friday/g, 'fri');
+
+  return normalized;
+}
+
+/**
+ * Parse attendance metadata from free text.
+ */
+function parseAttendanceDetails(attendanceRaw) {
+  var fullDays = getCampMeetingDays();
+  var raw = attendanceRaw ? String(attendanceRaw).trim() : '';
+  if (!raw) {
+    return { attendanceType: 'full', attendanceRaw: 'Full Time', attendanceDays: fullDays };
+  }
+
+  var normalized = normalizeAttendanceText(raw);
+
+  // Canonical full attendance labels
+  if (/\b(full time|full week|all week|entire time|whole time)\b/.test(normalized)) {
+    return { attendanceType: 'full', attendanceRaw: raw, attendanceDays: fullDays };
+  }
+
+  // Canonical weekend labels
+  if (/\b(weekend only|weekend|fri\s*-\s*sat|friday\s*-\s*sat|fri-sat)\b/.test(normalized)) {
+    return { attendanceType: 'weekend', attendanceRaw: raw, attendanceDays: ['fri', 'sat'] };
+  }
+
+  // Canonical sabbath-only labels
+  if (/\b(sabbath only|saturday only|sat only|sat)\b/.test(normalized) && !/\b(tue|wed|thu|fri)\b/.test(normalized)) {
+    return { attendanceType: 'sabbath', attendanceRaw: raw, attendanceDays: ['sat'] };
+  }
+
+  var parsedDays = parseAttendanceDays(normalized);
+  if (parsedDays.length > 0) {
+    return { attendanceType: 'partial', attendanceRaw: raw, attendanceDays: parsedDays };
+  }
+
+  return { attendanceType: 'unknown', attendanceRaw: raw, attendanceDays: [] };
+}
+
+/**
+ * Convert day/day-range expressions into canonical day arrays.
+ */
+function parseAttendanceDays(normalizedText) {
+  var dayOrder = getCampMeetingDays();
+  var map = { tue: 0, wed: 1, thu: 2, fri: 3, sat: 4 };
+  var daysFound = [];
+
+  if (!normalizedText) return daysFound;
+
+  var text = normalizedText.replace(/\bonly\b/g, ' ');
+
+  // Expand ranges like "wed-fri" or "thu-sat"
+  var rangeRegex = /\b(tue|wed|thu|fri|sat)\s*-\s*(tue|wed|thu|fri|sat)\b/g;
+  var rangeMatch;
+  while ((rangeMatch = rangeRegex.exec(text)) !== null) {
+    var startDay = rangeMatch[1];
+    var endDay = rangeMatch[2];
+    var startIdx = map[startDay];
+    var endIdx = map[endDay];
+    if (startIdx <= endIdx) {
+      for (var i = startIdx; i <= endIdx; i++) {
+        pushUnique(daysFound, dayOrder[i]);
+      }
+    }
+  }
+
+  // Parse individual days, including comma-separated lists like "tue, thu, sat"
+  var singleRegex = /\b(tue|wed|thu|fri|sat)\b/g;
+  var singleMatch;
+  while ((singleMatch = singleRegex.exec(text)) !== null) {
+    pushUnique(daysFound, singleMatch[1]);
+  }
+
+  // Preserve camp meeting order
+  var ordered = [];
+  for (var d = 0; d < dayOrder.length; d++) {
+    if (arrayContains(daysFound, dayOrder[d])) {
+      ordered.push(dayOrder[d]);
+    }
+  }
+
+  return ordered;
+}
+
+function pushUnique(arr, value) {
+  if (!arrayContains(arr, value)) {
+    arr.push(value);
+  }
+}
+
+function arrayContains(arr, value) {
+  for (var i = 0; i < arr.length; i++) {
+    if (arr[i] === value) return true;
+  }
+  return false;
+}
+
+/**
+ * Build attendance-aware meal selections for staff registrations.
+ */
+function buildStaffMealSelections(guestList) {
+  var mealsByDay = {
+    breakfast: ['wed', 'thu', 'fri', 'sat'],
+    lunch: ['wed', 'thu', 'fri'],
+    supper: ['tue', 'wed', 'thu', 'fri', 'sat']
+  };
+
+  var totals = {
+    breakfast: { adult: 0, child: 0 },
+    lunch: { adult: 0, child: 0 },
+    supper: { adult: 0, child: 0 }
+  };
+
+  var guests = guestList || [];
+  for (var i = 0; i < guests.length; i++) {
+    var guest = guests[i] || {};
+    var personDays = guest.attendanceDays && guest.attendanceDays.length
+      ? guest.attendanceDays
+      : getCampMeetingDays();
+    var bucket = guest.isChild ? 'child' : 'adult';
+
+    incrementMealsForGuest(personDays, mealsByDay.breakfast, totals.breakfast, bucket);
+    incrementMealsForGuest(personDays, mealsByDay.lunch, totals.lunch, bucket);
+    incrementMealsForGuest(personDays, mealsByDay.supper, totals.supper, bucket);
+  }
+
+  return totals;
+}
+
+function incrementMealsForGuest(attendanceDays, mealDays, mealTotals, bucket) {
+  for (var i = 0; i < mealDays.length; i++) {
+    if (arrayContains(attendanceDays, mealDays[i])) {
+      mealTotals[bucket] += 1;
+    }
+  }
 }
 
 /**

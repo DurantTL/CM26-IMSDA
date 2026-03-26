@@ -133,8 +133,10 @@ function processRegistration(data) {
       // 5. Save Individual Guest Details
       if (data.guests && data.guests.length > 0) {
         var guestRows = [];
+        var guestSheetColumnCount = guestSheet.getLastColumn();
+        var supportsAttendanceColumns = guestSheetColumnCount >= 12;
         data.guests.forEach(function(guest) {
-          guestRows.push([
+          var row = [
             generateGuestId(),            // guest_id
             regId,                        // reg_id
             guest.name,                   // guest_name
@@ -144,7 +146,21 @@ function processRegistration(data) {
             '',                           // class_assignment
             '',                           // sabbath_school
             ''                            // children_meeting
-          ]);
+          ];
+
+          // Optional attendance columns (attendance_type, attendance_raw, attendance_days)
+          // If GuestDetails has not been expanded yet, keep current 9-column write behavior.
+          if (supportsAttendanceColumns) {
+            row.push(
+              guest.attendanceType || 'full',
+              guest.attendanceRaw || 'Full Time',
+              (guest.attendanceDays && guest.attendanceDays.join) ? guest.attendanceDays.join(',') : 'tue,wed,thu,fri,sat'
+            );
+          } else {
+            // TODO: Add attendance columns to GuestDetails sheet to persist per-guest attendance there too.
+          }
+
+          guestRows.push(row);
         });
 
         if (guestRows.length > 0) {
