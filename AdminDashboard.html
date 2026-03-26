@@ -420,6 +420,9 @@
       <div class="nav-item" data-tab="activity" onclick="switchTab('activity', this)">
         <span class="nav-icon">📋</span> Activity Feed
       </div>
+      <div class="nav-item" data-tab="dietary" onclick="switchTab('dietary', this)">
+        <span class="nav-icon">🥗</span> Dietary Needs
+      </div>
       <div class="nav-section-label">Administration</div>
       <div class="nav-item" data-tab="setup" onclick="switchTab('setup', this)">
         <span class="nav-icon">⚙️</span> System Setup
@@ -498,6 +501,48 @@
                   </tr>
                 </thead>
                 <tbody id="activity-tbody">
+                  <tr class="loading-row"><td colspan="6"><span class="spinner"></span> Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ── Dietary Needs tab ─────────────────────────────────── -->
+      <div id="tab-dietary" class="tab-panel">
+        <div class="page-header">
+          <h1>Dietary Needs Report</h1>
+          <p>All registrations with dietary restrictions or allergies on file</p>
+        </div>
+
+        <div class="stat-grid" id="dietary-stat-grid">
+          <div class="stat-card"><div class="stat-label">Loading…</div><div class="stat-value"><span class="spinner"></span></div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Dietary Needs List</h2>
+            <div>
+              <button class="btn btn-outline btn-sm" onclick="loadDietaryReport()">&#8635; Refresh</button>
+              <button class="btn btn-primary btn-sm" onclick="window.print()">🖨️ Print</button>
+            </div>
+          </div>
+          <div class="card-body" style="padding:0;">
+            <div class="feed-table-wrap">
+              <table class="feed-table">
+                <thead>
+                  <tr>
+                    <th>Reg ID</th>
+                    <th>Name</th>
+                    <th>Reg Type</th>
+                    <th>Dietary Needs</th>
+                    <th>Special Needs</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="dietary-tbody">
                   <tr class="loading-row"><td colspan="6"><span class="spinner"></span> Loading…</td></tr>
                 </tbody>
               </table>
@@ -589,7 +634,7 @@
                 <tr><td style="padding:7px 10px;border-bottom:1px solid var(--border);"><strong>Registrations</strong></td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">A–BB (54)</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">Primary registration data</td></tr>
                 <tr><td style="padding:7px 10px;border-bottom:1px solid var(--border);"><strong>Waitlist</strong></td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">A–M (13)</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">Housing waitlist queue</td></tr>
                 <tr><td style="padding:7px 10px;border-bottom:1px solid var(--border);"><strong>Rooms</strong></td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">A–J (10)</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">Dorm room inventory &amp; status</td></tr>
-                <tr><td style="padding:7px 10px;border-bottom:1px solid var(--border);"><strong>MealTickets</strong></td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">A–L (12)</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">Individual meal ticket records</td></tr>
+                <tr><td style="padding:7px 10px;border-bottom:1px solid var(--border);"><strong>MealTickets</strong></td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">A–M (13)</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">Individual meal ticket records</td></tr>
                 <tr><td style="padding:7px 10px;border-bottom:1px solid var(--border);"><strong>GuestDetails</strong></td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">A–I (9)</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">Per-guest sub-records</td></tr>
                 <tr><td style="padding:7px 10px;border-bottom:1px solid var(--border);"><strong>Payments</strong></td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">A–I (9)</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">Payment ledger</td></tr>
                 <tr><td style="padding:7px 10px;border-bottom:1px solid var(--border);"><strong>ActivityLog</strong></td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">A–F (6)</td><td style="padding:7px 10px;border-bottom:1px solid var(--border);">Audit trail of all operations</td></tr>
@@ -612,6 +657,7 @@
   var TITLES = {
     dashboard: 'Dashboard',
     activity:  'Activity Feed',
+    dietary:   'Dietary Needs Report',
     setup:     'System Setup'
   };
 
@@ -633,6 +679,9 @@
     if (tabId === 'activity' && !window._activityLoaded) {
       loadActivity();
     }
+    if (tabId === 'dietary' && !window._dietaryLoaded) {
+      loadDietaryReport();
+    }
   }
 
   function refreshCurrent() {
@@ -641,6 +690,7 @@
     var tabId = active.getAttribute('data-tab');
     if (tabId === 'dashboard') loadStats();
     if (tabId === 'activity')  loadActivity();
+    if (tabId === 'dietary')   loadDietaryReport();
   }
 
   // ── Toast ────────────────────────────────────────────────────────────────
@@ -779,6 +829,65 @@
     });
 
     tbody.innerHTML = rows.join('');
+  }
+
+
+  // ── Load Dietary Report ────────────────────────────────────────────────
+  function loadDietaryReport() {
+    window._dietaryLoaded = true;
+    var tbody = document.getElementById('dietary-tbody');
+    var statGrid = document.getElementById('dietary-stat-grid');
+    tbody.innerHTML = '<tr class="loading-row"><td colspan="6"><span class="spinner"></span> Loading…</td></tr>';
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (!result || !result.success) {
+          tbody.innerHTML = '<tr class="loading-row"><td colspan="6">Failed to load: ' +
+            esc((result && result.error) || 'Unknown error') + '</td></tr>';
+          return;
+        }
+
+        statGrid.innerHTML =
+          statCard('With Dietary Needs', result.totalWithDietary || 0, 'Active non-cancelled registrations', 'amber', '') +
+          statCard('Total Registrations', result.total || 0, 'Active non-cancelled registrations', '', '');
+
+        renderDietaryRows(result.entries || []);
+        setLastRefreshed();
+      })
+      .withFailureHandler(function(err) {
+        tbody.innerHTML = '<tr class="loading-row"><td colspan="6">Error: ' + esc(err.message) + '</td></tr>';
+      })
+      .getDietaryReport();
+  }
+
+  function renderDietaryRows(entries) {
+    var tbody = document.getElementById('dietary-tbody');
+    if (!entries || entries.length === 0) {
+      tbody.innerHTML = '<tr class="loading-row"><td colspan="6">No dietary restrictions on file.</td></tr>';
+      return;
+    }
+
+    var allergenRegex = /(gluten|nut|peanut|dairy|vegan|vegetarian|allerg)/i;
+
+    var rows = entries.filter(function(e) {
+      return (e.dietaryNeeds || '').toString().trim();
+    }).map(function(e) {
+      var dietary = esc(e.dietaryNeeds || '');
+      if (allergenRegex.test(e.dietaryNeeds || '')) {
+        dietary += ' <span class="badge badge-red">⚠️ Allergen Alert</span>';
+      }
+
+      return '<tr>' +
+        '<td style="font-family:monospace;font-size:12px;">' + esc(e.regId || '—') + '</td>' +
+        '<td>' + esc(e.name || '—') + '</td>' +
+        '<td><span class="badge badge-gray">' + esc(e.regType || '—') + '</span></td>' +
+        '<td class="details-cell">' + dietary + '</td>' +
+        '<td class="details-cell">' + esc(e.specialNeeds || '') + '</td>' +
+        '<td><span class="badge badge-gray">' + esc(e.status || '—') + '</span></td>' +
+        '</tr>';
+    });
+
+    tbody.innerHTML = rows.join('') || '<tr class="loading-row"><td colspan="6">No dietary restrictions on file.</td></tr>';
   }
 
   // ── Database Init ────────────────────────────────────────────────────────

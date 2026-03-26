@@ -84,8 +84,21 @@
         </tr>
       </table>
 
+
+      <? if ((reg.dietaryNeeds || '').toString().trim()) { ?>
+      <div class="section-title">Dietary Information</div>
+      <table class="details-table">
+        <tr>
+          <td class="label">Dietary Needs on File</td>
+          <td><?= reg.dietaryNeeds ?></td>
+        </tr>
+      </table>
+      <p>Please confirm these details with kitchen staff upon arrival if you have specific requirements.</p>
+      <? } ?>
+
       <? if (reg.balanceDue > 0) { ?>
         <div class="warning">
+
           <strong>Balance Due: $<?= (Number(reg.balanceDue) || 0).toFixed(2) ?></strong><br>
           Please pay the remaining balance upon arrival.
         </div>

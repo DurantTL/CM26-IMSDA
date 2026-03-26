@@ -92,7 +92,7 @@ function onStaffFormSubmit(e) {
 
       // Spouse volunteer interest
       spouseVolunteering: responses['Is your spouse interested in volunteering at Camp Meeting 2026?']
-        ? responses['Is your spouse interested in volunteering at Camp Meeting 2026?'][0] === 'Yes — skip to Section 1A'
+        ? responses['Is your spouse interested in volunteering at Camp Meeting 2026?'][0] === 'Yes'
         : false,
       spouseName: responses['Spouse\'s Full Name'] ? responses['Spouse\'s Full Name'][0] : '',
       spouseDepartments: responses['Preferred Volunteer Department(s)'] ? responses['Preferred Volunteer Department(s)'][0] : '',

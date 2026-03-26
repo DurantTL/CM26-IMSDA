@@ -274,7 +274,8 @@ function getRegistration(regId) {
           checkInTime: row[COLUMNS.CHECK_IN_TIME],
           checkedOut: row[COLUMNS.CHECKED_OUT],
           checkOutTime: row[COLUMNS.CHECK_OUT_TIME],
-          qrData: row[53] // BB
+          qrData: row[53], // BB
+          specialRequests: row[54] // BC
         }
       };
     }
