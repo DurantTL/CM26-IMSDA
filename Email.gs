@@ -31,7 +31,7 @@ function sendConfirmationEmail(regId) {
       {
         htmlBody: emailBody,
         name: 'Iowa-Missouri Conference',
-        replyTo: config.admin_email || 'campmeeting@imsda.org'
+        replyTo: config.admin_email || 'communication@imsda.org'
       }
     );
 
@@ -68,7 +68,7 @@ function sendWaitlistOfferEmail(waitlistId, name, email, housingOption, expiresA
         htmlBody: emailBody,
         name: 'Iowa-Missouri Conference',
         // Fix: Use config instead of hardcoded
-        replyTo: config.admin_email || 'campmeeting@imsda.org'
+        replyTo: config.admin_email || 'communication@imsda.org'
       }
     );
 
@@ -109,7 +109,7 @@ function sendReminderEmail(regId) {
       {
         htmlBody: emailBody,
         name: 'Iowa-Missouri Conference',
-        replyTo: config.admin_email || 'campmeeting@imsda.org'
+        replyTo: config.admin_email || 'communication@imsda.org'
       }
     );
 

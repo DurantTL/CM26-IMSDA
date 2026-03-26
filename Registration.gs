@@ -86,7 +86,7 @@ function processRegistration(data) {
       JSON.stringify(data.guests || []),// T: guest_details (JSON)
       JSON.stringify(data.mealSelections || {}), // U: meal_selections (JSON)
       data.dietaryNeeds || '',          // V: dietary_needs
-      data.specialNeeds || '',          // W: special_needs
+      (data.firstFloorNeeded === 'Yes' ? 'First floor needed. ' : '') + (data.specialNeeds || ''), // W: special_needs
       data.mealSubtotal || 0,           // X: meal_subtotal
       data.subtotal || 0,               // Y: subtotal
       processingFee,                    // Z: processing_fee
@@ -115,7 +115,7 @@ function processRegistration(data) {
       'no',                             // AW: checked_out
       '',                               // AX: check_out_time
       '',                               // AY: checked_out_by
-      '',                               // AZ: notes
+      data.rvDetails || '',             // AZ: notes
       data.entryId || '',               // BA: fluent_entry_id
       regId,                            // BB: qr_data
       data.specialRequests || ''        // BC: special_requests
@@ -253,6 +253,7 @@ function getRegistration(regId) {
           mealSelections: mealSelections,
           dietaryNeeds: row[COLUMNS.DIETARY_NEEDS],
           specialNeeds: row[COLUMNS.SPECIAL_NEEDS],
+          firstFloorNeeded: row[22],
           mealSubtotal: row[COLUMNS.MEAL_SUBTOTAL],
           subtotal: row[COLUMNS.SUBTOTAL],
           processingFee: row[25], // Z

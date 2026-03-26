@@ -454,10 +454,7 @@ function cm26_send_to_google($entryId, $formData, $form) {
     $submission = wpFluent()->table('fluentform_submissions')->where('id', $entryId)->first();
     $paymentStatus = isset($submission->payment_status) ? $submission->payment_status : 'pending';
     
-    // Use form's calculated subtotal + processing fee (more reliable than FF's payment_total)
-    $subtotalFromForm = floatval($formData['subtotal'] ?? 0);
-    $processingFeeFromForm = floatval($formData['processing_fee'] ?? 0);
-    $totalCharged = $subtotalFromForm + $processingFeeFromForm;
+    // totalCharged is computed after section 8 once all mapped values are available
 
     // =============================================
     // 2. PARSE GUEST DETAILS (flexible field names)
@@ -668,20 +665,36 @@ function cm26_send_to_google($entryId, $formData, $form) {
     // 8. CALCULATED TOTALS
     // =============================================
     $housingSubtotal = floatval(cm26_get_field($formData, [
-        'housing_total', 'housing_subtotal', 'lodging_total'
+        'housing_total_payment', 'housing_total', 'housing_subtotal', 'lodging_total'
     ], 0));
-    
+
     $mealSubtotal = floatval(cm26_get_field($formData, [
-        'meal_total', 'meals_total', 'meal_subtotal', 'food_total'
+        'meal_total_payment', 'meal_total', 'meals_total', 'meal_subtotal', 'food_total'
     ], 0));
-    
+
     $subtotal = floatval(cm26_get_field($formData, [
         'subtotal', 'sub_total', 'total_before_fees'
     ], 0));
-    
+
     $processingFee = floatval(cm26_get_field($formData, [
-        'processing_fee', 'card_fee', 'square_fee', 'payment_fee'
+        'fee_payment', 'processing_fee', 'card_fee', 'square_fee', 'payment_fee'
     ], 0));
+
+    $firstFloorNeeded = sanitize_text_field(cm26_get_field($formData, [
+        'first_floor_needed'
+    ], ''));
+
+    $rvDetails = sanitize_textarea_field(cm26_get_field($formData, [
+        'rv_details'
+    ], ''));
+
+    // Determine payment method and compute totalCharged
+    // Check payers send no processing fee; Square payers pay the full amount online
+    $paymentMethodRaw = sanitize_text_field(cm26_get_field($formData, [
+        'payment_method', 'pay_method'
+    ], 'square'));
+    $isCheck = (stripos($paymentMethodRaw, 'check') !== false);
+    $totalCharged = $isCheck ? $subtotal : ($housingSubtotal + $mealSubtotal + $processingFee);
 
     // =============================================
     // 9. BUILD PAYLOAD
@@ -728,6 +741,8 @@ function cm26_send_to_google($entryId, $formData, $form) {
             'special_requests_requires_administration_approval', 'special_requests_admin',
             'special_requests_approval', 'admin_requests', 'requests_approval'
         ], '')),
+        'firstFloorNeeded' => $firstFloorNeeded,
+        'rvDetails'        => $rvDetails,
         
         // Financials
         'housingSubtotal' => $housingSubtotal,
@@ -736,9 +751,7 @@ function cm26_send_to_google($entryId, $formData, $form) {
         'processingFee'   => $processingFee,
         'totalCharged'    => $totalCharged,
         'paymentStatus'   => ($paymentStatus === 'paid') ? 'paid' : 'pending',
-        'paymentMethod'   => sanitize_text_field(cm26_get_field($formData, [
-            'payment_method', 'pay_method'
-        ], 'square')),
+        'paymentMethod'   => $paymentMethodRaw,
         'transactionId'   => 'FF-' . $entryId,
         
         'submittedAt' => current_time('c')
