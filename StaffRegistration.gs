@@ -90,6 +90,14 @@ function onStaffFormSubmit(e) {
       housingSubtotal: 0,
       mealSubtotal: 0,
 
+      // Spouse volunteer interest
+      spouseVolunteering: responses['Is your spouse interested in volunteering at Camp Meeting 2026?']
+        ? responses['Is your spouse interested in volunteering at Camp Meeting 2026?'][0] === 'Yes — skip to Section 1A'
+        : false,
+      spouseName: responses['Spouse\'s Full Name'] ? responses['Spouse\'s Full Name'][0] : '',
+      spouseDepartments: responses['Preferred Volunteer Department(s)'] ? responses['Preferred Volunteer Department(s)'][0] : '',
+      spouseDepartmentOther: responses['Other Department (if selected above)'] ? responses['Other Department (if selected above)'][0] : '',
+
       // Metadata
       submittedAt: new Date().toISOString()
     };
@@ -123,6 +131,9 @@ function onStaffFormSubmit(e) {
     if (result.success) {
       Logger.log('Staff registration successful: ' + result.registrationId);
       // Email is sent by processRegistration
+      if (data.spouseVolunteering && data.spouseName) {
+        writeVolunteerRecord(data, result.registrationId);
+      }
     } else {
       Logger.log('Staff registration failed: ' + result.error);
       // Send notification to admin about failure
@@ -320,6 +331,62 @@ function sendStaffRegFailureNotification(data, errorMsg) {
   }
 }
 
+
+/**
+ * Write a spouse volunteer interest record to the Volunteer Tracking sheet
+ */
+function writeVolunteerRecord(data, registrationId) {
+  try {
+    var ss = getSS();
+    var sheet = ss.getSheetByName('Volunteer Tracking');
+    if (!sheet) {
+      Logger.log('Volunteer Tracking sheet not found.');
+      return;
+    }
+    sheet.appendRow([
+      new Date(),                    // Timestamp
+      registrationId,                // Registration ID of the worker
+      data.name,                     // Worker name
+      data.email,                    // Worker email
+      data.staffRole,                // Worker role
+      data.spouseName,               // Spouse name
+      data.spouseDepartments,        // Preferred departments (comma-separated)
+      data.spouseDepartmentOther,    // Other department if specified
+      'pending'                      // Status — for admin to update
+    ]);
+    Logger.log('Volunteer record written for ' + data.spouseName);
+  } catch (e) {
+    Logger.log('Failed to write volunteer record: ' + e.toString());
+  }
+}
+
+/**
+ * Create the Volunteer Tracking sheet with headers if it doesn't exist.
+ * Run once from the Apps Script editor.
+ */
+function setupVolunteerTrackingSheet() {
+  var ss = getSS();
+  var sheet = ss.getSheetByName('Volunteer Tracking');
+  if (sheet) {
+    Logger.log('Volunteer Tracking sheet already exists.');
+    return;
+  }
+  sheet = ss.insertSheet('Volunteer Tracking');
+  sheet.appendRow([
+    'Timestamp',
+    'Registration ID',
+    'Worker Name',
+    'Worker Email',
+    'Worker Role',
+    'Spouse Name',
+    'Preferred Departments',
+    'Other Department',
+    'Status'
+  ]);
+  // Bold the header row
+  sheet.getRange(1, 1, 1, 9).setFontWeight('bold');
+  Logger.log('Volunteer Tracking sheet created.');
+}
 
 /**
  * Setup instructions - run once to set up trigger
