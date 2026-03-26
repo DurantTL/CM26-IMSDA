@@ -32,6 +32,9 @@ function doGet(e) {
       case 'getCheckInStats':
         return jsonResponse(getCheckInStats());
 
+      case 'getDietaryReport':
+        return jsonResponse(getDietaryReport());
+
       case 'searchRegistrations':
         return jsonResponse(searchRegistrations({
           query:     e.parameter.query,

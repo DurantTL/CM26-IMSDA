@@ -127,8 +127,9 @@ function initializeDatabase() {
         'price',       // H (7)
         'redeemed',    // I (8)
         'redeemed_at', // J (9)
-        'redeemed_by', // K (10)
-        'notes'        // L (11)
+        'redeemed_by',   // K (10)
+        'notes',         // L (11)
+        'dietary_needs'  // M (12)
       ]
     },
     {

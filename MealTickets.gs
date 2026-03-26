@@ -99,7 +99,8 @@ function createMealTickets(regId, data, skipLock) {
           'no',                          // I: redeemed
           '',                            // J: redeemed_at
           '',                            // K: redeemed_by
-          data.dietaryNeeds || ''        // L: notes
+          '',                            // L: notes
+          data.dietaryNeeds || ''        // M: dietary_needs
         ]);
       }
     });
@@ -146,7 +147,8 @@ function createMealTickets(regId, data, skipLock) {
           'no',                          // I
           '',                            // J
           '',                            // K
-          data.dietaryNeeds || ''        // L
+          '',                            // L
+          data.dietaryNeeds || ''        // M
         ]);
       }
     });
@@ -222,7 +224,7 @@ function redeemMealTicket(data) {
           guestName: tickets[i][2],
           mealType: tickets[i][3],
           ticketType: tickets[i][6],
-          dietary: tickets[i][11]
+          dietary: tickets[i][12] || tickets[i][11]
         };
       }
     }
@@ -256,7 +258,7 @@ function getGuestMeals(regId) {
         redeemed: data[i][8],
         redeemedAt: data[i][9],
         redeemedBy: data[i][10],
-        dietary: data[i][11]
+        dietary: data[i][12] || data[i][11]
       });
     }
   }
@@ -308,7 +310,7 @@ function getCurrentMealTickets(regId, mealType, day) {
         guestName: data[i][2],
         ticketType: data[i][6],
         redeemed: data[i][8],
-        dietary: data[i][11]
+        dietary: data[i][12] || data[i][11]
       });
     }
   }

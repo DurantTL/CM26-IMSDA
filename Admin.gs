@@ -427,6 +427,53 @@ function getRecentActivity() {
   }
 }
 
+
+/**
+ * Get dietary needs report for admin dashboard.
+ */
+function getDietaryReport() {
+  try {
+    var ss = getSS();
+    var regSheet = ss.getSheetByName('Registrations');
+    if (!regSheet) {
+      return { success: false, error: 'Registrations sheet not found' };
+    }
+
+    var data = regSheet.getDataRange().getValues();
+    var totalRegistrations = 0;
+    var entries = [];
+
+    for (var i = 1; i < data.length; i++) {
+      var row = data[i];
+      var status = (row[COLUMNS.STATUS] || '').toString().toLowerCase();
+      if (status === 'cancelled') continue;
+
+      totalRegistrations++;
+
+      var dietaryNeeds = (row[COLUMNS.DIETARY_NEEDS] || '').toString().trim();
+      if (!dietaryNeeds) continue;
+
+      entries.push({
+        regId: row[COLUMNS.REG_ID],
+        name: row[COLUMNS.PRIMARY_NAME],
+        regType: row[COLUMNS.REG_TYPE],
+        dietaryNeeds: dietaryNeeds,
+        specialNeeds: row[COLUMNS.SPECIAL_NEEDS] || '',
+        status: row[COLUMNS.STATUS]
+      });
+    }
+
+    return {
+      success: true,
+      entries: entries,
+      total: totalRegistrations,
+      totalWithDietary: entries.length
+    };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
 /**
  * Process No-Shows
  * Marks confirmed registrations as cancelled/no-show if they missed their first night check-in
