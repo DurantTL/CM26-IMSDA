@@ -270,18 +270,22 @@ function parseGuestDetails(text) {
  * Staff get all meals for all family members (free)
  */
 function buildStaffMealSelections(adultCount, childCount) {
+  // Multiply by number of days each meal is served:
+  // Breakfast: Wed, Thu, Fri, Sat = 4 days
+  // Lunch: Wed, Thu, Fri = 3 days
+  // Supper: Tue, Wed, Thu, Fri, Sat = 5 days
   return {
-    breakfast: { 
-      adult: adultCount, 
-      child: childCount 
+    breakfast: {
+      adult: adultCount * 4,
+      child: childCount * 4
     },
-    lunch: { 
-      adult: adultCount, 
-      child: childCount 
+    lunch: {
+      adult: adultCount * 3,
+      child: childCount * 3
     },
-    supper: { 
-      adult: adultCount, 
-      child: childCount 
+    supper: {
+      adult: adultCount * 5,
+      child: childCount * 5
     }
   };
 }
