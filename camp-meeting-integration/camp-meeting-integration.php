@@ -69,6 +69,17 @@ function cm26_get_nested($formData, $key, $subkey, $default = '') {
     return $default;
 }
 
+function cm26_offline_values() {
+    return ['check', 'cash', 'offline'];
+}
+
+function cm26_is_offline_payment( $formData ) {
+    $raw = strtolower( sanitize_text_field(
+        cm26_get_field( $formData, ['payment_method', 'pay_method'], '' )
+    ));
+    return in_array( $raw, cm26_offline_values(), true );
+}
+
 /**
  * ==================================================
  * 1. ADMIN SETTINGS PAGE
@@ -443,17 +454,113 @@ function cm26_send_to_google($entryId, $formData, $form) {
         return;
     }
 
+    // Only fire immediately for offline/check payments.
+    // Square payments are handled by the payment_paid hooks below.
+    if ( ! cm26_is_offline_payment( $formData ) ) {
+        return;
+    }
+
     // Save raw form data for debugging
     if ($debugMode) {
         update_option('cm26_last_submission_raw', json_encode($formData, JSON_PRETTY_PRINT));
     }
 
+    cm26_build_and_send( $entryId, $formData, 'pending', $scriptUrl, $debugMode );
+}
+
+// FF5 payment hooks
+add_action( 'fluentform_payment_paid',           'cm26_handle_payment_paid', 20, 10 );
+add_action( 'fluentform_payment_status_to_paid', 'cm26_handle_payment_paid', 20, 10 );
+
+function cm26_handle_payment_paid( ...$args ) {
+    $targetFormId = get_option( 'cm26_form_id' );
+    $scriptUrl    = trim( get_option( 'cm26_google_script_url' ) );
+    if ( empty( $targetFormId ) || empty( $scriptUrl ) ) return;
+
+    // Resolve submission and form ID from variadic args
+    $submission = null;
+    $formId     = 0;
+    foreach ( $args as $arg ) {
+        if ( is_object( $arg ) && isset( $arg->form_id ) ) {
+            $submission = $arg;
+            $formId     = (int) $arg->form_id;
+            break;
+        }
+        if ( is_array( $arg ) && isset( $arg['form_id'] ) ) {
+            $formId = (int) $arg['form_id'];
+            break;
+        }
+    }
+    if ( $formId !== (int) $targetFormId ) return;
+
+    $entryId = 0;
+    foreach ( $args as $arg ) {
+        if ( is_object( $arg ) && isset( $arg->id ) ) {
+            $entryId = (int) $arg->id;
+            break;
+        }
+        if ( is_numeric( $arg ) && (int) $arg > 0 ) {
+            $entryId = (int) $arg;
+            break;
+        }
+    }
+    if ( $entryId <= 0 ) return;
+
+    cm26_fire_to_gas( $entryId, 'paid' );
+}
+
+// FF6 slash-namespaced hooks
+add_action( 'fluentform/payment_paid',                'cm26_handle_ff6_payment_paid',   20, 2 );
+add_action( 'fluentform/after_payment_status_change', 'cm26_handle_ff6_status_change',   20, 2 );
+
+function cm26_handle_ff6_payment_paid( $submission, $transaction ) {
+    $targetFormId = (int) get_option( 'cm26_form_id' );
+    if ( is_object( $submission ) ) $submission = get_object_vars( $submission );
+    $formId  = (int) ( $submission['form_id'] ?? 0 );
+    $entryId = (int) ( $submission['id']      ?? 0 );
+    if ( $formId !== $targetFormId || $entryId <= 0 ) return;
+    cm26_fire_to_gas( $entryId, 'paid' );
+}
+
+function cm26_handle_ff6_status_change( $newStatus, $submission ) {
+    if ( strtolower( (string) $newStatus ) !== 'paid' ) return;
+    $targetFormId = (int) get_option( 'cm26_form_id' );
+    if ( is_object( $submission ) ) $submission = get_object_vars( $submission );
+    $formId  = (int) ( $submission['form_id'] ?? 0 );
+    $entryId = (int) ( $submission['id']      ?? 0 );
+    if ( $formId !== $targetFormId || $entryId <= 0 ) return;
+    cm26_fire_to_gas( $entryId, 'paid' );
+}
+
+function cm26_fire_to_gas( $entryId, $paymentStatus = 'paid' ) {
+    $scriptUrl = trim( get_option( 'cm26_google_script_url' ) );
+    $debugMode = get_option( 'cm26_debug_mode' );
+    if ( empty( $scriptUrl ) ) return;
+
+    $submission = wpFluent()->table('fluentform_submissions')
+        ->where('id', $entryId)->first();
+    if ( ! $submission ) return;
+
+    $formData = is_string( $submission->response )
+        ? json_decode( $submission->response, true )
+        : (array) $submission->response;
+    if ( ! is_array( $formData ) ) return;
+
+    if ( $debugMode ) {
+        update_option( 'cm26_last_submission_raw', json_encode( $formData, JSON_PRETTY_PRINT ) );
+    }
+
+    // Re-use the existing payload builder by temporarily overriding payment status
+    // The function already reads $formData and computes all fields.
+    // We call it directly with the confirmed status injected.
+    cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $debugMode );
+}
+
+function cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $debugMode ) {
+
     // =============================================
     // 1. GET PAYMENT INFO
     // =============================================
-    $submission = wpFluent()->table('fluentform_submissions')->where('id', $entryId)->first();
-    $paymentStatus = isset($submission->payment_status) ? $submission->payment_status : 'pending';
-    
     // totalCharged is computed after section 8 once all mapped values are available
 
     // =============================================
