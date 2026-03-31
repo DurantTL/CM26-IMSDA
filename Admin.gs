@@ -621,37 +621,22 @@ function adminSearchRegistrations(query) {
 /**
  * Load one registration payload for manual guest repair in admin UI.
  */
-function adminGetRegistrationForRepair(regId) {
-  try {
-    var target = String(regId || '').trim();
-    if (!target) return { success: false, error: 'Missing regId' };
-    var rows = getSheetValuesSafe('Registrations').values;
-    var idx = findRegistrationRowById(target, rows);
-    if (idx === -1) return { success: false, error: 'Registration not found' };
-    var row = rows[idx];
-    var registration = {
-      regId: row[COLUMNS.REG_ID] || '',
-      name: row[COLUMNS.PRIMARY_NAME] || '',
-      status: row[COLUMNS.STATUS] || '',
-      regType: row[COLUMNS.REG_TYPE] || '',
-      adultsCount: row[COLUMNS.ADULTS_COUNT] || 0,
-      childrenCount: row[COLUMNS.CHILDREN_COUNT] || 0,
-      totalGuests: row[COLUMNS.TOTAL_GUESTS] || 0,
-      dietaryNeeds: row[COLUMNS.DIETARY_NEEDS] || '',
-      specialNeeds: row[COLUMNS.SPECIAL_NEEDS] || ''
-    };
-    var parsedGuests = [];
-    try {
-      parsedGuests = JSON.parse(row[COLUMNS.GUEST_DETAILS] || '[]');
-      if (!Array.isArray(parsedGuests)) parsedGuests = [];
-    } catch (e) {
-      parsedGuests = [];
-    }
-    registration.guests = parsedGuests;
-    return { success: true, registration: registration };
-  } catch (e) {
-    return { success: false, error: e.toString() };
+function adminGetRegistrationForRepair(input) {
+  var regId = '';
+
+  if (typeof input === 'string') {
+    regId = input.trim();
+  } else if (input && typeof input === 'object' && input.regId) {
+    regId = String(input.regId).trim();
   }
+
+  if (!regId) {
+    return { success: false, error: 'Missing registration ID' };
+  }
+
+  var reg = getRegistration(regId);
+  if (!reg.success) return reg;
+  return { success: true, registration: reg.registration };
 }
 
 /**

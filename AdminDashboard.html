@@ -812,8 +812,14 @@
           reject(new Error(normalizeError(err)));
         });
 
-      if (Array.isArray(args) && args.length) runner[functionName].apply(runner, args);
-      else runner[functionName]();
+      if (Array.isArray(args)) {
+        if (args.length) runner[functionName].apply(runner, args);
+        else runner[functionName]();
+      } else if (args !== undefined && args !== null) {
+        runner[functionName](args);
+      } else {
+        runner[functionName]();
+      }
     });
   }
 
@@ -1063,8 +1069,8 @@
         Toast.show('Loaded from cache: ' + normalizedRegId, 'info');
         return;
       }
-      console.log('[Guest Repair] backend call started', { regId: normalizedRegId });
-      runServer('adminGetRegistrationForRepair', [normalizedRegId], { requestKey: 'repair.open', button: button, loadingText: 'Opening…' })
+      console.log('[Guest Repair] backend call started', { regId: normalizedRegId, regIdType: typeof normalizedRegId });
+      runServer('adminGetRegistrationForRepair', normalizedRegId, { requestKey: 'repair.open', button: button, loadingText: 'Opening…' })
         .then(function(result) {
           if (!result || !result.success) {
             GuestRepair.showError('Failed to load registration: ' + ((result && result.error) || 'Unknown error'));
