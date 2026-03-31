@@ -630,6 +630,9 @@ function adminGetRegistrationForRepair(input) {
     regId = String(input.regId).trim();
   }
 
+  Logger.log('[adminGetRegistrationForRepair] normalized regId: "%s"', regId);
+  Logger.log('[adminGetRegistrationForRepair] typeof regId: %s', typeof regId);
+
   if (!regId) {
     return { success: false, error: 'Missing registration ID' };
   }

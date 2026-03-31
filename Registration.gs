@@ -463,10 +463,47 @@ function getRegistration(regId) {
   var ss = getSS();
   var regSheet = ss.getSheetByName('Registrations');
   var data = regSheet.getDataRange().getValues();
+  var targetRaw = String(regId || '');
+  var targetTrim = targetRaw.trim();
+  var targetLower = targetTrim.toLowerCase();
+  var target = targetLower.replace(/[–—]/g, '-');
+
+  Logger.log('[getRegistration] target regId raw: "%s"', targetRaw);
+  Logger.log('[getRegistration] target regId normalized: "%s"', target);
 
   for (var i = 1; i < data.length; i++) {
-    if (data[i][COLUMNS.REG_ID] === regId) {
-      var row = data[i];
+    var row = data[i];
+    var storedRaw = String(row[COLUMNS.REG_ID] || '');
+    var storedTrim = storedRaw.trim();
+    var storedLower = storedTrim.toLowerCase();
+    var stored = storedLower.replace(/[–—]/g, '-');
+
+    var exactMatch = storedRaw === targetRaw;
+    var trimOnlyMatch = storedTrim === targetTrim;
+    var lowercaseMatch = storedLower === targetLower;
+    var dashNormalizedMatch = stored === target;
+    var shouldLogRow = exactMatch ||
+      trimOnlyMatch ||
+      lowercaseMatch ||
+      dashNormalizedMatch ||
+      i <= 5 ||
+      stored.indexOf(target) !== -1 ||
+      target.indexOf(stored) !== -1;
+
+    if (shouldLogRow) {
+      Logger.log(
+        '[getRegistration] row %s stored reg_id raw="%s", normalized="%s", exact=%s, trim=%s, lowercase=%s, dashNormalized=%s',
+        i + 1,
+        storedRaw,
+        stored,
+        exactMatch,
+        trimOnlyMatch,
+        lowercaseMatch,
+        dashNormalizedMatch
+      );
+    }
+
+    if (dashNormalizedMatch) {
 
       // Parse guest details
       var guests = [];
