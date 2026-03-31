@@ -123,6 +123,10 @@ function onStaffFormSubmit(e) {
     // Build attendance-aware meal selections from the full parsed guest list
     // (primary registrant + all parsed family guests)
     data.mealSelections = buildStaffMealSelections(data.guests);
+
+    // Child ministry class distribution (config-driven age brackets from Config sheet)
+    // Admin can adjust class ranges in Config without code changes.
+    data.childClassCounts = buildChildClassCounts(data.guests);
     
     // Deduplication Check
     if (data.email) {

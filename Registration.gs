@@ -136,6 +136,7 @@ function processRegistration(data) {
         var guestSheetColumnCount = guestSheet.getLastColumn();
         var supportsAttendanceColumns = guestSheetColumnCount >= 12;
         data.guests.forEach(function(guest) {
+          var programGroup = getChildProgramGroup(guest.age);
           var row = [
             generateGuestId(),            // guest_id
             regId,                        // reg_id
@@ -143,9 +144,9 @@ function processRegistration(data) {
             guest.age,                    // age
             guest.isChild ? 'yes' : 'no', // is_child
             'no',                         // is_primary
-            '',                           // class_assignment
-            '',                           // sabbath_school
-            ''                            // children_meeting
+            programGroup.classAssignment, // class_assignment
+            programGroup.sabbathSchool,   // sabbath_school
+            programGroup.childrenMeeting  // children_meeting
           ];
 
           // Optional attendance columns (attendance_type, attendance_raw, attendance_days)
@@ -212,6 +213,228 @@ function processRegistration(data) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * Returns child class configuration from the Config sheet, with safe defaults.
+ *
+ * Admin note:
+ * - Age ranges are driven by Config sheet key/value entries (not hardcoded).
+ * - To update class brackets later, edit Config values only.
+ * - Required keys are documented in registration setup notes.
+ */
+function getChildClassConfig() {
+  var config = getConfig();
+  var defaults = [
+    { key: 'nursery',      label: 'Cradle Roll',  minAge: 0,  maxAge: 3  },
+    { key: 'kindergarten', label: 'Kindergarten', minAge: 4,  maxAge: 6  },
+    { key: 'primary',      label: 'Primary',      minAge: 7,  maxAge: 8  },
+    { key: 'juniors',      label: 'Juniors',      minAge: 9,  maxAge: 10 },
+    { key: 'preteens',     label: 'PreTeens',     minAge: 11, maxAge: 13 },
+    { key: 'youth',        label: 'Youth',        minAge: 14, maxAge: 18 }
+  ];
+
+  var classes = [];
+  for (var i = 0; i < defaults.length; i++) {
+    var item = defaults[i];
+    var label = _readConfigString(config['class_' + item.key + '_label'], item.label);
+    var minAge = _readConfigInt(config['class_' + item.key + '_min_age'], item.minAge);
+    var maxAge = _readConfigInt(config['class_' + item.key + '_max_age'], item.maxAge);
+
+    // Guard against accidental swapped values in Config.
+    if (minAge > maxAge) {
+      var swap = minAge;
+      minAge = maxAge;
+      maxAge = swap;
+    }
+
+    classes.push({
+      key: item.key,
+      label: label,
+      minAge: minAge,
+      maxAge: maxAge
+    });
+  }
+
+  return { classes: classes };
+}
+
+/**
+ * Maps a guest age to a configured children program class.
+ * Returns blank class fields for adults older than the configured youth max age
+ * and for invalid/unknown ages.
+ */
+function getChildProgramGroup(age) {
+  var numericAge = _parseAge(age);
+  if (numericAge === null) {
+    return {
+      category: 'unknown',
+      classAssignment: '',
+      sabbathSchool: '',
+      childrenMeeting: ''
+    };
+  }
+
+  var classConfig = getChildClassConfig();
+  var maxConfiguredAge = -1;
+  for (var c = 0; c < classConfig.classes.length; c++) {
+    if (classConfig.classes[c].maxAge > maxConfiguredAge) {
+      maxConfiguredAge = classConfig.classes[c].maxAge;
+    }
+  }
+
+  if (numericAge > maxConfiguredAge) {
+    return {
+      category: 'adult',
+      classAssignment: '',
+      sabbathSchool: '',
+      childrenMeeting: ''
+    };
+  }
+
+  for (var i = 0; i < classConfig.classes.length; i++) {
+    var classDef = classConfig.classes[i];
+    if (numericAge >= classDef.minAge && numericAge <= classDef.maxAge) {
+      return {
+        category: classDef.key,
+        classAssignment: classDef.label,
+        sabbathSchool: classDef.label,
+        childrenMeeting: classDef.label
+      };
+    }
+  }
+
+  return {
+    category: 'unknown',
+    classAssignment: '',
+    sabbathSchool: '',
+    childrenMeeting: ''
+  };
+}
+
+/**
+ * Build stable child-class totals for reporting.
+ * Stable keys: nursery, kindergarten, primary, juniors, preteens, youth, unknown.
+ */
+function buildChildClassCounts(guests) {
+  var classConfig = getChildClassConfig();
+  var labels = {
+    nursery: 'Cradle Roll',
+    kindergarten: 'Kindergarten',
+    primary: 'Primary',
+    juniors: 'Juniors',
+    preteens: 'PreTeens',
+    youth: 'Youth',
+    unknown: 'Unknown'
+  };
+
+  for (var i = 0; i < classConfig.classes.length; i++) {
+    labels[classConfig.classes[i].key] = classConfig.classes[i].label;
+  }
+
+  var counts = {
+    nursery: 0,
+    kindergarten: 0,
+    primary: 0,
+    juniors: 0,
+    preteens: 0,
+    youth: 0,
+    unknown: 0
+  };
+
+  var list = guests || [];
+  for (var g = 0; g < list.length; g++) {
+    var group = getChildProgramGroup(list[g].age);
+    if (group.category === 'adult') continue;
+    if (counts[group.category] === undefined) {
+      counts.unknown++;
+    } else {
+      counts[group.category]++;
+    }
+  }
+
+  return {
+    counts: counts,
+    labels: labels
+  };
+}
+
+/**
+ * Returns child class totals grouped by class_assignment from GuestDetails.
+ * Includes attendance-type breakdown when attendance columns exist.
+ */
+function getChildrenClassSummary() {
+  var ss = getSS();
+  var guestSheet = ss.getSheetByName('GuestDetails');
+  if (!guestSheet) {
+    return { success: false, error: 'GuestDetails sheet not found.' };
+  }
+
+  var lastRow = guestSheet.getLastRow();
+  var lastCol = guestSheet.getLastColumn();
+  if (lastRow <= 1) {
+    return {
+      success: true,
+      totalsByClassAssignment: {},
+      attendanceByClassAssignment: {},
+      totalsByConfiguredGroup: buildChildClassCounts([]).counts
+    };
+  }
+
+  var headers = guestSheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var rows = guestSheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+
+  var idxAge = headers.indexOf('age');
+  var idxClassAssignment = headers.indexOf('class_assignment');
+  var idxAttendanceType = headers.indexOf('attendance_type');
+
+  var totalsByClassAssignment = {};
+  var attendanceByClassAssignment = {};
+  var pseudoGuests = [];
+
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    var age = idxAge >= 0 ? row[idxAge] : '';
+    var group = getChildProgramGroup(age);
+    if (group.category === 'adult') continue;
+
+    var classAssignment = idxClassAssignment >= 0 ? String(row[idxClassAssignment] || '').trim() : '';
+    var classKey = classAssignment || (group.category === 'unknown' ? 'Unknown' : group.classAssignment);
+    totalsByClassAssignment[classKey] = (totalsByClassAssignment[classKey] || 0) + 1;
+
+    if (!attendanceByClassAssignment[classKey]) attendanceByClassAssignment[classKey] = {};
+    if (idxAttendanceType >= 0) {
+      var attendanceType = String(row[idxAttendanceType] || '').trim() || 'unknown';
+      attendanceByClassAssignment[classKey][attendanceType] = (attendanceByClassAssignment[classKey][attendanceType] || 0) + 1;
+    }
+
+    pseudoGuests.push({ age: age });
+  }
+
+  return {
+    success: true,
+    totalsByClassAssignment: totalsByClassAssignment,
+    attendanceByClassAssignment: attendanceByClassAssignment,
+    totalsByConfiguredGroup: buildChildClassCounts(pseudoGuests).counts,
+    labelsByConfiguredGroup: buildChildClassCounts([]).labels
+  };
+}
+
+function _parseAge(age) {
+  if (age === null || age === undefined || age === '') return null;
+  var parsed = parseInt(age, 10);
+  if (isNaN(parsed) || parsed < 0) return null;
+  return parsed;
+}
+
+function _readConfigInt(value, fallback) {
+  var parsed = parseInt(value, 10);
+  return isNaN(parsed) ? fallback : parsed;
+}
+
+function _readConfigString(value, fallback) {
+  var text = value === null || value === undefined ? '' : String(value).trim();
+  return text || fallback;
 }
 
 /**
