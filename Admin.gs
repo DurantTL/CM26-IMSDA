@@ -568,3 +568,207 @@ function processNoShows() {
     lock.releaseLock();
   }
 }
+
+/**
+ * Search registrations for admin repair workflows.
+ */
+function adminSearchRegistrations(query) {
+  try {
+    var term = (query || '').toString().trim().toLowerCase();
+    var ss = getSS();
+    var regSheet = ss.getSheetByName('Registrations');
+    var rows = regSheet.getDataRange().getValues();
+    var matches = [];
+
+    for (var i = 1; i < rows.length; i++) {
+      var row = rows[i];
+      var regId = String(row[COLUMNS.REG_ID] || '');
+      var name = String(row[COLUMNS.PRIMARY_NAME] || '');
+      var status = String(row[COLUMNS.STATUS] || '');
+      if (status === 'cancelled') continue;
+
+      if (!term || regId.toLowerCase().indexOf(term) !== -1 || name.toLowerCase().indexOf(term) !== -1) {
+        matches.push({
+          regId: regId,
+          name: name,
+          status: status,
+          regType: row[COLUMNS.REG_TYPE] || '',
+          adultsCount: row[COLUMNS.ADULTS_COUNT] || 0,
+          childrenCount: row[COLUMNS.CHILDREN_COUNT] || 0
+        });
+      }
+    }
+
+    return { success: true, registrations: matches.slice(0, 50) };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Load one registration payload for manual guest repair in admin UI.
+ */
+function adminGetRegistrationForRepair(regId) {
+  var reg = getRegistration(regId);
+  if (!reg.success) return reg;
+  return { success: true, registration: reg.registration };
+}
+
+/**
+ * Admin tool: replace guest rows, then recalculate guest-derived fields.
+ */
+function adminRepairGuestRows(payload) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) {
+    return { success: false, error: 'System busy. Please try again.' };
+  }
+
+  try {
+    var regId = payload && payload.regId ? String(payload.regId).trim() : '';
+    if (!regId) return { success: false, error: 'Missing regId' };
+
+    var incomingGuests = payload.guests || [];
+    var normalizedGuests = [];
+    for (var g = 0; g < incomingGuests.length; g++) {
+      var source = incomingGuests[g] || {};
+      var name = (source.name || '').toString().trim();
+      if (!name) continue;
+
+      var age = parseInt(source.age, 10);
+      if (isNaN(age) || age < 0) age = 30;
+
+      var attendanceRaw = (source.attendanceRaw || '').toString().trim() || 'Full Time';
+      var attendance = parseAttendanceDetails(attendanceRaw);
+      if (attendance.attendanceType === 'unknown') {
+        attendance.attendanceType = 'full';
+        attendance.attendanceDays = getCampMeetingDays();
+      }
+
+      var program = getChildProgramGroup(age);
+      normalizedGuests.push({
+        name: name,
+        age: age,
+        isChild: age < 18,
+        attendanceType: attendance.attendanceType,
+        attendanceRaw: attendanceRaw,
+        attendanceDays: attendance.attendanceDays,
+        classAssignment: program.classAssignment,
+        sabbathSchool: program.sabbathSchool,
+        childrenMeeting: program.childrenMeeting,
+        parserConfidence: 'admin_repaired',
+        parserWarnings: []
+      });
+    }
+
+    var ss = getSS();
+    var regSheet = ss.getSheetByName('Registrations');
+    var regData = regSheet.getDataRange().getValues();
+    var rowNum = -1;
+    var existingRow = null;
+
+    for (var i = 1; i < regData.length; i++) {
+      if (String(regData[i][COLUMNS.REG_ID]) === regId) {
+        rowNum = i + 1;
+        existingRow = regData[i];
+        break;
+      }
+    }
+    if (rowNum === -1) return { success: false, error: 'Registration not found' };
+
+    // Preserve primary registrant as adult anchor for counts/meals.
+    var primaryName = String(existingRow[COLUMNS.PRIMARY_NAME] || 'Primary Registrant').trim();
+    var primaryGuest = {
+      name: primaryName,
+      age: 30,
+      isChild: false,
+      attendanceType: 'full',
+      attendanceRaw: 'Full Time',
+      attendanceDays: getCampMeetingDays(),
+      parserConfidence: 'system',
+      parserWarnings: []
+    };
+
+    var fullGuestList = [primaryGuest].concat(normalizedGuests);
+    var adultsCount = 0;
+    var childrenCount = 0;
+    for (var c = 0; c < fullGuestList.length; c++) {
+      if (fullGuestList[c].isChild) childrenCount++;
+      else adultsCount++;
+    }
+
+    var mealSelections = buildStaffMealSelections(fullGuestList);
+    var childClassCounts = buildChildClassCounts(fullGuestList);
+    var totalGuests = adultsCount + childrenCount;
+
+    regSheet.getRange(rowNum, COLUMNS.ADULTS_COUNT + 1).setValue(adultsCount);
+    regSheet.getRange(rowNum, COLUMNS.CHILDREN_COUNT + 1).setValue(childrenCount);
+    regSheet.getRange(rowNum, COLUMNS.TOTAL_GUESTS + 1).setValue(totalGuests);
+    regSheet.getRange(rowNum, COLUMNS.GUEST_DETAILS + 1).setValue(JSON.stringify(fullGuestList));
+    regSheet.getRange(rowNum, COLUMNS.MEAL_SELECTIONS + 1).setValue(JSON.stringify(mealSelections));
+
+    adminSyncGuestDetailsSheet(regId, fullGuestList);
+
+    logActivity(
+      'admin_guest_repair',
+      regId,
+      'Admin repaired guest rows and recalculated counts/meals. Child class counts: ' + JSON.stringify(childClassCounts.counts),
+      'admin'
+    );
+
+    return {
+      success: true,
+      regId: regId,
+      adultsCount: adultsCount,
+      childrenCount: childrenCount,
+      totalGuests: totalGuests,
+      childClassCounts: childClassCounts,
+      mealSelections: mealSelections
+    };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function adminSyncGuestDetailsSheet(regId, guests) {
+  var ss = getSS();
+  var guestSheet = ss.getSheetByName('GuestDetails');
+  if (!guestSheet) return;
+
+  var values = guestSheet.getDataRange().getValues();
+  for (var r = values.length - 1; r >= 1; r--) {
+    if (String(values[r][1] || '') === String(regId)) {
+      guestSheet.deleteRow(r + 1);
+    }
+  }
+
+  if (!guests || guests.length === 0) return;
+
+  var supportsAttendanceColumns = guestSheet.getLastColumn() >= 12;
+  var insertRows = [];
+  for (var i = 0; i < guests.length; i++) {
+    var guest = guests[i];
+    var row = [
+      generateGuestId(),
+      regId,
+      guest.name || '',
+      guest.age,
+      guest.isChild ? 'yes' : 'no',
+      'no',
+      guest.classAssignment || '',
+      guest.sabbathSchool || '',
+      guest.childrenMeeting || ''
+    ];
+    if (supportsAttendanceColumns) {
+      row.push(
+        guest.attendanceType || 'full',
+        guest.attendanceRaw || 'Full Time',
+        (guest.attendanceDays && guest.attendanceDays.join) ? guest.attendanceDays.join(',') : 'tue,wed,thu,fri,sat'
+      );
+    }
+    insertRows.push(row);
+  }
+
+  guestSheet.getRange(guestSheet.getLastRow() + 1, 1, insertRows.length, insertRows[0].length).setValues(insertRows);
+}

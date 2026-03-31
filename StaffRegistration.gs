@@ -268,7 +268,9 @@ function parseGuestDetails(text) {
       isChild: parsed.age < 18,
       attendanceType: attendance.attendanceType,
       attendanceRaw: attendance.attendanceRaw,
-      attendanceDays: attendance.attendanceDays
+      attendanceDays: attendance.attendanceDays,
+      parserConfidence: parsed.parserConfidence || 'high',
+      parserWarnings: parsed.parserWarnings || []
     });
 
     Logger.log(
@@ -287,6 +289,15 @@ function parseGuestDetails(text) {
   }
   if (guests._attendanceWarnings.length > 0) {
     warningParts.push('Unrecognized attendance for: ' + guests._attendanceWarnings.join(', '));
+  }
+  var lowConfidenceNames = [];
+  for (var lw = 0; lw < guests.length; lw++) {
+    if (guests[lw].parserConfidence === 'low') {
+      lowConfidenceNames.push(guests[lw].name);
+    }
+  }
+  if (lowConfidenceNames.length > 0) {
+    warningParts.push('Parser review suggested for: ' + lowConfidenceNames.join(', '));
   }
   guests._adminWarning = warningParts.join(' | ');
 
@@ -360,15 +371,35 @@ function parseGuestLine(line) {
     age: 30,
     attendanceRaw: 'Full Time',
     warningMissingAge: false,
-    warningText: ''
+    warningText: '',
+    parserConfidence: 'high',
+    parserWarnings: []
   };
 
-  // Preferred comma formats:
-  // - Name, Age, Attendance
-  // - Name, Age
-  // - Legacy comma-separated names are handled in parseGuestDetails
-  if (line.indexOf(',') !== -1) {
-    var parts = line.split(',');
+  var normalizedLine = normalizeGuestInputLine(line);
+  if (!normalizedLine) return result;
+
+  // Primary rule for tolerant parsing:
+  // find the LAST standalone 1-3 digit age token; name is before, attendance is after.
+  var ageMatch = findLastAgeTokenInLine(normalizedLine);
+  if (ageMatch && ageMatch.value !== null) {
+    result.name = normalizedLine.slice(0, ageMatch.index).replace(/,\s*$/, '').trim();
+    result.age = ageMatch.value;
+    result.attendanceRaw = normalizedLine.slice(ageMatch.index + ageMatch.length).replace(/^,\s*/, '').trim() || 'Full Time';
+    if (!result.name) {
+      result.name = normalizedLine.trim();
+      result.warningMissingAge = true;
+      result.warningText = 'unable to split name from age';
+      result.parserWarnings.push('unable to split name from age');
+      result.parserConfidence = 'low';
+    }
+    return result;
+  }
+
+  // Comma fallback if age was not detected:
+  // - Name, Attendance (legacy no-age form)
+  if (normalizedLine.indexOf(',') !== -1) {
+    var parts = normalizedLine.split(',');
     if (parts.length >= 2) {
       result.name = parts[0].trim();
 
@@ -387,11 +418,13 @@ function parseGuestLine(line) {
       if (isNaN(ageCandidate) && parts.length === 2) {
         result.warningMissingAge = true;
         result.warningText = 'missing age';
+        result.parserWarnings.push('missing age');
+        result.parserConfidence = 'low';
         result.attendanceRaw = parts[1].trim() || 'Full Time';
 
         // If attendance not in comma part, try stripping attendance keywords from full line tail.
         if (!result.attendanceRaw || result.attendanceRaw === 'Full Time') {
-          var commaRecovery = stripAttendanceTailWhenAgeMissing(line);
+          var commaRecovery = stripAttendanceTailWhenAgeMissing(normalizedLine);
           if (commaRecovery && commaRecovery.name) {
             result.name = commaRecovery.name;
             if (commaRecovery.attendanceRaw) {
@@ -405,45 +438,71 @@ function parseGuestLine(line) {
     }
   }
 
-  // Non-comma formats:
-  // - Full Name Age Attendance
-  // - Full Name Age
-  // Rule: find first standalone age token; name is before, attendance is after.
-  var tokens = line.split(/\s+/);
-  var ageIndex = -1;
-  var ageValue = 30;
-  var i;
-  for (i = 0; i < tokens.length; i++) {
-    if (/^\d{1,3}$/.test(tokens[i])) {
-      ageIndex = i;
-      ageValue = parseInt(tokens[i], 10);
-      break;
-    }
-  }
-
-  if (ageIndex > 0) {
-    result.name = tokens.slice(0, ageIndex).join(' ').trim();
-    result.age = ageValue;
-    result.attendanceRaw = tokens.slice(ageIndex + 1).join(' ').trim() || 'Full Time';
-    return result;
-  }
-
   // Missing age fallback: strip recognized attendance phrase from tail if present.
-  var missingAgeRecovery = stripAttendanceTailWhenAgeMissing(line);
+  var missingAgeRecovery = stripAttendanceTailWhenAgeMissing(normalizedLine);
   if (missingAgeRecovery && missingAgeRecovery.name) {
     result.name = missingAgeRecovery.name;
     result.attendanceRaw = missingAgeRecovery.attendanceRaw || 'Full Time';
     result.warningMissingAge = true;
     result.warningText = 'missing age';
+    result.parserWarnings.push('missing age');
+    result.parserConfidence = 'low';
     return result;
   }
 
   // Fallback: name only, age + attendance defaults
-  result.name = line.trim();
+  result.name = normalizedLine.trim();
   result.attendanceRaw = 'Full Time';
   result.warningMissingAge = true;
   result.warningText = 'missing age and attendance';
+  result.parserWarnings.push('missing age');
+  result.parserConfidence = 'low';
   return result;
+}
+
+/**
+ * Normalize messy worker input while keeping user intent:
+ * - trim/collapse whitespace
+ * - normalize dash chars
+ * - normalize "age 8" into "8"
+ */
+function normalizeGuestInputLine(line) {
+  if (!line) return '';
+  var normalized = String(line);
+  normalized = normalized.replace(/[–—]/g, '-');
+  normalized = normalized.replace(/\bage\s*[:\-]?\s*(\d{1,3})\b/gi, '$1');
+  normalized = normalized.replace(/\s+/g, ' ').trim();
+  return normalized;
+}
+
+/**
+ * Find the last standalone 1-3 digit token in the line as age candidate.
+ * Returns { index, length, value } or null.
+ */
+function findLastAgeTokenInLine(line) {
+  if (!line) return null;
+
+  var matches = [];
+  var ageRegex = /\b(\d{1,3})\b/g;
+  var match;
+  while ((match = ageRegex.exec(line)) !== null) {
+    matches.push({
+      index: match.index,
+      length: match[0].length,
+      value: parseInt(match[1], 10)
+    });
+  }
+
+  if (matches.length === 0) return null;
+
+  // Prefer plausible human ages but tolerate out-of-range by still selecting last numeric token.
+  for (var i = matches.length - 1; i >= 0; i--) {
+    if (matches[i].value >= 0 && matches[i].value <= 120) {
+      return matches[i];
+    }
+  }
+
+  return matches[matches.length - 1];
 }
 
 /**
