@@ -414,20 +414,20 @@
 
     <nav class="sidebar-nav">
       <div class="nav-section-label">Overview</div>
-      <div class="nav-item active" data-tab="dashboard" onclick="switchTab('dashboard', this)">
+      <div class="nav-item active" data-tab="dashboard" >
         <span class="nav-icon">📊</span> Dashboard
       </div>
-      <div class="nav-item" data-tab="activity" onclick="switchTab('activity', this)">
+      <div class="nav-item" data-tab="activity" >
         <span class="nav-icon">📋</span> Activity Feed
       </div>
-      <div class="nav-item" data-tab="dietary" onclick="switchTab('dietary', this)">
+      <div class="nav-item" data-tab="dietary" >
         <span class="nav-icon">🥗</span> Dietary Needs
       </div>
       <div class="nav-section-label">Administration</div>
-      <div class="nav-item" data-tab="repair" onclick="switchTab('repair', this)">
+      <div class="nav-item" data-tab="repair" >
         <span class="nav-icon">🛠️</span> Guest Repair
       </div>
-      <div class="nav-item" data-tab="setup" onclick="switchTab('setup', this)">
+      <div class="nav-item" data-tab="setup" >
         <span class="nav-icon">⚙️</span> System Setup
       </div>
     </nav>
@@ -442,7 +442,7 @@
     <header class="topbar">
       <span class="topbar-title" id="topbar-title">Dashboard</span>
       <div class="topbar-actions">
-        <button class="btn btn-outline btn-sm" onclick="refreshCurrent()">&#8635; Refresh</button>
+        <button class="btn btn-outline btn-sm" id="refresh-current-btn">&#8635; Refresh</button>
         <span id="last-refreshed" style="font-size:11px;color:var(--text-muted);"></span>
       </div>
     </header>
@@ -488,7 +488,7 @@
         <div class="card">
           <div class="card-header">
             <h2>Recent Activity</h2>
-            <button class="btn btn-outline btn-sm" onclick="loadActivity()">&#8635; Refresh</button>
+            <button class="btn btn-outline btn-sm" data-action="refresh-activity">&#8635; Refresh</button>
           </div>
           <div class="card-body" style="padding:0;">
             <div class="feed-table-wrap">
@@ -528,8 +528,8 @@
           <div class="card-header">
             <h2>Dietary Needs List</h2>
             <div>
-              <button class="btn btn-outline btn-sm" onclick="loadDietaryReport()">&#8635; Refresh</button>
-              <button class="btn btn-primary btn-sm" onclick="window.print()">🖨️ Print</button>
+              <button class="btn btn-outline btn-sm" data-action="refresh-dietary">&#8635; Refresh</button>
+              <button class="btn btn-primary btn-sm" id="print-dietary-btn">🖨️ Print</button>
             </div>
           </div>
           <div class="card-body" style="padding:0;">
@@ -566,7 +566,7 @@
           <div class="card-body">
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
               <input id="repair-query" type="text" placeholder="Enter Reg ID or Name" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;min-width:260px;">
-              <button class="btn btn-primary btn-sm" onclick="searchRepairRegistrations()">Search</button>
+              <button class="btn btn-primary btn-sm" data-action="repair-search">Search</button>
             </div>
             <div id="repair-search-results" style="margin-top:14px;"></div>
             <div id="repair-error" class="alert alert-danger" style="display:none;margin-top:10px;"></div>
@@ -576,7 +576,7 @@
         <div class="card">
           <div class="card-header">
             <h2>Guest Rows</h2>
-            <button id="repair-save-btn" class="btn btn-success btn-sm" onclick="saveGuestRepairs()" disabled>Recalculate & Save</button>
+            <button id="repair-save-btn" class="btn btn-success btn-sm" data-action="repair-save" disabled>Recalculate & Save</button>
           </div>
           <div class="card-body">
             <div id="repair-active-reg" style="margin-bottom:10px;color:var(--text-muted);font-size:12px;">No registration loaded.</div>
@@ -596,7 +596,7 @@
               </table>
             </div>
             <div style="margin-top:10px;">
-              <button class="btn btn-outline btn-sm" onclick="addRepairGuestRow()">+ Add Guest Row</button>
+              <button class="btn btn-outline btn-sm" data-action="repair-add-row">+ Add Guest Row</button>
             </div>
           </div>
         </div>
@@ -663,7 +663,7 @@
 
             <div id="setup-result" style="margin-bottom:16px;"></div>
 
-            <button class="btn btn-danger" id="init-btn" onclick="runInitDatabase()">
+            <button class="btn btn-danger" id="init-btn" data-action="setup-init">
               ⚙️ Initialize / Verify Database
             </button>
           </div>
@@ -704,68 +704,54 @@
 <div id="toast"></div>
 
 <script>
-  // ── Tab navigation ──────────────────────────────────────────────────────
   var TITLES = {
     dashboard: 'Dashboard',
-    activity:  'Activity Feed',
-    dietary:   'Dietary Needs Report',
-    repair:    'Guest Repair',
-    setup:     'System Setup'
+    activity: 'Activity Feed',
+    dietary: 'Dietary Needs Report',
+    repair: 'Guest Repair',
+    setup: 'System Setup'
   };
 
-  function switchTab(tabId, navEl) {
-    // Deactivate all panels and nav items
-    document.querySelectorAll('.tab-panel').forEach(function(p) {
-      p.classList.remove('active');
-    });
-    document.querySelectorAll('.nav-item').forEach(function(n) {
-      n.classList.remove('active');
-    });
-
-    // Activate selected
-    document.getElementById('tab-' + tabId).classList.add('active');
-    if (navEl) navEl.classList.add('active');
-    document.getElementById('topbar-title').textContent = TITLES[tabId] || tabId;
-
-    // Lazy-load data on first visit
-    if (tabId === 'activity' && !window._activityLoaded) {
-      loadActivity();
+  var AppState = {
+    activeTab: 'dashboard',
+    loadedTabs: { dashboard: false, activity: false, dietary: false, repair: false, setup: false },
+    inFlight: {},
+    repair: {
+      regId: '',
+      regName: '',
+      guests: [],
+      lastSearchTerm: '',
+      searchDebounceMs: 300,
+      searchTimer: null,
+      searchCache: {},
+      registrationCache: {}
     }
-    if (tabId === 'dietary' && !window._dietaryLoaded) {
-      loadDietaryReport();
+  };
+
+  var Toast = (function() {
+    var timer = null;
+    function show(message, type) {
+      var el = document.getElementById('toast');
+      if (!el) return;
+      el.textContent = message;
+      el.className = 'show ' + (type || 'info');
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(function() { el.classList.remove('show'); }, 4000);
     }
-    if (tabId === 'repair' && !window._repairLoaded) {
-      window._repairLoaded = true;
-    }
-  }
+    return { show: show };
+  })();
 
-  function refreshCurrent() {
-    var active = document.querySelector('.nav-item.active');
-    if (!active) return;
-    var tabId = active.getAttribute('data-tab');
-    if (tabId === 'dashboard') loadStats();
-    if (tabId === 'activity')  loadActivity();
-    if (tabId === 'dietary')   loadDietaryReport();
-  }
-
-  // ── Toast ────────────────────────────────────────────────────────────────
-  var _toastTimer = null;
-  function showToast(msg, type) {
-    var el = document.getElementById('toast');
-    el.textContent = msg;
-    el.className = 'show ' + (type || 'info');
-    if (_toastTimer) clearTimeout(_toastTimer);
-    _toastTimer = setTimeout(function() {
-      el.classList.remove('show');
-    }, 4000);
-  }
-
-  // ── Helpers ──────────────────────────────────────────────────────────────
   function esc(str) {
     if (str === null || str === undefined) return '';
     var d = document.createElement('div');
     d.textContent = String(str);
     return d.innerHTML;
+  }
+
+  function normalizeError(err) {
+    if (!err) return 'Unknown error';
+    if (typeof err === 'string') return err;
+    return err.message || err.toString() || 'Unknown error';
   }
 
   function fmtDate(val) {
@@ -774,406 +760,480 @@
       var d = new Date(val);
       if (isNaN(d.getTime())) return String(val);
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) +
-             ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    } catch(e) { return String(val); }
+        ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    } catch (e) { return String(val); }
   }
 
   function setLastRefreshed() {
     var el = document.getElementById('last-refreshed');
-    el.textContent = 'Updated ' + new Date().toLocaleTimeString();
+    if (el) el.textContent = 'Updated ' + new Date().toLocaleTimeString();
   }
 
-  // ── Load Stats ──────────────────────────────────────────────────────────
-  function loadStats() {
-    var grid = document.getElementById('stat-grid');
-    grid.innerHTML = '<div class="stat-card"><div class="stat-label">Loading…</div>' +
-      '<div class="stat-value"><span class="spinner"></span></div></div>';
-
-    google.script.run
-      .withSuccessHandler(function(result) {
-        if (!result || !result.success) {
-          grid.innerHTML = '<div class="alert alert-danger">Failed to load stats: ' +
-            esc((result && result.error) || 'Unknown error') + '</div>';
-          return;
-        }
-        renderStats(result.stats);
-        setLastRefreshed();
-      })
-      .withFailureHandler(function(err) {
-        grid.innerHTML = '<div class="alert alert-danger">Error: ' + esc(err.message) + '</div>';
-      })
-      .getCheckInStats();
+  function panelError(panelId, message) {
+    var container = document.getElementById(panelId);
+    if (!container) return;
+    container.innerHTML = '<div class="alert alert-danger"><div class="alert-icon">❌</div><div class="alert-body"><strong>Error</strong>' + esc(message) + '</div></div>';
   }
 
-  function renderStats(s) {
-    var grid = document.getElementById('stat-grid');
-    var expected = (s.totalRegistrations || 0) - (s.checkedOut || 0);
-
-    grid.innerHTML =
-      statCard('Total Registrations', s.totalRegistrations, 'All non-cancelled', '', '') +
-      statCard('Checked In',          s.checkedIn,         'Currently on-site', 'green', '') +
-      statCard('Not Yet Arrived',     s.notArrived,        'Expected but not in', 'amber', '') +
-      statCard('Checked Out',         s.checkedOut,        'Departed', 'sky', '') +
-      statCard('Keys Out',            s.keysOut,           'Unreturned keys', 'red', '') +
-      statCard('Deposits Held',       '$' + (s.depositsHeld || 0).toFixed(2), 'Key deposits pending refund', '', '') +
-      statCard('Balances Due',        '$' + (s.balancesDue || 0).toFixed(2),  'Outstanding balances', 'amber', '');
+  function setButtonLoading(btn, loading, loadingText) {
+    if (!btn) return function() {};
+    var original = btn.dataset.originalLabel || btn.innerHTML;
+    if (!btn.dataset.originalLabel) btn.dataset.originalLabel = original;
+    if (loading) {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> ' + esc(loadingText || 'Loading...');
+      return function restore() {
+        btn.disabled = false;
+        btn.innerHTML = original;
+      };
+    }
+    return function() {};
   }
 
-  function statCard(label, value, desc, color, _unused) {
-    return '<div class="stat-card ' + esc(color) + '">' +
+  function runServer(functionName, args, options) {
+    var opts = options || {};
+    var key = opts.requestKey || functionName;
+    if (key && AppState.inFlight[key]) return Promise.reject(new Error('Request already in progress'));
+    if (key) AppState.inFlight[key] = true;
+
+    var restoreBtn = function() {};
+    if (opts.button) restoreBtn = setButtonLoading(opts.button, true, opts.loadingText);
+
+    return new Promise(function(resolve, reject) {
+      var runner = google.script.run
+        .withSuccessHandler(function(result) {
+          if (key) AppState.inFlight[key] = false;
+          restoreBtn();
+          resolve(result);
+        })
+        .withFailureHandler(function(err) {
+          if (key) AppState.inFlight[key] = false;
+          restoreBtn();
+          reject(new Error(normalizeError(err)));
+        });
+
+      if (Array.isArray(args) && args.length) runner[functionName].apply(runner, args);
+      else runner[functionName]();
+    });
+  }
+
+  var TabController = {
+    switchTab: function(tabId, navEl) {
+      if (!tabId || tabId === AppState.activeTab) return;
+      var prevTabId = AppState.activeTab;
+      var prevPanel = document.getElementById('tab-' + prevTabId);
+      var nextPanel = document.getElementById('tab-' + tabId);
+      if (!nextPanel) return;
+
+      var prevNav = document.querySelector('.nav-item.active');
+      if (prevPanel) prevPanel.classList.remove('active');
+      if (prevNav) prevNav.classList.remove('active');
+
+      nextPanel.classList.add('active');
+      if (navEl) navEl.classList.add('active');
+      document.getElementById('topbar-title').textContent = TITLES[tabId] || tabId;
+      AppState.activeTab = tabId;
+
+      if (!AppState.loadedTabs[tabId]) {
+        AppState.loadedTabs[tabId] = true;
+        if (tabId === 'activity') ActivityFeed.load();
+        if (tabId === 'dietary') DietaryReport.load();
+      }
+    },
+    refreshCurrent: function(btn) {
+      var tabId = AppState.activeTab;
+      if (tabId === 'dashboard') DashboardStats.load(btn);
+      else if (tabId === 'activity') ActivityFeed.load(btn, true);
+      else if (tabId === 'dietary') DietaryReport.load(btn, true);
+    }
+  };
+
+  function statCard(label, value, desc, color) {
+    return '<div class="stat-card ' + esc(color || '') + '">' +
       '<div class="stat-label">' + esc(label) + '</div>' +
       '<div class="stat-value">' + esc(value) + '</div>' +
       '<div class="stat-desc">' + esc(desc) + '</div>' +
       '</div>';
   }
 
-  // ── Load Activity Feed ──────────────────────────────────────────────────
-  function loadActivity() {
-    window._activityLoaded = true;
-    var tbody = document.getElementById('activity-tbody');
-    tbody.innerHTML = '<tr class="loading-row"><td colspan="6"><span class="spinner"></span> Loading…</td></tr>';
-
-    google.script.run
-      .withSuccessHandler(function(result) {
-        if (!result || !result.success) {
-          tbody.innerHTML = '<tr class="loading-row"><td colspan="6">Failed to load: ' +
-            esc((result && result.error) || 'Unknown error') + '</td></tr>';
-          return;
-        }
-        renderActivity(result.entries);
-        setLastRefreshed();
-      })
-      .withFailureHandler(function(err) {
-        tbody.innerHTML = '<tr class="loading-row"><td colspan="6">Error: ' + esc(err.message) + '</td></tr>';
-      })
-      .getRecentActivity();
-  }
+  var DashboardStats = {
+    load: function(button) {
+      var grid = document.getElementById('stat-grid');
+      grid.innerHTML = '<div class="stat-card"><div class="stat-label">Loading…</div><div class="stat-value"><span class="spinner"></span></div></div>';
+      runServer('getCheckInStats', [], { requestKey: 'dashboard.load', button: button, loadingText: 'Refreshing…' })
+        .then(function(result) {
+          if (!result || !result.success) {
+            panelError('stat-grid', 'Failed to load stats: ' + ((result && result.error) || 'Unknown error'));
+            return;
+          }
+          DashboardStats.render(result.stats || {});
+          AppState.loadedTabs.dashboard = true;
+          setLastRefreshed();
+        })
+        .catch(function(err) {
+          panelError('stat-grid', err.message);
+          Toast.show('Failed to load dashboard stats', 'error');
+        });
+    },
+    render: function(s) {
+      var grid = document.getElementById('stat-grid');
+      grid.innerHTML =
+        statCard('Total Registrations', s.totalRegistrations || 0, 'All non-cancelled', '') +
+        statCard('Checked In', s.checkedIn || 0, 'Currently on-site', 'green') +
+        statCard('Not Yet Arrived', s.notArrived || 0, 'Expected but not in', 'amber') +
+        statCard('Checked Out', s.checkedOut || 0, 'Departed', 'sky') +
+        statCard('Keys Out', s.keysOut || 0, 'Unreturned keys', 'red') +
+        statCard('Deposits Held', '$' + Number(s.depositsHeld || 0).toFixed(2), 'Key deposits pending refund', '') +
+        statCard('Balances Due', '$' + Number(s.balancesDue || 0).toFixed(2), 'Outstanding balances', 'amber');
+    }
+  };
 
   function actionBadge(action) {
     if (!action) return '<span class="badge badge-gray">—</span>';
     var a = String(action).toLowerCase();
     var cls = 'badge-gray';
-    if (a.indexOf('check_in')   !== -1) cls = 'badge-green';
-    else if (a.indexOf('check_out')  !== -1) cls = 'badge-blue';
-    else if (a.indexOf('payment')    !== -1) cls = 'badge-green';
-    else if (a.indexOf('meal')       !== -1) cls = 'badge-blue';
-    else if (a.indexOf('error')      !== -1) cls = 'badge-red';
-    else if (a.indexOf('cancel')     !== -1) cls = 'badge-red';
-    else if (a.indexOf('waitlist')   !== -1) cls = 'badge-amber';
-    else if (a.indexOf('register')   !== -1) cls = 'badge-green';
-    else if (a.indexOf('init')       !== -1) cls = 'badge-blue';
+    if (a.indexOf('check_in') !== -1 || a.indexOf('payment') !== -1 || a.indexOf('register') !== -1) cls = 'badge-green';
+    else if (a.indexOf('check_out') !== -1 || a.indexOf('meal') !== -1 || a.indexOf('init') !== -1) cls = 'badge-blue';
+    else if (a.indexOf('error') !== -1 || a.indexOf('cancel') !== -1) cls = 'badge-red';
+    else if (a.indexOf('waitlist') !== -1) cls = 'badge-amber';
     return '<span class="badge ' + cls + '">' + esc(action) + '</span>';
   }
 
-  function renderActivity(entries) {
-    var tbody = document.getElementById('activity-tbody');
-    if (!entries || entries.length === 0) {
-      tbody.innerHTML = '<tr class="loading-row"><td colspan="6">No activity found.</td></tr>';
-      return;
+  var ActivityFeed = {
+    load: function(button) {
+      var tbody = document.getElementById('activity-tbody');
+      tbody.innerHTML = '<tr class="loading-row"><td colspan="6"><span class="spinner"></span> Loading…</td></tr>';
+      runServer('getRecentActivity', [], { requestKey: 'activity.load', button: button, loadingText: 'Refreshing…' })
+        .then(function(result) {
+          if (!result || !result.success) {
+            tbody.innerHTML = '<tr class="loading-row"><td colspan="6">' + esc((result && result.error) || 'Unknown error') + '</td></tr>';
+            return;
+          }
+          ActivityFeed.render(result.entries || []);
+          setLastRefreshed();
+        })
+        .catch(function(err) {
+          tbody.innerHTML = '<tr class="loading-row"><td colspan="6">' + esc(err.message) + '</td></tr>';
+          Toast.show('Failed to load activity', 'error');
+        });
+    },
+    render: function(entries) {
+      var tbody = document.getElementById('activity-tbody');
+      if (!entries.length) {
+        tbody.innerHTML = '<tr class="loading-row"><td colspan="6">No activity found.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = entries.map(function(e) {
+        return '<tr>' +
+          '<td style="white-space:nowrap;color:var(--text-muted);">' + esc(fmtDate(e.timestamp)) + '</td>' +
+          '<td>' + actionBadge(e.action) + '</td>' +
+          '<td style="font-family:monospace;font-size:12px;">' + esc(e.regId || '—') + '</td>' +
+          '<td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;">' + esc(e.user || '—') + '</td>' +
+          '<td><span class="badge badge-gray">' + esc(e.source || '—') + '</span></td>' +
+          '<td class="details-cell">' + esc(e.details || '') + '</td>' +
+          '</tr>';
+      }).join('');
     }
+  };
 
-    var rows = entries.map(function(e) {
-      return '<tr>' +
-        '<td style="white-space:nowrap;color:var(--text-muted);">' + esc(fmtDate(e.timestamp)) + '</td>' +
-        '<td>' + actionBadge(e.action) + '</td>' +
-        '<td style="font-family:monospace;font-size:12px;">' + esc(e.regId || '—') + '</td>' +
-        '<td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;">' + esc(e.user || '—') + '</td>' +
-        '<td><span class="badge badge-gray">' + esc(e.source || '—') + '</span></td>' +
-        '<td class="details-cell">' + esc(e.details || '') + '</td>' +
-        '</tr>';
-    });
-
-    tbody.innerHTML = rows.join('');
-  }
-
-
-  // ── Load Dietary Report ────────────────────────────────────────────────
-  function loadDietaryReport() {
-    window._dietaryLoaded = true;
-    var tbody = document.getElementById('dietary-tbody');
-    var statGrid = document.getElementById('dietary-stat-grid');
-    tbody.innerHTML = '<tr class="loading-row"><td colspan="6"><span class="spinner"></span> Loading…</td></tr>';
-
-    google.script.run
-      .withSuccessHandler(function(result) {
-        if (!result || !result.success) {
-          tbody.innerHTML = '<tr class="loading-row"><td colspan="6">Failed to load: ' +
-            esc((result && result.error) || 'Unknown error') + '</td></tr>';
-          return;
-        }
-
-        statGrid.innerHTML =
-          statCard('With Dietary Needs', result.totalWithDietary || 0, 'Active non-cancelled registrations', 'amber', '') +
-          statCard('Total Registrations', result.total || 0, 'Active non-cancelled registrations', '', '');
-
-        renderDietaryRows(result.entries || []);
-        setLastRefreshed();
-      })
-      .withFailureHandler(function(err) {
-        tbody.innerHTML = '<tr class="loading-row"><td colspan="6">Error: ' + esc(err.message) + '</td></tr>';
-      })
-      .getDietaryReport();
-  }
-
-  function renderDietaryRows(entries) {
-    var tbody = document.getElementById('dietary-tbody');
-    if (!entries || entries.length === 0) {
-      tbody.innerHTML = '<tr class="loading-row"><td colspan="6">No dietary restrictions on file.</td></tr>';
-      return;
+  var DietaryReport = {
+    load: function(button) {
+      var tbody = document.getElementById('dietary-tbody');
+      var statGrid = document.getElementById('dietary-stat-grid');
+      tbody.innerHTML = '<tr class="loading-row"><td colspan="6"><span class="spinner"></span> Loading…</td></tr>';
+      runServer('getDietaryReport', [], { requestKey: 'dietary.load', button: button, loadingText: 'Refreshing…' })
+        .then(function(result) {
+          if (!result || !result.success) {
+            tbody.innerHTML = '<tr class="loading-row"><td colspan="6">' + esc((result && result.error) || 'Unknown error') + '</td></tr>';
+            return;
+          }
+          statGrid.innerHTML = statCard('With Dietary Needs', result.totalWithDietary || 0, 'Active non-cancelled registrations', 'amber') +
+            statCard('Total Registrations', result.total || 0, 'Active non-cancelled registrations', '');
+          DietaryReport.render(result.entries || []);
+          setLastRefreshed();
+        })
+        .catch(function(err) {
+          tbody.innerHTML = '<tr class="loading-row"><td colspan="6">' + esc(err.message) + '</td></tr>';
+          Toast.show('Failed to load dietary report', 'error');
+        });
+    },
+    render: function(entries) {
+      var tbody = document.getElementById('dietary-tbody');
+      if (!entries.length) {
+        tbody.innerHTML = '<tr class="loading-row"><td colspan="6">No dietary restrictions on file.</td></tr>';
+        return;
+      }
+      var allergenRegex = /(gluten|nut|peanut|dairy|vegan|vegetarian|allerg)/i;
+      var rows = entries.filter(function(e) { return (e.dietaryNeeds || '').toString().trim(); }).map(function(e) {
+        var dietary = esc(e.dietaryNeeds || '');
+        if (allergenRegex.test(e.dietaryNeeds || '')) dietary += ' <span class="badge badge-red">⚠️ Allergen Alert</span>';
+        return '<tr>' +
+          '<td style="font-family:monospace;font-size:12px;">' + esc(e.regId || '—') + '</td>' +
+          '<td>' + esc(e.name || '—') + '</td>' +
+          '<td><span class="badge badge-gray">' + esc(e.regType || '—') + '</span></td>' +
+          '<td class="details-cell">' + dietary + '</td>' +
+          '<td class="details-cell">' + esc(e.specialNeeds || '') + '</td>' +
+          '<td><span class="badge badge-gray">' + esc(e.status || '—') + '</span></td>' +
+          '</tr>';
+      });
+      tbody.innerHTML = rows.join('') || '<tr class="loading-row"><td colspan="6">No dietary restrictions on file.</td></tr>';
     }
+  };
 
-    var allergenRegex = /(gluten|nut|peanut|dairy|vegan|vegetarian|allerg)/i;
+  var GuestRepair = {
+    showError: function(message) {
+      var errorEl = document.getElementById('repair-error');
+      errorEl.textContent = message;
+      errorEl.style.display = 'block';
+    },
+    clearError: function() {
+      var errorEl = document.getElementById('repair-error');
+      errorEl.textContent = '';
+      errorEl.style.display = 'none';
+    },
+    normalizeSearchTerm: function(raw) {
+      return (raw || '').toString().trim().toLowerCase();
+    },
+    search: function(button, force) {
+      GuestRepair.clearError();
+      var queryEl = document.getElementById('repair-query');
+      var term = GuestRepair.normalizeSearchTerm(queryEl.value);
+      var resultsEl = document.getElementById('repair-search-results');
+      if (!term) {
+        resultsEl.innerHTML = '<div class="alert alert-info">Type a registration ID or name to search.</div>';
+        return;
+      }
+      if (!force && term === AppState.repair.lastSearchTerm && !button) return;
+      AppState.repair.lastSearchTerm = term;
 
-    var rows = entries.filter(function(e) {
-      return (e.dietaryNeeds || '').toString().trim();
-    }).map(function(e) {
-      var dietary = esc(e.dietaryNeeds || '');
-      if (allergenRegex.test(e.dietaryNeeds || '')) {
-        dietary += ' <span class="badge badge-red">⚠️ Allergen Alert</span>';
+      var now = Date.now();
+      var cached = AppState.repair.searchCache[term];
+      if (cached && now - cached.ts < 30000) {
+        GuestRepair.renderSearchResults(cached.rows, term);
+        return;
       }
 
-      return '<tr>' +
-        '<td style="font-family:monospace;font-size:12px;">' + esc(e.regId || '—') + '</td>' +
-        '<td>' + esc(e.name || '—') + '</td>' +
-        '<td><span class="badge badge-gray">' + esc(e.regType || '—') + '</span></td>' +
-        '<td class="details-cell">' + dietary + '</td>' +
-        '<td class="details-cell">' + esc(e.specialNeeds || '') + '</td>' +
-        '<td><span class="badge badge-gray">' + esc(e.status || '—') + '</span></td>' +
-        '</tr>';
+      resultsEl.innerHTML = '<span class="spinner"></span> Searching…';
+      runServer('adminSearchRegistrations', [term], { requestKey: 'repair.search', button: button, loadingText: 'Searching…' })
+        .then(function(result) {
+          if (!result || !result.success) {
+            resultsEl.innerHTML = '<div class="alert alert-danger">Search failed: ' + esc((result && result.error) || 'Unknown') + '</div>';
+            return;
+          }
+          var rows = result.registrations || [];
+          AppState.repair.searchCache[term] = { ts: Date.now(), rows: rows };
+          GuestRepair.renderSearchResults(rows, term);
+        })
+        .catch(function(err) {
+          resultsEl.innerHTML = '<div class="alert alert-danger">' + esc(err.message) + '</div>';
+          Toast.show('Guest repair search failed', 'error');
+        });
+    },
+    scheduleSearch: function() {
+      if (AppState.repair.searchTimer) clearTimeout(AppState.repair.searchTimer);
+      AppState.repair.searchTimer = setTimeout(function() {
+        GuestRepair.search(null, false);
+      }, AppState.repair.searchDebounceMs);
+    },
+    renderSearchResults: function(rows, query) {
+      var container = document.getElementById('repair-search-results');
+      if (!rows.length) {
+        container.innerHTML = '<div class="alert alert-info">No registrations found for “' + esc(query) + '”.</div>';
+        return;
+      }
+      container.innerHTML = rows.map(function(r) {
+        var regId = (r.regId || '').toString();
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;">' +
+          '<div><strong>' + esc(regId) + '</strong> · ' + esc(r.name) + ' <span style="color:var(--text-muted);font-size:12px;">(' + esc(r.status) + ')</span></div>' +
+          '<button class="btn btn-outline btn-sm" data-action="repair-open" data-reg-id="' + esc(regId) + '">Open</button>' +
+          '</div>';
+      }).join('');
+      console.log('[Guest Repair] search results rendered', { count: rows.length, query: query });
+    },
+    openRegistration: function(regId, button, force) {
+      GuestRepair.clearError();
+      var normalizedRegId = (regId || '').toString().trim();
+      if (!normalizedRegId) {
+        GuestRepair.showError('Missing registration ID. Please search and try again.');
+        return;
+      }
+      var cached = AppState.repair.registrationCache[normalizedRegId];
+      if (!force && cached && Date.now() - cached.ts < 120000) {
+        GuestRepair.applyRegistration(cached.payload);
+        Toast.show('Loaded from cache: ' + normalizedRegId, 'info');
+        return;
+      }
+      console.log('[Guest Repair] backend call started', { regId: normalizedRegId });
+      runServer('adminGetRegistrationForRepair', [normalizedRegId], { requestKey: 'repair.open', button: button, loadingText: 'Opening…' })
+        .then(function(result) {
+          if (!result || !result.success) {
+            GuestRepair.showError('Failed to load registration: ' + ((result && result.error) || 'Unknown error'));
+            Toast.show('Failed to load registration', 'error');
+            return;
+          }
+          AppState.repair.registrationCache[normalizedRegId] = { ts: Date.now(), payload: result.registration || {} };
+          GuestRepair.applyRegistration(result.registration || {});
+          Toast.show('Loaded ' + normalizedRegId, 'success');
+        })
+        .catch(function(err) {
+          GuestRepair.showError(err.message);
+          Toast.show('Error loading registration', 'error');
+        });
+    },
+    applyRegistration: function(reg) {
+      var guests = (reg.guests || []).filter(function(g) {
+        return (g.name || '').toString().trim() && (g.name || '') !== reg.name;
+      }).map(function(g) {
+        return {
+          name: g.name || '',
+          age: g.age === null || g.age === undefined ? '' : g.age,
+          attendanceRaw: g.attendanceRaw || 'Full Time'
+        };
+      });
+      AppState.repair.regId = reg.regId || '';
+      AppState.repair.regName = reg.name || '';
+      AppState.repair.guests = guests;
+      GuestRepair.renderRows();
+      document.getElementById('repair-save-btn').disabled = !AppState.repair.regId;
+    },
+    renderRows: function() {
+      var tbody = document.getElementById('repair-guest-tbody');
+      var regMeta = document.getElementById('repair-active-reg');
+      if (!AppState.repair.regId) {
+        tbody.innerHTML = '<tr class="loading-row"><td colspan="4">Load a registration to begin.</td></tr>';
+        regMeta.textContent = 'No registration loaded.';
+        return;
+      }
+      regMeta.textContent = 'Editing ' + AppState.repair.regId + ' — ' + AppState.repair.regName;
+      if (!AppState.repair.guests.length) AppState.repair.guests.push({ name: '', age: '', attendanceRaw: 'Full Time' });
+      tbody.innerHTML = AppState.repair.guests.map(function(g, idx) {
+        return '<tr>' +
+          '<td><input type="text" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;" value="' + esc(g.name) + '" data-index="' + idx + '" data-field="name"></td>' +
+          '<td><input type="number" min="0" max="120" style="width:90px;padding:6px;border:1px solid var(--border);border-radius:6px;" value="' + esc(g.age) + '" data-index="' + idx + '" data-field="age"></td>' +
+          '<td><input type="text" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;" value="' + esc(g.attendanceRaw || 'Full Time') + '" data-index="' + idx + '" data-field="attendanceRaw"></td>' +
+          '<td><button class="btn btn-danger btn-sm" data-action="repair-remove-row" data-index="' + idx + '">Remove</button></td>' +
+          '</tr>';
+      }).join('');
+    },
+    updateField: function(index, field, value) {
+      if (!AppState.repair.guests[index]) return;
+      AppState.repair.guests[index][field] = value;
+    },
+    addRow: function() {
+      AppState.repair.guests.push({ name: '', age: '', attendanceRaw: 'Full Time' });
+      GuestRepair.renderRows();
+    },
+    removeRow: function(index) {
+      AppState.repair.guests.splice(index, 1);
+      GuestRepair.renderRows();
+    },
+    save: function(button) {
+      if (!AppState.repair.regId) {
+        GuestRepair.showError('Load a registration first.');
+        return;
+      }
+      GuestRepair.clearError();
+      runServer('adminRepairGuestRows', [{ regId: AppState.repair.regId, guests: AppState.repair.guests }], {
+        requestKey: 'repair.save', button: button, loadingText: 'Saving…'
+      }).then(function(result) {
+        if (!result || !result.success) {
+          GuestRepair.showError('Save failed: ' + ((result && result.error) || 'Unknown error'));
+          Toast.show('Save failed', 'error');
+          return;
+        }
+        AppState.repair.registrationCache[AppState.repair.regId] = null;
+        var summary = 'Saved. Adults: ' + (result.adultsCount || 0) + ', Children: ' + (result.childrenCount || 0) + ', Total: ' + (result.totalGuests || 0);
+        document.getElementById('repair-active-reg').innerHTML = esc('Editing ' + AppState.repair.regId + ' — ' + AppState.repair.regName) + '<br><span style="color:var(--text-muted);font-size:12px;">' + esc(summary) + '</span>';
+        Toast.show(summary, 'success');
+      }).catch(function(err) {
+        GuestRepair.showError(err.message);
+        Toast.show('Guest repair save failed', 'error');
+      });
+    }
+  };
+
+  var SetupActions = {
+    runInitDatabase: function(button) {
+      var resultEl = document.getElementById('setup-result');
+      if (!confirm('Initialize the database?\n\nThis will create missing sheets and overwrite all header rows. Data rows will NOT be deleted. Proceed?')) return;
+      resultEl.innerHTML = '';
+      runServer('initializeDatabase', [], { requestKey: 'setup.init', button: button, loadingText: 'Running…' })
+        .then(function(result) {
+          if (!result || !result.success) {
+            resultEl.innerHTML = '<div class="alert alert-danger"><div class="alert-icon">❌</div><div class="alert-body"><strong>Initialization failed</strong>' + esc((result && result.error) || 'Unknown error') + '</div></div>';
+            Toast.show('Initialization failed', 'error');
+            return;
+          }
+          var createdTxt = result.sheetsCreated.length ? 'Created: <strong>' + result.sheetsCreated.map(esc).join(', ') + '</strong>' : 'No new sheets needed.';
+          var updatedTxt = result.sheetsUpdated.length ? 'Headers refreshed on: <strong>' + result.sheetsUpdated.map(esc).join(', ') + '</strong>' : '';
+          resultEl.innerHTML = '<div class="alert alert-success"><div class="alert-icon">✅</div><div class="alert-body"><strong>Success!</strong> ' + createdTxt + (updatedTxt ? '<br>' + updatedTxt : '') + '</div></div>';
+          Toast.show('Database initialized successfully!', 'success');
+        })
+        .catch(function(err) {
+          resultEl.innerHTML = '<div class="alert alert-danger"><div class="alert-icon">❌</div><div class="alert-body"><strong>Error</strong>' + esc(err.message) + '</div></div>';
+          Toast.show('Initialization error', 'error');
+        });
+    }
+  };
+
+  function bindEvents() {
+    document.querySelector('.sidebar-nav').addEventListener('click', function(event) {
+      var nav = event.target.closest('.nav-item[data-tab]');
+      if (!nav) return;
+      TabController.switchTab(nav.dataset.tab, nav);
     });
 
-    tbody.innerHTML = rows.join('') || '<tr class="loading-row"><td colspan="6">No dietary restrictions on file.</td></tr>';
+    document.getElementById('refresh-current-btn').addEventListener('click', function() {
+      TabController.refreshCurrent(this);
+    });
+    document.getElementById('print-dietary-btn').addEventListener('click', function() { window.print(); });
+
+    document.getElementById('tab-activity').addEventListener('click', function(event) {
+      var btn = event.target.closest('[data-action="refresh-activity"]');
+      if (btn) ActivityFeed.load(btn, true);
+    });
+
+    document.getElementById('tab-dietary').addEventListener('click', function(event) {
+      var btn = event.target.closest('[data-action="refresh-dietary"]');
+      if (btn) DietaryReport.load(btn, true);
+    });
+
+    var repairTab = document.getElementById('tab-repair');
+    repairTab.addEventListener('click', function(event) {
+      var el = event.target.closest('[data-action]');
+      if (!el) return;
+      var action = el.dataset.action;
+      if (action === 'repair-search') GuestRepair.search(el, true);
+      else if (action === 'repair-open') GuestRepair.openRegistration(el.dataset.regId, el, false);
+      else if (action === 'repair-save') GuestRepair.save(el);
+      else if (action === 'repair-add-row') GuestRepair.addRow();
+      else if (action === 'repair-remove-row') GuestRepair.removeRow(Number(el.dataset.index));
+    });
+
+    repairTab.addEventListener('input', function(event) {
+      var input = event.target.closest('input[data-index][data-field]');
+      if (!input) return;
+      GuestRepair.updateField(Number(input.dataset.index), input.dataset.field, input.value);
+    });
+
+    var queryInput = document.getElementById('repair-query');
+    queryInput.addEventListener('input', GuestRepair.scheduleSearch);
+    queryInput.addEventListener('keydown', function(event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        GuestRepair.search(repairTab.querySelector('[data-action="repair-search"]'), true);
+      }
+    });
+
+    document.getElementById('init-btn').addEventListener('click', function() { SetupActions.runInitDatabase(this); });
   }
 
-  // ── Database Init ────────────────────────────────────────────────────────
-  var _repairState = { regId: '', regName: '', guests: [] };
-
-  function searchRepairRegistrations() {
-    var q = document.getElementById('repair-query').value || '';
-    var container = document.getElementById('repair-search-results');
-    clearRepairError();
-    container.innerHTML = '<span class="spinner"></span> Searching…';
-
-    google.script.run
-      .withSuccessHandler(function(result) {
-        if (!result || !result.success) {
-          container.innerHTML = '<div class="alert alert-danger">Search failed: ' + esc((result && result.error) || 'Unknown') + '</div>';
-          return;
-        }
-        var rows = result.registrations || [];
-        if (!rows.length) {
-          container.innerHTML = '<div class="alert alert-info">No registrations found.</div>';
-          console.log('[Guest Repair] search results rendered', { count: 0, query: q });
-          return;
-        }
-        renderRepairSearchResults(rows, q);
-      })
-      .withFailureHandler(function(err) {
-        container.innerHTML = '<div class="alert alert-danger">Error: ' + esc(err.message) + '</div>';
-      })
-      .adminSearchRegistrations(q);
-  }
-
-  function renderRepairSearchResults(rows, query) {
-    var container = document.getElementById('repair-search-results');
-    container.innerHTML = rows.map(function(r) {
-      var regId = (r.regId || '').toString();
-      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;">' +
-        '<div><strong>' + esc(regId) + '</strong> · ' + esc(r.name) + ' <span style="color:var(--text-muted);font-size:12px;">(' + esc(r.status) + ')</span></div>' +
-        '<button class="btn btn-outline btn-sm js-repair-open-btn" data-reg-id="' + esc(regId) + '">Open</button>' +
-      '</div>';
-    }).join('');
-    console.log('[Guest Repair] search results rendered', { count: rows.length, query: query });
-  }
-
-  document.addEventListener('click', function(event) {
-    var btn = event.target.closest('.js-repair-open-btn');
-    if (!btn) return;
-    var regId = (btn.dataset.regId || '').trim();
-    console.log('[Guest Repair] Open clicked', { regId: regId });
-    loadRegistrationForRepair(regId);
-  });
-
-  function showRepairError(message) {
-    var errorEl = document.getElementById('repair-error');
-    if (!errorEl) return;
-    errorEl.textContent = message;
-    errorEl.style.display = 'block';
-  }
-
-  function clearRepairError() {
-    var errorEl = document.getElementById('repair-error');
-    if (!errorEl) return;
-    errorEl.textContent = '';
-    errorEl.style.display = 'none';
-  }
-
-  function loadRegistrationForRepair(regId) {
-    clearRepairError();
-    var normalizedRegId = (regId || '').toString().trim();
-    console.log('[Guest Repair] regId captured', { regId: normalizedRegId });
-    if (!normalizedRegId) {
-      showRepairError('Missing registration ID. Please search and try again.');
-      showToast('Missing registration ID', 'error');
-      return;
-    }
-    console.log('[Guest Repair] backend call started', { fn: 'adminGetRegistrationForRepair', regId: normalizedRegId });
-    google.script.run
-      .withSuccessHandler(function(result) {
-        console.log('[Guest Repair] backend call succeeded', { regId: normalizedRegId, success: !!(result && result.success) });
-        if (!result || !result.success) {
-          showRepairError('Failed to load registration: ' + esc((result && result.error) || 'Unknown error'));
-          showToast('Failed to load registration', 'error');
-          return;
-        }
-        var reg = result.registration || {};
-        var guests = (reg.guests || []).filter(function(g) {
-          return (g.name || '').toString().trim() && (g.name || '') !== reg.name;
-        });
-        _repairState.regId = reg.regId || '';
-        _repairState.regName = reg.name || '';
-        _repairState.guests = guests.map(function(g) {
-          return {
-            name: g.name || '',
-            age: g.age === null || g.age === undefined ? '' : g.age,
-            attendanceRaw: g.attendanceRaw || 'Full Time'
-          };
-        });
-        renderRepairGuestRows();
-        console.log('[Guest Repair] editor rendered', { regId: _repairState.regId, guestRows: _repairState.guests.length });
-        document.getElementById('repair-save-btn').disabled = !_repairState.regId;
-        showToast('Loaded ' + _repairState.regId, 'success');
-      })
-      .withFailureHandler(function(err) {
-        console.error('[Guest Repair] backend call failed', err);
-        showRepairError('Could not load registration details. ' + esc((err && err.message) || 'Unknown error'));
-        showToast('Error: ' + err.message, 'error');
-      })
-      .adminGetRegistrationForRepair(normalizedRegId);
-  }
-
-  function renderRepairGuestRows() {
-    var tbody = document.getElementById('repair-guest-tbody');
-    var regMeta = document.getElementById('repair-active-reg');
-    if (!_repairState.regId) {
-      tbody.innerHTML = '<tr class="loading-row"><td colspan="4">Load a registration to begin.</td></tr>';
-      regMeta.textContent = 'No registration loaded.';
-      return;
-    }
-    regMeta.textContent = 'Editing ' + _repairState.regId + ' — ' + _repairState.regName;
-    if (!_repairState.guests.length) addRepairGuestRow();
-
-    tbody.innerHTML = _repairState.guests.map(function(g, idx) {
-      return '<tr>' +
-        '<td><input type="text" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;" value="' + esc(g.name) + '" oninput="updateRepairGuest(' + idx + ', \'name\', this.value)"></td>' +
-        '<td><input type="number" min="0" max="120" style="width:90px;padding:6px;border:1px solid var(--border);border-radius:6px;" value="' + esc(g.age) + '" oninput="updateRepairGuest(' + idx + ', \'age\', this.value)"></td>' +
-        '<td><input type="text" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;" value="' + esc(g.attendanceRaw || 'Full Time') + '" oninput="updateRepairGuest(' + idx + ', \'attendanceRaw\', this.value)"></td>' +
-        '<td><button class="btn btn-danger btn-sm" onclick="removeRepairGuest(' + idx + ')">Remove</button></td>' +
-      '</tr>';
-    }).join('');
-  }
-
-  function updateRepairGuest(index, field, value) {
-    if (!_repairState.guests[index]) return;
-    _repairState.guests[index][field] = value;
-  }
-
-  function addRepairGuestRow() {
-    _repairState.guests.push({ name: '', age: '', attendanceRaw: 'Full Time' });
-    renderRepairGuestRows();
-  }
-
-  function removeRepairGuest(index) {
-    _repairState.guests.splice(index, 1);
-    renderRepairGuestRows();
-  }
-
-  function saveGuestRepairs() {
-    if (!_repairState.regId) {
-      showToast('Load a registration first', 'error');
-      return;
-    }
-    var btn = document.getElementById('repair-save-btn');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Saving…';
-
-    google.script.run
-      .withSuccessHandler(function(result) {
-        btn.disabled = false;
-        btn.innerHTML = 'Recalculate & Save';
-        if (!result || !result.success) {
-          showToast('Save failed: ' + esc((result && result.error) || 'Unknown'), 'error');
-          return;
-        }
-        showToast('Saved. Adults: ' + result.adultsCount + ', Children: ' + result.childrenCount, 'success');
-      })
-      .withFailureHandler(function(err) {
-        btn.disabled = false;
-        btn.innerHTML = 'Recalculate & Save';
-        showToast('Error: ' + err.message, 'error');
-      })
-      .adminRepairGuestRows({
-        regId: _repairState.regId,
-        guests: _repairState.guests
-      });
-  }
-
-  // ── Database Init ────────────────────────────────────────────────────────
-  function runInitDatabase() {
-    var btn = document.getElementById('init-btn');
-    var resultEl = document.getElementById('setup-result');
-
-    if (!confirm('Initialize the database?\n\nThis will create missing sheets and overwrite all header rows. ' +
-        'Data rows will NOT be deleted. Proceed?')) {
-      return;
-    }
-
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Running…';
-    resultEl.innerHTML = '';
-
-    google.script.run
-      .withSuccessHandler(function(result) {
-        btn.disabled = false;
-        btn.innerHTML = '⚙️ Initialize / Verify Database';
-
-        if (!result || !result.success) {
-          resultEl.innerHTML = '<div class="alert alert-danger">' +
-            '<div class="alert-icon">❌</div>' +
-            '<div class="alert-body"><strong>Initialization failed</strong>' + esc((result && result.error) || 'Unknown error') + '</div></div>';
-          showToast('Initialization failed', 'error');
-          return;
-        }
-
-        var createdTxt = result.sheetsCreated.length
-          ? 'Created: <strong>' + result.sheetsCreated.map(esc).join(', ') + '</strong>'
-          : 'No new sheets needed.';
-        var updatedTxt = result.sheetsUpdated.length
-          ? 'Headers refreshed on: <strong>' + result.sheetsUpdated.map(esc).join(', ') + '</strong>'
-          : '';
-
-        resultEl.innerHTML = '<div class="alert alert-success">' +
-          '<div class="alert-icon">✅</div>' +
-          '<div class="alert-body"><strong>Success!</strong> ' + createdTxt +
-          (updatedTxt ? '<br>' + updatedTxt : '') + '</div></div>';
-
-        showToast('Database initialized successfully!', 'success');
-      })
-      .withFailureHandler(function(err) {
-        btn.disabled = false;
-        btn.innerHTML = '⚙️ Initialize / Verify Database';
-        resultEl.innerHTML = '<div class="alert alert-danger">' +
-          '<div class="alert-icon">❌</div>' +
-          '<div class="alert-body"><strong>Error</strong>' + esc(err.message) + '</div></div>';
-        showToast('Error: ' + err.message, 'error');
-      })
-      .initializeDatabase();
-  }
-
-  // ── Bootstrap ────────────────────────────────────────────────────────────
   window.addEventListener('DOMContentLoaded', function() {
-    loadStats();
+    bindEvents();
+    AppState.loadedTabs.dashboard = true;
+    DashboardStats.load();
   });
 </script>
+
 </body>
 </html>
