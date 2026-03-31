@@ -150,16 +150,16 @@
 
   <div class="section">
     <h3>📊 Quick Actions</h3>
-    <button class="btn btn-primary" onclick="recalculateTotals()">
+    <button class="btn btn-primary" data-action="recalculate">
       🔄 Recalculate All Totals
     </button>
-    <button class="btn btn-secondary" onclick="generateKeyReport()">
+    <button class="btn btn-secondary" data-action="key-report">
       🔑 Generate Key Report
     </button>
-    <button class="btn btn-secondary" onclick="exportCheckIn()">
+    <button class="btn btn-secondary" data-action="export-checkin">
       📋 Export Check-In List
     </button>
-    <button class="btn btn-warning" onclick="processNoShows()">
+    <button class="btn btn-warning" data-action="process-no-shows">
       🛑 Process No-Shows
     </button>
   </div>
@@ -170,7 +170,7 @@
       <label>Registration ID:</label>
       <input type="text" id="resend-reg-id" placeholder="CM26-0001">
     </div>
-    <button class="btn btn-secondary" onclick="resendEmail()">
+    <button class="btn btn-secondary" data-action="resend-email">
       Send Confirmation Email
     </button>
   </div>
@@ -178,7 +178,7 @@
   <div class="section">
     <h3>🚪 Room Assignment</h3>
     <p><span id="unassigned-count">...</span> registrations need rooms</p>
-    <button class="btn btn-secondary" onclick="loadUnassigned()">
+    <button class="btn btn-secondary" data-action="load-unassigned">
       View Unassigned List
     </button>
     <div id="unassigned-list" style="margin-top:10px; max-height:200px; overflow-y:auto;"></div>
@@ -199,19 +199,20 @@
         <option value="none">No Housing</option>
       </select>
     </div>
-    <button class="btn btn-warning" onclick="changeHousing()">
+    <button class="btn btn-warning" data-action="change-housing">
       ⚠️ Change Housing Type
     </button>
   </div>
 
   <script>
-    // XSS Mitigation: Use textContent for user data
     function escapeHtml(text) {
       if (!text) return '';
       var div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
     }
+
+    var SidebarState = { inFlight: {} };
 
     function showStatus(message, isError) {
       var el = document.getElementById('status');
@@ -220,124 +221,100 @@
       setTimeout(function() { el.className = 'status'; }, 5000);
     }
 
-    function recalculateTotals() {
-      showStatus('Recalculating...', false);
-      google.script.run
-        .withSuccessHandler(function(count) {
+    function runAction(actionKey, button, loadingText, fnName, args, onSuccess) {
+      if (SidebarState.inFlight[actionKey]) return;
+      SidebarState.inFlight[actionKey] = true;
+      var original = button ? button.textContent : '';
+      if (button) { button.disabled = true; button.textContent = loadingText; }
+
+      var runner = google.script.run
+        .withSuccessHandler(function(result) {
+          SidebarState.inFlight[actionKey] = false;
+          if (button) { button.disabled = false; button.textContent = original; }
+          onSuccess(result);
+        })
+        .withFailureHandler(function(err) {
+          SidebarState.inFlight[actionKey] = false;
+          if (button) { button.disabled = false; button.textContent = original; }
+          showStatus('Error: ' + ((err && err.message) || err), true);
+        });
+      runner[fnName].apply(runner, args || []);
+    }
+
+    function renderUnassigned(list) {
+      var html = '';
+      if (!list || list.length === 0) {
+        html = '<p style="color:#16a34a;">All dorm registrations have rooms assigned! ✓</p>';
+      } else {
+        list.forEach(function(r) {
+          html += '<div style="padding:8px; margin:4px 0; background:#f8fafc; border-radius:4px;">';
+          html += '<strong>' + escapeHtml(r.name) + '</strong> (' + escapeHtml(r.regId) + ')<br>';
+          html += '<small>' + escapeHtml(String(r.guests)) + ' guests | ' + escapeHtml(String(r.nights)) + '</small>';
+          if (r.specialNeeds) html += '<br><small style="color:#f59e0b;">Note: ' + escapeHtml(r.specialNeeds) + '</small>';
+          html += '</div>';
+        });
+      }
+      document.getElementById('unassigned-list').innerHTML = html;
+      document.getElementById('unassigned-count').textContent = (list || []).length;
+    }
+
+    function loadUnassigned(button) {
+      var listEl = document.getElementById('unassigned-list');
+      listEl.innerHTML = '<span class="loading">Loading...</span>';
+      runAction('load-unassigned', button, 'Loading…', 'getUnassignedRegistrations', [], function(list) {
+        renderUnassigned(list || []);
+        showStatus('Unassigned list updated.', false);
+      });
+    }
+
+    document.body.addEventListener('click', function(event) {
+      var btn = event.target.closest('button[data-action]');
+      if (!btn) return;
+      var action = btn.dataset.action;
+
+      if (action === 'recalculate') {
+        showStatus('Recalculating...', false);
+        runAction(action, btn, 'Recalculating…', 'recalculateAllTotals', [], function(count) {
           showStatus('Recalculated ' + count + ' registrations', false);
-        })
-        .withFailureHandler(function(err) {
-          showStatus('Error: ' + err.message, true);
-        })
-        .recalculateAllTotals();
-    }
-
-    function generateKeyReport() {
-      showStatus('Generating report...', false);
-      google.script.run
-        .withSuccessHandler(function() {
+        });
+      } else if (action === 'key-report') {
+        showStatus('Generating report...', false);
+        runAction(action, btn, 'Generating…', 'generateKeyReport', [], function() {
           showStatus('Key report generated! Check the "Key Report" tab.', false);
-        })
-        .withFailureHandler(function(err) {
-          showStatus('Error: ' + err.message, true);
-        })
-        .generateKeyReport();
-    }
-
-    function exportCheckIn() {
-      showStatus('Exporting...', false);
-      google.script.run
-        .withSuccessHandler(function() {
+        });
+      } else if (action === 'export-checkin') {
+        showStatus('Exporting...', false);
+        runAction(action, btn, 'Exporting…', 'exportCheckInList', [], function() {
           showStatus('Export ready! Check "Check-In Export" tab.', false);
-        })
-        .withFailureHandler(function(err) {
-          showStatus('Error: ' + err.message, true);
-        })
-        .exportCheckInList();
-    }
-
-    function processNoShows() {
-      showStatus('Processing...', false);
-      google.script.run
-        .withSuccessHandler(function() {
+        });
+      } else if (action === 'process-no-shows') {
+        showStatus('Processing...', false);
+        runAction(action, btn, 'Processing…', 'processNoShows', [], function() {
           showStatus('No-show processing complete.', false);
-        })
-        .withFailureHandler(function(err) {
-          showStatus('Error: ' + err.message, true);
-        })
-        .processNoShows();
-    }
-
-    function resendEmail() {
-      var regId = document.getElementById('resend-reg-id').value.trim();
-      if (!regId) {
-        showStatus('Enter a registration ID', true);
-        return;
+        });
+      } else if (action === 'resend-email') {
+        var regId = document.getElementById('resend-reg-id').value.trim();
+        if (!regId) return showStatus('Enter a registration ID', true);
+        showStatus('Sending email...', false);
+        runAction(action, btn, 'Sending…', 'resendConfirmationEmail', [regId], function(result) {
+          showStatus((result && result.message) || 'Done', !(result && result.success));
+        });
+      } else if (action === 'load-unassigned') {
+        loadUnassigned(btn);
+      } else if (action === 'change-housing') {
+        var reg = document.getElementById('change-reg-id').value.trim();
+        var type = document.getElementById('new-housing').value;
+        if (!reg) return showStatus('Enter a registration ID', true);
+        if (!confirm('Change housing for ' + reg + ' to ' + type + '?\n\nThis will recalculate their total.')) return;
+        showStatus('Updating...', false);
+        runAction(action, btn, 'Updating…', 'changeHousingType', [reg, type], function(result) {
+          if (result && result.success) showStatus('Housing changed! New subtotal: $' + result.newHousingSubtotal, false);
+          else showStatus((result && result.error) || 'Failed to change housing', true);
+        });
       }
-      showStatus('Sending email...', false);
-      google.script.run
-        .withSuccessHandler(function(result) {
-          showStatus(result.message, !result.success);
-        })
-        .withFailureHandler(function(err) {
-          showStatus('Error: ' + err.message, true);
-        })
-        .resendConfirmationEmail(regId);
-    }
+    });
 
-    function loadUnassigned() {
-      document.getElementById('unassigned-list').innerHTML = '<span class="loading">Loading...</span>';
-      google.script.run
-        .withSuccessHandler(function(list) {
-          var html = '';
-          if (list.length === 0) {
-            html = '<p style="color:#16a34a;">All dorm registrations have rooms assigned! ✓</p>';
-          } else {
-            list.forEach(function(r) {
-              // XSS Fix: Escaping values before constructing HTML string
-              html += '<div style="padding:8px; margin:4px 0; background:#f8fafc; border-radius:4px;">';
-              html += '<strong>' + escapeHtml(r.name) + '</strong> (' + escapeHtml(r.regId) + ')<br>';
-              html += '<small>' + escapeHtml(r.guests) + ' guests | ' + escapeHtml(r.nights) + '</small>';
-              if (r.specialNeeds) html += '<br><small style="color:#f59e0b;">Note: ' + escapeHtml(r.specialNeeds) + '</small>';
-              html += '</div>';
-            });
-          }
-          document.getElementById('unassigned-list').innerHTML = html;
-          document.getElementById('unassigned-count').textContent = list.length;
-        })
-        .withFailureHandler(function(err) {
-          document.getElementById('unassigned-list').innerHTML = '<span style="color:red;">Error loading</span>';
-        })
-        .getUnassignedRegistrations();
-    }
-
-    function changeHousing() {
-      var regId = document.getElementById('change-reg-id').value.trim();
-      var newType = document.getElementById('new-housing').value;
-      if (!regId) {
-        showStatus('Enter a registration ID', true);
-        return;
-      }
-      if (!confirm('Change housing for ' + regId + ' to ' + newType + '?\n\nThis will recalculate their total.')) {
-        return;
-      }
-      showStatus('Updating...', false);
-      google.script.run
-        .withSuccessHandler(function(result) {
-          if (result.success) {
-            showStatus('Housing changed! New subtotal: $' + result.newHousingSubtotal, false);
-          } else {
-            showStatus(result.error, true);
-          }
-        })
-        .withFailureHandler(function(err) {
-          showStatus('Error: ' + err.message, true);
-        })
-        .changeHousingType(regId, newType);
-    }
-
-    // Load initial count
-    loadUnassigned();
+    loadUnassigned(document.querySelector('[data-action="load-unassigned"]'));
   </script>
 </body>
 </html>

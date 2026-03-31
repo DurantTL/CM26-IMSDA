@@ -41,13 +41,39 @@ function onOpen() {
     .addToUi();
 }
 
+function getSheetValuesSafe(sheetName) {
+  var ss = getSS();
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) return { sheet: null, values: [], lastRow: 0, lastColumn: 0 };
+  var lastRow = sheet.getLastRow();
+  var lastColumn = sheet.getLastColumn();
+  if (lastRow < 1 || lastColumn < 1) {
+    return { sheet: sheet, values: [], lastRow: lastRow, lastColumn: lastColumn };
+  }
+  return {
+    sheet: sheet,
+    values: sheet.getRange(1, 1, lastRow, lastColumn).getValues(),
+    lastRow: lastRow,
+    lastColumn: lastColumn
+  };
+}
+
+function findRegistrationRowById(regId, regValues) {
+  var id = String(regId || '');
+  for (var i = 1; i < regValues.length; i++) {
+    if (String(regValues[i][COLUMNS.REG_ID] || '') === id) {
+      return i;
+    }
+  }
+  return -1;
+}
+
 /**
  * Get unassigned dorm registrations
  */
 function getUnassignedRegistrations() {
-  var ss = getSS();
-  var regSheet = ss.getSheetByName('Registrations');
-  var data = regSheet.getDataRange().getValues();
+  var regData = getSheetValuesSafe('Registrations');
+  var data = regData.values;
   
   var unassigned = [];
   for (var i = 1; i < data.length; i++) {
@@ -168,8 +194,7 @@ function recalculateAllTotals() {
  */
 function generateKeyReport() {
   var ss = getSS();
-  var regSheet = ss.getSheetByName('Registrations');
-  var data = regSheet.getDataRange().getValues();
+  var data = getSheetValuesSafe('Registrations').values;
   
   var keysOut = [];
   var depositsPending = 0;
@@ -203,26 +228,19 @@ function generateKeyReport() {
   // Create report sheet
   var reportSheet = ss.getSheetByName('Key Report') || ss.insertSheet('Key Report');
   reportSheet.clear();
-  
-  reportSheet.appendRow(['KEY STATUS REPORT', '', '', '', 'Generated:', new Date()]);
-  reportSheet.appendRow([]);
-  reportSheet.appendRow(['Total Keys Out:', keysOut.length * 2 - keysOut.filter(k => !k.key1Out).length - keysOut.filter(k => !k.key2Out).length]);
-  reportSheet.appendRow(['Deposits Pending Refund:', '$' + depositsPending]);
-  reportSheet.appendRow([]);
-  reportSheet.appendRow(['Reg ID', 'Name', 'Room', 'Key 1', 'Key 1 Status', 'Key 2', 'Key 2 Status', 'Deposit']);
-  
-  keysOut.forEach(function(k) {
-    reportSheet.appendRow([
-      k.regId,
-      k.name,
-      k.room,
-      k.key1,
-      k.key1Out ? 'OUT' : 'Returned',
-      k.key2,
-      k.key2Out ? 'OUT' : 'Returned',
-      '$' + k.deposit
-    ]);
-  });
+  var outRows = [
+    ['KEY STATUS REPORT', '', '', '', 'Generated:', new Date(), '', ''],
+    ['', '', '', '', '', '', '', ''],
+    ['Total Keys Out:', keysOut.length * 2 - keysOut.filter(function(k){ return !k.key1Out; }).length - keysOut.filter(function(k){ return !k.key2Out; }).length, '', '', '', '', '', ''],
+    ['Deposits Pending Refund:', '$' + depositsPending, '', '', '', '', '', ''],
+    ['', '', '', '', '', '', '', ''],
+    ['Reg ID', 'Name', 'Room', 'Key 1', 'Key 1 Status', 'Key 2', 'Key 2 Status', 'Deposit']
+  ];
+  for (var ki = 0; ki < keysOut.length; ki++) {
+    var k = keysOut[ki];
+    outRows.push([k.regId, k.name, k.room, k.key1, k.key1Out ? 'OUT' : 'Returned', k.key2, k.key2Out ? 'OUT' : 'Returned', '$' + k.deposit]);
+  }
+  reportSheet.getRange(1, 1, outRows.length, 8).setValues(outRows);
   
   SpreadsheetApp.getUi().alert('Key report generated. See "Key Report" tab.');
 }
@@ -245,15 +263,14 @@ function changeHousingType(regId, newHousingType) {
   }
 
   try {
-    var ss = getSS();
-    var regSheet = ss.getSheetByName('Registrations');
+    var regData = getSheetValuesSafe('Registrations');
+    var regSheet = regData.sheet;
     var config = getConfig();
-    var data = regSheet.getDataRange().getValues();
-
-    for (var i = 1; i < data.length; i++) {
-      if (data[i][0] === regId) {
-        var row = i + 1;
-        var numNights = data[i][COLUMNS.NUM_NIGHTS] || 0;
+    var data = regData.values;
+    var index = findRegistrationRowById(regId, data);
+    if (index !== -1) {
+        var row = index + 1;
+        var numNights = data[index][COLUMNS.NUM_NIGHTS] || 0;
 
         // Get new price
         var newPrice = 0;
@@ -264,26 +281,29 @@ function changeHousingType(regId, newHousingType) {
         var newHousingSubtotal = newPrice * numNights;
 
         // Update housing option
-        regSheet.getRange(row, COLUMNS.HOUSING_OPTION + 1).setValue(newHousingType);
-        regSheet.getRange(row, COLUMNS.HOUSING_SUBTOTAL + 1).setValue(newHousingSubtotal);
+        var updates = {};
+        updates[COLUMNS.HOUSING_OPTION + 1] = newHousingType;
+        updates[COLUMNS.HOUSING_SUBTOTAL + 1] = newHousingSubtotal;
 
         // Clear room assignment if changing away from dorm
         if (newHousingType !== 'dorm') {
-          regSheet.getRange(row, COLUMNS.ROOM_ASSIGNMENT + 1).setValue('');
-          regSheet.getRange(row, COLUMNS.BUILDING + 1).setValue('');
+          updates[COLUMNS.ROOM_ASSIGNMENT + 1] = '';
+          updates[COLUMNS.BUILDING + 1] = '';
         }
 
         // Recalculate subtotal
-        var mealSubtotal = data[i][COLUMNS.MEAL_SUBTOTAL] || 0;
+        var mealSubtotal = data[index][COLUMNS.MEAL_SUBTOTAL] || 0;
         var newSubtotal = newHousingSubtotal + mealSubtotal;
-        regSheet.getRange(row, COLUMNS.SUBTOTAL + 1).setValue(newSubtotal);
+        updates[COLUMNS.SUBTOTAL + 1] = newSubtotal;
+        Object.keys(updates).forEach(function(colStr) {
+          regSheet.getRange(row, Number(colStr)).setValue(updates[colStr]);
+        });
 
         logActivity('housing_change', regId,
-          'Changed from ' + data[i][COLUMNS.HOUSING_OPTION] + ' to ' + newHousingType,
+          'Changed from ' + data[index][COLUMNS.HOUSING_OPTION] + ' to ' + newHousingType,
           'admin');
 
         return { success: true, newHousingSubtotal: newHousingSubtotal };
-      }
     }
 
     return { success: false, error: 'Registration not found' };
@@ -354,8 +374,7 @@ function promoteFromWaitlist(waitlistId) {
  */
 function exportCheckInList() {
   var ss = getSS();
-  var regSheet = ss.getSheetByName('Registrations');
-  var data = regSheet.getDataRange().getValues();
+  var data = getSheetValuesSafe('Registrations').values;
   
   var exportData = [['Reg ID', 'Name', 'Housing', 'Room', 'Guests', 'Balance', 'Status', 'Checked In']];
   
@@ -394,31 +413,28 @@ function exportCheckInList() {
  */
 function getRecentActivity() {
   try {
-    var ss = getSS();
-    var logSheet = ss.getSheetByName('ActivityLog');
+    var logData = getSheetValuesSafe('ActivityLog');
+    var logSheet = logData.sheet;
 
     if (!logSheet) {
       return { success: false, error: 'ActivityLog sheet not found. Run initializeDatabase() first.' };
     }
 
-    var data = logSheet.getDataRange().getValues();
+    var data = logData.values;
 
     // Row 0 is the header; slice it off, then reverse so newest is first
-    var rows = data.slice(1).reverse();
-
-    // Take top 50
-    var top50 = rows.slice(0, 50);
-
-    var entries = top50.map(function(row) {
-      return {
+    var entries = [];
+    for (var i = data.length - 1; i >= 1 && entries.length < 50; i--) {
+      var row = data[i];
+      entries.push({
         timestamp: row[0] ? row[0].toString() : '',
         action:    row[1] || '',
         regId:     row[2] || '',
         user:      row[3] || '',
         source:    row[4] || '',
         details:   row[5] || ''
-      };
-    });
+      });
+    }
 
     return { success: true, entries: entries };
 
@@ -427,19 +443,18 @@ function getRecentActivity() {
   }
 }
 
-
 /**
  * Get dietary needs report for admin dashboard.
  */
 function getDietaryReport() {
   try {
-    var ss = getSS();
-    var regSheet = ss.getSheetByName('Registrations');
+    var regData = getSheetValuesSafe('Registrations');
+    var regSheet = regData.sheet;
     if (!regSheet) {
       return { success: false, error: 'Registrations sheet not found' };
     }
 
-    var data = regSheet.getDataRange().getValues();
+    var data = regData.values;
     var totalRegistrations = 0;
     var entries = [];
 
@@ -494,10 +509,10 @@ function processNoShows() {
   }
 
   try {
-    var ss = getSS();
-    var regSheet = ss.getSheetByName('Registrations');
+    var regData = getSheetValuesSafe('Registrations');
+    var regSheet = regData.sheet;
     var config = getConfig();
-    var data = regSheet.getDataRange().getValues();
+    var data = regData.values;
     var today = new Date();
 
     var dateMap = EVENT_DATES;
@@ -541,8 +556,8 @@ function processNoShows() {
               amountRetained = amountPaid;
             }
 
-            regSheet.getRange(rowNum, COLUMNS.STATUS + 1).setValue('no_show');
-            regSheet.getRange(rowNum, COLUMNS.TOTAL_CHARGED + 1).setValue(amountRetained);
+            regSheet.getRange(rowNum, COLUMNS.STATUS + 1, 1, 1).setValue('no_show');
+            regSheet.getRange(rowNum, COLUMNS.TOTAL_CHARGED + 1, 1, 1).setValue(amountRetained);
 
             // Release Room
             var roomAssignment = row[COLUMNS.ROOM_ASSIGNMENT];
@@ -575,9 +590,7 @@ function processNoShows() {
 function adminSearchRegistrations(query) {
   try {
     var term = (query || '').toString().trim().toLowerCase();
-    var ss = getSS();
-    var regSheet = ss.getSheetByName('Registrations');
-    var rows = regSheet.getDataRange().getValues();
+    var rows = getSheetValuesSafe('Registrations').values;
     var matches = [];
 
     for (var i = 1; i < rows.length; i++) {
@@ -609,9 +622,36 @@ function adminSearchRegistrations(query) {
  * Load one registration payload for manual guest repair in admin UI.
  */
 function adminGetRegistrationForRepair(regId) {
-  var reg = getRegistration(regId);
-  if (!reg.success) return reg;
-  return { success: true, registration: reg.registration };
+  try {
+    var target = String(regId || '').trim();
+    if (!target) return { success: false, error: 'Missing regId' };
+    var rows = getSheetValuesSafe('Registrations').values;
+    var idx = findRegistrationRowById(target, rows);
+    if (idx === -1) return { success: false, error: 'Registration not found' };
+    var row = rows[idx];
+    var registration = {
+      regId: row[COLUMNS.REG_ID] || '',
+      name: row[COLUMNS.PRIMARY_NAME] || '',
+      status: row[COLUMNS.STATUS] || '',
+      regType: row[COLUMNS.REG_TYPE] || '',
+      adultsCount: row[COLUMNS.ADULTS_COUNT] || 0,
+      childrenCount: row[COLUMNS.CHILDREN_COUNT] || 0,
+      totalGuests: row[COLUMNS.TOTAL_GUESTS] || 0,
+      dietaryNeeds: row[COLUMNS.DIETARY_NEEDS] || '',
+      specialNeeds: row[COLUMNS.SPECIAL_NEEDS] || ''
+    };
+    var parsedGuests = [];
+    try {
+      parsedGuests = JSON.parse(row[COLUMNS.GUEST_DETAILS] || '[]');
+      if (!Array.isArray(parsedGuests)) parsedGuests = [];
+    } catch (e) {
+      parsedGuests = [];
+    }
+    registration.guests = parsedGuests;
+    return { success: true, registration: registration };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
 }
 
 /**
@@ -660,20 +700,13 @@ function adminRepairGuestRows(payload) {
       });
     }
 
-    var ss = getSS();
-    var regSheet = ss.getSheetByName('Registrations');
-    var regData = regSheet.getDataRange().getValues();
-    var rowNum = -1;
-    var existingRow = null;
-
-    for (var i = 1; i < regData.length; i++) {
-      if (String(regData[i][COLUMNS.REG_ID]) === regId) {
-        rowNum = i + 1;
-        existingRow = regData[i];
-        break;
-      }
-    }
-    if (rowNum === -1) return { success: false, error: 'Registration not found' };
+    var regDataObj = getSheetValuesSafe('Registrations');
+    var regSheet = regDataObj.sheet;
+    var regData = regDataObj.values;
+    var idx = findRegistrationRowById(regId, regData);
+    if (idx === -1) return { success: false, error: 'Registration not found' };
+    var rowNum = idx + 1;
+    var existingRow = regData[idx];
 
     // Preserve primary registrant as adult anchor for counts/meals.
     var primaryName = String(existingRow[COLUMNS.PRIMARY_NAME] || 'Primary Registrant').trim();
@@ -700,11 +733,11 @@ function adminRepairGuestRows(payload) {
     var childClassCounts = buildChildClassCounts(fullGuestList);
     var totalGuests = adultsCount + childrenCount;
 
-    regSheet.getRange(rowNum, COLUMNS.ADULTS_COUNT + 1).setValue(adultsCount);
-    regSheet.getRange(rowNum, COLUMNS.CHILDREN_COUNT + 1).setValue(childrenCount);
-    regSheet.getRange(rowNum, COLUMNS.TOTAL_GUESTS + 1).setValue(totalGuests);
-    regSheet.getRange(rowNum, COLUMNS.GUEST_DETAILS + 1).setValue(JSON.stringify(fullGuestList));
-    regSheet.getRange(rowNum, COLUMNS.MEAL_SELECTIONS + 1).setValue(JSON.stringify(mealSelections));
+    regSheet.getRange(rowNum, COLUMNS.ADULTS_COUNT + 1, 1, 1).setValue(adultsCount);
+    regSheet.getRange(rowNum, COLUMNS.CHILDREN_COUNT + 1, 1, 1).setValue(childrenCount);
+    regSheet.getRange(rowNum, COLUMNS.TOTAL_GUESTS + 1, 1, 1).setValue(totalGuests);
+    regSheet.getRange(rowNum, COLUMNS.GUEST_DETAILS + 1, 1, 1).setValue(JSON.stringify(fullGuestList));
+    regSheet.getRange(rowNum, COLUMNS.MEAL_SELECTIONS + 1, 1, 1).setValue(JSON.stringify(mealSelections));
 
     adminSyncGuestDetailsSheet(regId, fullGuestList);
 
@@ -732,21 +765,18 @@ function adminRepairGuestRows(payload) {
 }
 
 function adminSyncGuestDetailsSheet(regId, guests) {
-  var ss = getSS();
-  var guestSheet = ss.getSheetByName('GuestDetails');
+  var guestData = getSheetValuesSafe('GuestDetails');
+  var guestSheet = guestData.sheet;
   if (!guestSheet) return;
-
-  var values = guestSheet.getDataRange().getValues();
-  for (var r = values.length - 1; r >= 1; r--) {
-    if (String(values[r][1] || '') === String(regId)) {
-      guestSheet.deleteRow(r + 1);
-    }
+  var values = guestData.values;
+  var header = values[0] || [];
+  var filteredRows = [];
+  for (var r = 1; r < values.length; r++) {
+    if (String(values[r][1] || '') !== String(regId)) filteredRows.push(values[r]);
   }
-
-  if (!guests || guests.length === 0) return;
-
   var supportsAttendanceColumns = guestSheet.getLastColumn() >= 12;
-  var insertRows = [];
+  var targetWidth = Math.max(header.length, supportsAttendanceColumns ? 12 : 9);
+  var rebuilt = [padRow_(header, targetWidth)];
   for (var i = 0; i < guests.length; i++) {
     var guest = guests[i];
     var row = [
@@ -767,8 +797,15 @@ function adminSyncGuestDetailsSheet(regId, guests) {
         (guest.attendanceDays && guest.attendanceDays.join) ? guest.attendanceDays.join(',') : 'tue,wed,thu,fri,sat'
       );
     }
-    insertRows.push(row);
+    rebuilt.push(padRow_(row, targetWidth));
   }
+  for (var f = 0; f < filteredRows.length; f++) rebuilt.push(padRow_(filteredRows[f], targetWidth));
+  guestSheet.clearContents();
+  guestSheet.getRange(1, 1, rebuilt.length, targetWidth).setValues(rebuilt);
+}
 
-  guestSheet.getRange(guestSheet.getLastRow() + 1, 1, insertRows.length, insertRows[0].length).setValues(insertRows);
+function padRow_(row, width) {
+  var out = (row || []).slice(0, width);
+  while (out.length < width) out.push('');
+  return out;
 }
