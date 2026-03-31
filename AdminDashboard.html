@@ -424,6 +424,9 @@
         <span class="nav-icon">🥗</span> Dietary Needs
       </div>
       <div class="nav-section-label">Administration</div>
+      <div class="nav-item" data-tab="repair" onclick="switchTab('repair', this)">
+        <span class="nav-icon">🛠️</span> Guest Repair
+      </div>
       <div class="nav-item" data-tab="setup" onclick="switchTab('setup', this)">
         <span class="nav-icon">⚙️</span> System Setup
       </div>
@@ -551,6 +554,53 @@
         </div>
       </div>
 
+      <!-- ── Guest Repair tab ───────────────────────────────────── -->
+      <div id="tab-repair" class="tab-panel">
+        <div class="page-header">
+          <h1>Guest Parser Repair</h1>
+          <p>Search a registration, fix guest rows, then recalculate derived totals and assignments.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-header"><h2>Find Registration</h2></div>
+          <div class="card-body">
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              <input id="repair-query" type="text" placeholder="Enter Reg ID or Name" style="padding:8px 10px;border:1px solid var(--border);border-radius:6px;min-width:260px;">
+              <button class="btn btn-primary btn-sm" onclick="searchRepairRegistrations()">Search</button>
+            </div>
+            <div id="repair-search-results" style="margin-top:14px;"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2>Guest Rows</h2>
+            <button id="repair-save-btn" class="btn btn-success btn-sm" onclick="saveGuestRepairs()" disabled>Recalculate & Save</button>
+          </div>
+          <div class="card-body">
+            <div id="repair-active-reg" style="margin-bottom:10px;color:var(--text-muted);font-size:12px;">No registration loaded.</div>
+            <div class="feed-table-wrap">
+              <table class="feed-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Age</th>
+                    <th>Attendance</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="repair-guest-tbody">
+                  <tr class="loading-row"><td colspan="4">Load a registration to begin.</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div style="margin-top:10px;">
+              <button class="btn btn-outline btn-sm" onclick="addRepairGuestRow()">+ Add Guest Row</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- ── System Setup tab ───────────────────────────────────── -->
       <div id="tab-setup" class="tab-panel">
         <div class="page-header">
@@ -658,6 +708,7 @@
     dashboard: 'Dashboard',
     activity:  'Activity Feed',
     dietary:   'Dietary Needs Report',
+    repair:    'Guest Repair',
     setup:     'System Setup'
   };
 
@@ -681,6 +732,9 @@
     }
     if (tabId === 'dietary' && !window._dietaryLoaded) {
       loadDietaryReport();
+    }
+    if (tabId === 'repair' && !window._repairLoaded) {
+      window._repairLoaded = true;
     }
   }
 
@@ -888,6 +942,135 @@
     });
 
     tbody.innerHTML = rows.join('') || '<tr class="loading-row"><td colspan="6">No dietary restrictions on file.</td></tr>';
+  }
+
+  // ── Database Init ────────────────────────────────────────────────────────
+  var _repairState = { regId: '', regName: '', guests: [] };
+
+  function searchRepairRegistrations() {
+    var q = document.getElementById('repair-query').value || '';
+    var container = document.getElementById('repair-search-results');
+    container.innerHTML = '<span class="spinner"></span> Searching…';
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (!result || !result.success) {
+          container.innerHTML = '<div class="alert alert-danger">Search failed: ' + esc((result && result.error) || 'Unknown') + '</div>';
+          return;
+        }
+        var rows = result.registrations || [];
+        if (!rows.length) {
+          container.innerHTML = '<div class="alert alert-info">No registrations found.</div>';
+          return;
+        }
+        container.innerHTML = rows.map(function(r) {
+          var safeRegId = encodeURIComponent(r.regId || '');
+          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;">' +
+            '<div><strong>' + esc(r.regId) + '</strong> · ' + esc(r.name) + ' <span style="color:var(--text-muted);font-size:12px;">(' + esc(r.status) + ')</span></div>' +
+            '<button class="btn btn-outline btn-sm" onclick="loadRegistrationForRepair(decodeURIComponent(\'' + safeRegId + '\'))">Open</button>' +
+          '</div>';
+        }).join('');
+      })
+      .withFailureHandler(function(err) {
+        container.innerHTML = '<div class="alert alert-danger">Error: ' + esc(err.message) + '</div>';
+      })
+      .adminSearchRegistrations(q);
+  }
+
+  function loadRegistrationForRepair(regId) {
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (!result || !result.success) {
+          showToast('Failed to load registration', 'error');
+          return;
+        }
+        var reg = result.registration || {};
+        var guests = (reg.guests || []).filter(function(g) {
+          return (g.name || '').toString().trim() && (g.name || '') !== reg.name;
+        });
+        _repairState.regId = reg.regId || '';
+        _repairState.regName = reg.name || '';
+        _repairState.guests = guests.map(function(g) {
+          return {
+            name: g.name || '',
+            age: g.age === null || g.age === undefined ? '' : g.age,
+            attendanceRaw: g.attendanceRaw || 'Full Time'
+          };
+        });
+        renderRepairGuestRows();
+        document.getElementById('repair-save-btn').disabled = !_repairState.regId;
+        showToast('Loaded ' + _repairState.regId, 'success');
+      })
+      .withFailureHandler(function(err) {
+        showToast('Error: ' + err.message, 'error');
+      })
+      .adminGetRegistrationForRepair(regId);
+  }
+
+  function renderRepairGuestRows() {
+    var tbody = document.getElementById('repair-guest-tbody');
+    var regMeta = document.getElementById('repair-active-reg');
+    if (!_repairState.regId) {
+      tbody.innerHTML = '<tr class="loading-row"><td colspan="4">Load a registration to begin.</td></tr>';
+      regMeta.textContent = 'No registration loaded.';
+      return;
+    }
+    regMeta.textContent = 'Editing ' + _repairState.regId + ' — ' + _repairState.regName;
+    if (!_repairState.guests.length) addRepairGuestRow();
+
+    tbody.innerHTML = _repairState.guests.map(function(g, idx) {
+      return '<tr>' +
+        '<td><input type="text" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;" value="' + esc(g.name) + '" oninput="updateRepairGuest(' + idx + ', \'name\', this.value)"></td>' +
+        '<td><input type="number" min="0" max="120" style="width:90px;padding:6px;border:1px solid var(--border);border-radius:6px;" value="' + esc(g.age) + '" oninput="updateRepairGuest(' + idx + ', \'age\', this.value)"></td>' +
+        '<td><input type="text" style="width:100%;padding:6px;border:1px solid var(--border);border-radius:6px;" value="' + esc(g.attendanceRaw || 'Full Time') + '" oninput="updateRepairGuest(' + idx + ', \'attendanceRaw\', this.value)"></td>' +
+        '<td><button class="btn btn-danger btn-sm" onclick="removeRepairGuest(' + idx + ')">Remove</button></td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  function updateRepairGuest(index, field, value) {
+    if (!_repairState.guests[index]) return;
+    _repairState.guests[index][field] = value;
+  }
+
+  function addRepairGuestRow() {
+    _repairState.guests.push({ name: '', age: '', attendanceRaw: 'Full Time' });
+    renderRepairGuestRows();
+  }
+
+  function removeRepairGuest(index) {
+    _repairState.guests.splice(index, 1);
+    renderRepairGuestRows();
+  }
+
+  function saveGuestRepairs() {
+    if (!_repairState.regId) {
+      showToast('Load a registration first', 'error');
+      return;
+    }
+    var btn = document.getElementById('repair-save-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Saving…';
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        btn.disabled = false;
+        btn.innerHTML = 'Recalculate & Save';
+        if (!result || !result.success) {
+          showToast('Save failed: ' + esc((result && result.error) || 'Unknown'), 'error');
+          return;
+        }
+        showToast('Saved. Adults: ' + result.adultsCount + ', Children: ' + result.childrenCount, 'success');
+      })
+      .withFailureHandler(function(err) {
+        btn.disabled = false;
+        btn.innerHTML = 'Recalculate & Save';
+        showToast('Error: ' + err.message, 'error');
+      })
+      .adminRepairGuestRows({
+        regId: _repairState.regId,
+        guests: _repairState.guests
+      });
   }
 
   // ── Database Init ────────────────────────────────────────────────────────
