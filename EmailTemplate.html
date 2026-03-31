@@ -84,6 +84,26 @@
         </tr>
       </table>
 
+      <? 
+        var childrenWithAssignments = (reg.guests || []).filter(function(guest) {
+          return (guest.classAssignment || '').toString().trim() !== '';
+        });
+      ?>
+      <? if (childrenWithAssignments.length > 0) { ?>
+      <div class="section-title">Children’s Program Assignments</div>
+      <table class="details-table">
+        <? for (var i = 0; i < childrenWithAssignments.length; i++) { 
+             var child = childrenWithAssignments[i];
+        ?>
+        <tr>
+          <td class="label"><?= child.name || 'Child' ?> (Age <?= child.age ?>)</td>
+          <td><?= child.classAssignment ?></td>
+        </tr>
+        <? } ?>
+      </table>
+      <p>Please review these assignments and reply to this email if anything looks incorrect.</p>
+      <? } ?>
+
 
       <? if ((reg.dietaryNeeds || '').toString().trim()) { ?>
       <div class="section-title">Dietary Information</div>

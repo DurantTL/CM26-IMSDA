@@ -62,6 +62,25 @@ function processRegistration(data) {
       ? parseFloat(data.totalCharged)
       : (calculatedSubtotal + processingFee);
 
+    // Build guest payload once so class assignments are computed during
+    // registration processing and then re-used for both sheet rows and
+    // stored registration JSON/email rendering.
+    var guestsWithProgramAssignments = (data.guests || []).map(function(guest) {
+      var programGroup = getChildProgramGroup(guest.age);
+      return {
+        name: guest.name || '',
+        age: guest.age,
+        isChild: !!guest.isChild,
+        attendanceType: guest.attendanceType || 'full',
+        attendanceRaw: guest.attendanceRaw || 'Full Time',
+        attendanceDays: (guest.attendanceDays && guest.attendanceDays.join) ? guest.attendanceDays : ['tue', 'wed', 'thu', 'fri', 'sat'],
+        classCategory: programGroup.category || '',
+        classAssignment: programGroup.classAssignment || '',
+        sabbathSchool: programGroup.sabbathSchool || '',
+        childrenMeeting: programGroup.childrenMeeting || ''
+      };
+    });
+
     // This array MUST match the column order (A - AU) in your sheet exactly
     var regRow = [
       regId,                            // A: reg_id
@@ -83,7 +102,7 @@ function processRegistration(data) {
       data.adultsCount || 1,            // Q: adults_count
       data.childrenCount || 0,          // R: children_count
       (data.adultsCount || 1) + (data.childrenCount || 0), // S: total_guests
-      JSON.stringify(data.guests || []),// T: guest_details (JSON)
+      JSON.stringify(guestsWithProgramAssignments),// T: guest_details (JSON)
       JSON.stringify(data.mealSelections || {}), // U: meal_selections (JSON)
       data.dietaryNeeds || '',          // V: dietary_needs
       (data.firstFloorNeeded === 'Yes' ? 'First floor needed. ' : '') + (data.specialNeeds || ''), // W: special_needs
@@ -131,12 +150,11 @@ function processRegistration(data) {
     // *** TRANSACTION BLOCK ***
     try {
       // 5. Save Individual Guest Details
-      if (data.guests && data.guests.length > 0) {
+      if (guestsWithProgramAssignments.length > 0) {
         var guestRows = [];
         var guestSheetColumnCount = guestSheet.getLastColumn();
         var supportsAttendanceColumns = guestSheetColumnCount >= 12;
-        data.guests.forEach(function(guest) {
-          var programGroup = getChildProgramGroup(guest.age);
+        guestsWithProgramAssignments.forEach(function(guest) {
           var row = [
             generateGuestId(),            // guest_id
             regId,                        // reg_id
@@ -144,9 +162,9 @@ function processRegistration(data) {
             guest.age,                    // age
             guest.isChild ? 'yes' : 'no', // is_child
             'no',                         // is_primary
-            programGroup.classAssignment, // class_assignment
-            programGroup.sabbathSchool,   // sabbath_school
-            programGroup.childrenMeeting  // children_meeting
+            guest.classAssignment,        // class_assignment
+            guest.sabbathSchool,          // sabbath_school
+            guest.childrenMeeting         // children_meeting
           ];
 
           // Optional attendance columns (attendance_type, attendance_raw, attendance_days)
