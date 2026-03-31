@@ -801,10 +801,13 @@
 
     return new Promise(function(resolve, reject) {
       var runner = google.script.run
-        .withSuccessHandler(function(result) {
+        .withSuccessHandler(function(response) {
+          console.log('[runServer raw success]', functionName, response);
           if (key) AppState.inFlight[key] = false;
           restoreBtn();
-          resolve(result);
+          var resolvedValue = response;
+          console.log('[runServer resolved payload]', functionName, resolvedValue);
+          resolve(resolvedValue);
         })
         .withFailureHandler(function(err) {
           if (key) AppState.inFlight[key] = false;
@@ -1072,6 +1075,7 @@
       console.log('[Guest Repair] backend call started', { regId: normalizedRegId, regIdType: typeof normalizedRegId });
       runServer('adminGetRegistrationForRepair', normalizedRegId, { requestKey: 'repair.open', button: button, loadingText: 'Opening…' })
         .then(function(result) {
+          console.log('[Guest Repair open result]', result);
           if (!result || !result.success) {
             GuestRepair.showError('Failed to load registration: ' + ((result && result.error) || 'Unknown error'));
             Toast.show('Failed to load registration', 'error');
