@@ -569,6 +569,7 @@
               <button class="btn btn-primary btn-sm" onclick="searchRepairRegistrations()">Search</button>
             </div>
             <div id="repair-search-results" style="margin-top:14px;"></div>
+            <div id="repair-error" class="alert alert-danger" style="display:none;margin-top:10px;"></div>
           </div>
         </div>
 
@@ -950,6 +951,7 @@
   function searchRepairRegistrations() {
     var q = document.getElementById('repair-query').value || '';
     var container = document.getElementById('repair-search-results');
+    clearRepairError();
     container.innerHTML = '<span class="spinner"></span> Searching…';
 
     google.script.run
@@ -961,15 +963,10 @@
         var rows = result.registrations || [];
         if (!rows.length) {
           container.innerHTML = '<div class="alert alert-info">No registrations found.</div>';
+          console.log('[Guest Repair] search results rendered', { count: 0, query: q });
           return;
         }
-        container.innerHTML = rows.map(function(r) {
-          var safeRegId = encodeURIComponent(r.regId || '');
-          return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;">' +
-            '<div><strong>' + esc(r.regId) + '</strong> · ' + esc(r.name) + ' <span style="color:var(--text-muted);font-size:12px;">(' + esc(r.status) + ')</span></div>' +
-            '<button class="btn btn-outline btn-sm" onclick="loadRegistrationForRepair(decodeURIComponent(\'' + safeRegId + '\'))">Open</button>' +
-          '</div>';
-        }).join('');
+        renderRepairSearchResults(rows, q);
       })
       .withFailureHandler(function(err) {
         container.innerHTML = '<div class="alert alert-danger">Error: ' + esc(err.message) + '</div>';
@@ -977,10 +974,55 @@
       .adminSearchRegistrations(q);
   }
 
+  function renderRepairSearchResults(rows, query) {
+    var container = document.getElementById('repair-search-results');
+    container.innerHTML = rows.map(function(r) {
+      var regId = (r.regId || '').toString();
+      return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;">' +
+        '<div><strong>' + esc(regId) + '</strong> · ' + esc(r.name) + ' <span style="color:var(--text-muted);font-size:12px;">(' + esc(r.status) + ')</span></div>' +
+        '<button class="btn btn-outline btn-sm js-repair-open-btn" data-reg-id="' + esc(regId) + '">Open</button>' +
+      '</div>';
+    }).join('');
+    console.log('[Guest Repair] search results rendered', { count: rows.length, query: query });
+  }
+
+  document.addEventListener('click', function(event) {
+    var btn = event.target.closest('.js-repair-open-btn');
+    if (!btn) return;
+    var regId = (btn.dataset.regId || '').trim();
+    console.log('[Guest Repair] Open clicked', { regId: regId });
+    loadRegistrationForRepair(regId);
+  });
+
+  function showRepairError(message) {
+    var errorEl = document.getElementById('repair-error');
+    if (!errorEl) return;
+    errorEl.textContent = message;
+    errorEl.style.display = 'block';
+  }
+
+  function clearRepairError() {
+    var errorEl = document.getElementById('repair-error');
+    if (!errorEl) return;
+    errorEl.textContent = '';
+    errorEl.style.display = 'none';
+  }
+
   function loadRegistrationForRepair(regId) {
+    clearRepairError();
+    var normalizedRegId = (regId || '').toString().trim();
+    console.log('[Guest Repair] regId captured', { regId: normalizedRegId });
+    if (!normalizedRegId) {
+      showRepairError('Missing registration ID. Please search and try again.');
+      showToast('Missing registration ID', 'error');
+      return;
+    }
+    console.log('[Guest Repair] backend call started', { fn: 'adminGetRegistrationForRepair', regId: normalizedRegId });
     google.script.run
       .withSuccessHandler(function(result) {
+        console.log('[Guest Repair] backend call succeeded', { regId: normalizedRegId, success: !!(result && result.success) });
         if (!result || !result.success) {
+          showRepairError('Failed to load registration: ' + esc((result && result.error) || 'Unknown error'));
           showToast('Failed to load registration', 'error');
           return;
         }
@@ -998,13 +1040,16 @@
           };
         });
         renderRepairGuestRows();
+        console.log('[Guest Repair] editor rendered', { regId: _repairState.regId, guestRows: _repairState.guests.length });
         document.getElementById('repair-save-btn').disabled = !_repairState.regId;
         showToast('Loaded ' + _repairState.regId, 'success');
       })
       .withFailureHandler(function(err) {
+        console.error('[Guest Repair] backend call failed', err);
+        showRepairError('Could not load registration details. ' + esc((err && err.message) || 'Unknown error'));
         showToast('Error: ' + err.message, 'error');
       })
-      .adminGetRegistrationForRepair(regId);
+      .adminGetRegistrationForRepair(normalizedRegId);
   }
 
   function renderRepairGuestRows() {
