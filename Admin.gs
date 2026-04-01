@@ -643,113 +643,21 @@ function adminGetRegistrationForRepair(input) {
 }
 
 /**
- * Admin tool: replace guest rows, then recalculate guest-derived fields.
+ * Admin tool: replace guest rows, then recalculate all derived fields.
+ *
+ * Delegates to adminRepairRegistration() — the universal repair pipeline that
+ * handles all registration types correctly (staff, paid, etc.).
+ *
+ * Legacy note: this function previously hardcoded a primary-registrant anchor
+ * and always used buildStaffMealSelections() regardless of regType. Both issues
+ * are now fixed by routing through adminRepairRegistration().
+ *
+ * @param {Object} payload  {regId, guests: [{name, age, attendanceRaw}, ...]}
+ *   The guests array must be the COMPLETE list including the primary registrant
+ *   as the first element (exactly as returned by adminGetRegistrationForRepair).
  */
 function adminRepairGuestRows(payload) {
-  var lock = LockService.getScriptLock();
-  if (!lock.tryLock(15000)) {
-    return { success: false, error: 'System busy. Please try again.' };
-  }
-
-  try {
-    var regId = payload && payload.regId ? String(payload.regId).trim() : '';
-    if (!regId) return { success: false, error: 'Missing regId' };
-
-    var incomingGuests = payload.guests || [];
-    var normalizedGuests = [];
-    for (var g = 0; g < incomingGuests.length; g++) {
-      var source = incomingGuests[g] || {};
-      var name = (source.name || '').toString().trim();
-      if (!name) continue;
-
-      var age = parseInt(source.age, 10);
-      if (isNaN(age) || age < 0) age = 30;
-
-      var attendanceRaw = (source.attendanceRaw || '').toString().trim() || 'Full Time';
-      var attendance = parseAttendanceDetails(attendanceRaw);
-      if (attendance.attendanceType === 'unknown') {
-        attendance.attendanceType = 'full';
-        attendance.attendanceDays = getCampMeetingDays();
-      }
-
-      var program = getChildProgramGroup(age);
-      normalizedGuests.push({
-        name: name,
-        age: age,
-        isChild: age < 18,
-        attendanceType: attendance.attendanceType,
-        attendanceRaw: attendanceRaw,
-        attendanceDays: attendance.attendanceDays,
-        classAssignment: program.classAssignment,
-        sabbathSchool: program.sabbathSchool,
-        childrenMeeting: program.childrenMeeting,
-        parserConfidence: 'admin_repaired',
-        parserWarnings: []
-      });
-    }
-
-    var regDataObj = getSheetValuesSafe('Registrations');
-    var regSheet = regDataObj.sheet;
-    var regData = regDataObj.values;
-    var idx = findRegistrationRowById(regId, regData);
-    if (idx === -1) return { success: false, error: 'Registration not found' };
-    var rowNum = idx + 1;
-    var existingRow = regData[idx];
-
-    // Preserve primary registrant as adult anchor for counts/meals.
-    var primaryName = String(existingRow[COLUMNS.PRIMARY_NAME] || 'Primary Registrant').trim();
-    var primaryGuest = {
-      name: primaryName,
-      age: 30,
-      isChild: false,
-      attendanceType: 'full',
-      attendanceRaw: 'Full Time',
-      attendanceDays: getCampMeetingDays(),
-      parserConfidence: 'system',
-      parserWarnings: []
-    };
-
-    var fullGuestList = [primaryGuest].concat(normalizedGuests);
-    var adultsCount = 0;
-    var childrenCount = 0;
-    for (var c = 0; c < fullGuestList.length; c++) {
-      if (fullGuestList[c].isChild) childrenCount++;
-      else adultsCount++;
-    }
-
-    var mealSelections = buildStaffMealSelections(fullGuestList);
-    var childClassCounts = buildChildClassCounts(fullGuestList);
-    var totalGuests = adultsCount + childrenCount;
-
-    regSheet.getRange(rowNum, COLUMNS.ADULTS_COUNT + 1, 1, 1).setValue(adultsCount);
-    regSheet.getRange(rowNum, COLUMNS.CHILDREN_COUNT + 1, 1, 1).setValue(childrenCount);
-    regSheet.getRange(rowNum, COLUMNS.TOTAL_GUESTS + 1, 1, 1).setValue(totalGuests);
-    regSheet.getRange(rowNum, COLUMNS.GUEST_DETAILS + 1, 1, 1).setValue(JSON.stringify(fullGuestList));
-    regSheet.getRange(rowNum, COLUMNS.MEAL_SELECTIONS + 1, 1, 1).setValue(JSON.stringify(mealSelections));
-
-    adminSyncGuestDetailsSheet(regId, fullGuestList);
-
-    logActivity(
-      'admin_guest_repair',
-      regId,
-      'Admin repaired guest rows and recalculated counts/meals. Child class counts: ' + JSON.stringify(childClassCounts.counts),
-      'admin'
-    );
-
-    return {
-      success: true,
-      regId: regId,
-      adultsCount: adultsCount,
-      childrenCount: childrenCount,
-      totalGuests: totalGuests,
-      childClassCounts: childClassCounts,
-      mealSelections: mealSelections
-    };
-  } catch (e) {
-    return { success: false, error: e.toString() };
-  } finally {
-    lock.releaseLock();
-  }
+  return adminRepairRegistration(payload);
 }
 
 function adminSyncGuestDetailsSheet(regId, guests) {
@@ -796,4 +704,439 @@ function padRow_(row, width) {
   var out = (row || []).slice(0, width);
   while (out.length < width) out.push('');
   return out;
+}
+
+// ==========================================
+// UNIVERSAL REGISTRATION REPAIR PIPELINE
+// ==========================================
+
+/**
+ * Normalize admin-supplied guest list into full guest objects with
+ * class assignments computed from Config-driven age brackets.
+ *
+ * @param {Array} incomingGuests  Array of {name, age, attendanceRaw} from admin UI.
+ * @returns {Array} Normalized guest objects ready for sheet storage.
+ */
+function rebuildGuestListFromAdminInput(incomingGuests) {
+  var normalized = [];
+  for (var g = 0; g < incomingGuests.length; g++) {
+    var source = incomingGuests[g] || {};
+    var name = (source.name || '').toString().trim();
+    if (!name) continue;
+
+    var age = parseInt(source.age, 10);
+    if (isNaN(age) || age < 0) age = 30;
+
+    var attendanceRaw = (source.attendanceRaw || '').toString().trim() || 'Full Time';
+    var attendance = parseAttendanceDetails(attendanceRaw);
+    if (attendance.attendanceType === 'unknown') {
+      attendance.attendanceType = 'full';
+      attendance.attendanceDays = getCampMeetingDays();
+    }
+
+    var program = getChildProgramGroup(age);
+    normalized.push({
+      name: name,
+      age: age,
+      isChild: age < 18,
+      attendanceType: attendance.attendanceType,
+      attendanceRaw: attendanceRaw,
+      attendanceDays: attendance.attendanceDays,
+      classAssignment: program.classAssignment,
+      sabbathSchool: program.sabbathSchool,
+      childrenMeeting: program.childrenMeeting,
+      parserConfidence: 'admin_repaired',
+      parserWarnings: []
+    });
+  }
+  return normalized;
+}
+
+/**
+ * Calculate all derived fields for a registration given a resolved guest list.
+ * Detects regType from existingRow and applies correct pricing / meal logic:
+ *   - 'staff' registrations → meal selections are attendance-based, all financials stay $0.
+ *   - All other types      → meal selections are attendance-based, financials are priced
+ *                            from Config; totalCharged is preserved (not recalculated).
+ *
+ * @param {Array}  existingRow  Raw sheet row array for the registration.
+ * @param {Array}  guestList    Normalized guest objects from rebuildGuestListFromAdminInput.
+ * @param {Object} config       Config key/value map from getConfig().
+ * @returns {Object} Fields to write back: adultsCount, childrenCount, totalGuests,
+ *                   mealSelections, housingSubtotal, mealSubtotal, subtotal, balanceDue.
+ */
+function recalculateRegistrationDerivedFields(existingRow, guestList, config) {
+  var regType = String(existingRow[COLUMNS.REG_TYPE] || 'paid').toLowerCase();
+  var isStaffReg = (regType === 'staff');
+
+  // Guest counts
+  var adultsCount = 0;
+  var childrenCount = 0;
+  for (var i = 0; i < guestList.length; i++) {
+    if (guestList[i].isChild) childrenCount++;
+    else adultsCount++;
+  }
+  var totalGuests = adultsCount + childrenCount;
+
+  // Meal selections — same attendance-based algorithm for all reg types.
+  // buildStaffMealSelections works for any guest list regardless of regType.
+  var mealSelections = buildStaffMealSelections(guestList);
+
+  // Housing subtotal (recalculated using existing housing data + config prices)
+  var housingOption = String(existingRow[COLUMNS.HOUSING_OPTION] || '').toLowerCase();
+  var numNights = Number(existingRow[COLUMNS.NUM_NIGHTS] || 0);
+  var housingPrice = 0;
+  if (housingOption === 'dorm')      housingPrice = Number(config.dorm_price) || 0;
+  else if (housingOption === 'rv')   housingPrice = Number(config.rv_price)  || 0;
+  else if (housingOption === 'tent') housingPrice = Number(config.tent_price) || 0;
+  var housingSubtotal = isStaffReg ? 0 : housingPrice * numNights;
+
+  // Meal subtotal (staff always $0; paid types use config prices)
+  var mealSubtotal = 0;
+  if (!isStaffReg) {
+    if (mealSelections.breakfast) {
+      mealSubtotal += (mealSelections.breakfast.adult || 0) * (Number(config.adult_breakfast) || 0);
+      mealSubtotal += (mealSelections.breakfast.child || 0) * (Number(config.child_breakfast) || 0);
+    }
+    if (mealSelections.lunch) {
+      mealSubtotal += (mealSelections.lunch.adult || 0) * (Number(config.adult_lunch) || 0);
+      mealSubtotal += (mealSelections.lunch.child || 0) * (Number(config.child_lunch) || 0);
+    }
+    if (mealSelections.supper) {
+      mealSubtotal += (mealSelections.supper.adult || 0) * (Number(config.adult_supper) || 0);
+      mealSubtotal += (mealSelections.supper.child || 0) * (Number(config.child_supper) || 0);
+    }
+  }
+
+  var subtotal = housingSubtotal + mealSubtotal;
+
+  // totalCharged is NOT recalculated — it reflects the original payment contract.
+  // balanceDue is always totalCharged − amountPaid.
+  var totalCharged = Number(existingRow[COLUMNS.TOTAL_CHARGED] || 0);
+  var amountPaid   = Number(existingRow[COLUMNS.AMOUNT_PAID]   || 0);
+  var balanceDue   = totalCharged - amountPaid;
+
+  return {
+    adultsCount:     adultsCount,
+    childrenCount:   childrenCount,
+    totalGuests:     totalGuests,
+    mealSelections:  mealSelections,
+    housingSubtotal: housingSubtotal,
+    mealSubtotal:    mealSubtotal,
+    subtotal:        subtotal,
+    balanceDue:      balanceDue
+  };
+}
+
+/**
+ * Replace unredeemed meal tickets for a registration with a freshly computed set.
+ * Already-redeemed tickets are preserved (a served meal cannot be un-served).
+ *
+ * ID collision safety: after deleting rows, we scan remaining ticket IDs to find
+ * the actual maximum, then start new IDs from max+1. This avoids the row-count
+ * mismatch that would occur if we relied on getLastRow() after deletions.
+ *
+ * @param {string}  regId     Registration ID.
+ * @param {Object}  data      Same shape as processRegistration data: {name, regType,
+ *                            staffRole, guests, mealSelections, dietaryNeeds}.
+ * @param {boolean} skipLock  Pass true when caller already holds a script lock.
+ * @returns {{deletedCount: number, redeemedPreserved: number}}
+ */
+function syncMealTicketsForRegistration(regId, data, skipLock) {
+  var lock = LockService.getScriptLock();
+  if (!skipLock) {
+    if (!lock.tryLock(15000)) {
+      throw new Error('Could not acquire lock for meal ticket sync');
+    }
+  }
+
+  try {
+    var ss = getSS();
+    var ticketSheet = ss.getSheetByName('MealTickets');
+    var ticketData = ticketSheet.getDataRange().getValues();
+
+    // Collect unredeemed row numbers for this regId (highest index first for safe deletion)
+    var rowsToDelete = [];
+    var deletedCount = 0;
+    var redeemedPreserved = 0;
+
+    for (var i = ticketData.length - 1; i >= 1; i--) {
+      if (String(ticketData[i][1]) === String(regId)) {
+        if (ticketData[i][8] === 'yes') {
+          redeemedPreserved++;
+        } else {
+          rowsToDelete.push(i + 1); // 1-based sheet row, already in reverse order
+          deletedCount++;
+        }
+      }
+    }
+
+    // Delete from bottom up so earlier row indices stay valid
+    for (var d = 0; d < rowsToDelete.length; d++) {
+      ticketSheet.deleteRow(rowsToDelete[d]);
+    }
+    if (rowsToDelete.length > 0) SpreadsheetApp.flush();
+
+    // Find actual max ticket number in the (now-smaller) sheet to avoid ID collisions
+    var maxTicketNum = 0;
+    var remaining = ticketSheet.getDataRange().getValues();
+    for (var r = 1; r < remaining.length; r++) {
+      var tid = String(remaining[r][0] || '');
+      var m = tid.match(/^MT-(\d+)$/);
+      if (m) {
+        var num = parseInt(m[1], 10);
+        if (num > maxTicketNum) maxTicketNum = num;
+      }
+    }
+
+    // Build and append new tickets starting from maxTicketNum+1
+    createMealTicketsWithStartId_(ticketSheet, regId, data, maxTicketNum);
+
+    return { deletedCount: deletedCount, redeemedPreserved: redeemedPreserved };
+
+  } finally {
+    if (!skipLock) lock.releaseLock();
+  }
+}
+
+/**
+ * @private
+ * Inline ticket builder that uses an explicit starting ID counter instead of
+ * getLastRow(), preventing collisions after row deletions in syncMealTicketsForRegistration.
+ * Logic mirrors createMealTickets() exactly; keep both in sync if meal schedule changes.
+ */
+function createMealTicketsWithStartId_(ticketSheet, regId, data, startFrom) {
+  var config = getConfig();
+
+  var mealDays = {
+    breakfast: ['wed', 'thu', 'fri', 'sat'],
+    lunch:     ['wed', 'thu', 'fri'],
+    supper:    ['tue', 'wed', 'thu', 'fri', 'sat']
+  };
+  var mealDates = {
+    tue: '2026-06-02', wed: '2026-06-03', thu: '2026-06-04',
+    fri: '2026-06-05', sat: '2026-06-06'
+  };
+
+  var mealSelections = data.mealSelections || {};
+  var guests = data.guests || [];
+  var isStaff = data.regType === 'staff' || !!data.staffRole;
+
+  var adults   = guests.filter(function(g) { return !g.isChild; });
+  var children = guests.filter(function(g) { return  g.isChild; });
+
+  if (adults.length === 0 && guests.length === 0) {
+    adults = [{ name: data.name || 'Guest', isChild: false }];
+  }
+
+  var newTickets = [];
+  var idCounter = startFrom; // incremented before each use
+
+  ['breakfast', 'lunch', 'supper'].forEach(function(mealType) {
+    var count     = parseInt((mealSelections[mealType] || {}).adult) || 0;
+    var days      = mealDays[mealType];
+    var numGuests = adults.length || 1;
+
+    for (var i = 0; i < count; i++) {
+      idCounter++;
+      var guest = adults[i % numGuests] || { name: 'Guest' };
+      var day   = days[Math.floor(i / numGuests) % days.length];
+      var price = isStaff ? 0 : (parseFloat(config['adult_' + mealType]) || 0);
+      newTickets.push([
+        'MT-' + ('00000' + idCounter).slice(-5),
+        regId, guest.name, mealType, day, mealDates[day],
+        'adult', price, 'no', '', '', '', data.dietaryNeeds || ''
+      ]);
+    }
+  });
+
+  ['breakfast', 'lunch', 'supper'].forEach(function(mealType) {
+    var count     = parseInt((mealSelections[mealType] || {}).child) || 0;
+    var days      = mealDays[mealType];
+    var localKids = children;
+    var numGuests = localKids.length || 1;
+
+    if (count > 0 && children.length === 0) {
+      localKids = [{ name: data.name + ' (Child)' }];
+      numGuests = 1;
+    }
+
+    for (var i = 0; i < count; i++) {
+      idCounter++;
+      var guest = localKids[i % numGuests];
+      var day   = days[Math.floor(i / numGuests) % days.length];
+      var price = isStaff ? 0 : (parseFloat(config['child_' + mealType]) || 0);
+      newTickets.push([
+        'MT-' + ('00000' + idCounter).slice(-5),
+        regId, guest.name, mealType, day, mealDates[day],
+        'child', price, 'no', '', '', '', data.dietaryNeeds || ''
+      ]);
+    }
+  });
+
+  if (newTickets.length > 0) {
+    ticketSheet.getRange(ticketSheet.getLastRow() + 1, 1, newTickets.length, 13)
+               .setValues(newTickets);
+    SpreadsheetApp.flush();
+    logActivity('meals_created', regId,
+      'Created ' + newTickets.length + ' meal tickets (admin repair)', 'admin');
+  }
+}
+
+/**
+ * @private Compact representation of meal selections for activity log diffs.
+ */
+function summarizeMealSelections_(mealSelectionsJson) {
+  try {
+    var ms = typeof mealSelectionsJson === 'string'
+      ? JSON.parse(mealSelectionsJson || '{}')
+      : (mealSelectionsJson || {});
+    var parts = [];
+    ['breakfast', 'lunch', 'supper'].forEach(function(m) {
+      if (ms[m]) parts.push(m + ':' + (ms[m].adult || 0) + 'a/' + (ms[m].child || 0) + 'c');
+    });
+    return parts.join(' ') || 'none';
+  } catch (e) { return 'parse_error'; }
+}
+
+/**
+ * Universal admin repair entry point.
+ *
+ * Works for ANY registration type (staff, paid, or future types).
+ * Replaces the old adminRepairGuestRows which incorrectly used staff-only
+ * meal logic and did not recalculate financials or sync MealTickets.
+ *
+ * @param {Object} payload
+ *   regId   {string}  Required. Registration ID to repair.
+ *   guests  {Array}   Required. Complete guest list including primary registrant
+ *                     as first element. Each entry: {name, age, attendanceRaw}.
+ *
+ * @returns {Object} {success, regId, regType, adultsCount, childrenCount, totalGuests,
+ *                    mealSelections, mealSubtotal, subtotal, balanceDue,
+ *                    childClassCounts, ticketsDeleted, ticketsPreserved}
+ */
+function adminRepairRegistration(payload) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) {
+    return { success: false, error: 'System busy. Please try again.' };
+  }
+
+  try {
+    var regId = payload && payload.regId ? String(payload.regId).trim() : '';
+    if (!regId) return { success: false, error: 'Missing regId' };
+
+    var incomingGuests = Array.isArray(payload.guests) ? payload.guests : [];
+    if (incomingGuests.length === 0) {
+      return { success: false, error: 'Guest list cannot be empty' };
+    }
+
+    var regDataObj = getSheetValuesSafe('Registrations');
+    var regSheet   = regDataObj.sheet;
+    var regData    = regDataObj.values;
+    var config     = getConfig();
+
+    var idx = findRegistrationRowById(regId, regData);
+    if (idx === -1) return { success: false, error: 'Registration not found' };
+
+    var rowNum      = idx + 1;
+    var existingRow = regData[idx];
+    var regType     = String(existingRow[COLUMNS.REG_TYPE] || 'paid').toLowerCase();
+
+    // ── Before snapshot (for activity log) ──────────────────────────────
+    var before = {
+      regType:       regType,
+      adultsCount:   existingRow[COLUMNS.ADULTS_COUNT]   || 0,
+      childrenCount: existingRow[COLUMNS.CHILDREN_COUNT] || 0,
+      totalGuests:   existingRow[COLUMNS.TOTAL_GUESTS]   || 0,
+      mealSubtotal:  existingRow[COLUMNS.MEAL_SUBTOTAL]  || 0,
+      subtotal:      existingRow[COLUMNS.SUBTOTAL]       || 0,
+      balanceDue:    existingRow[COLUMNS.BALANCE_DUE]    || 0,
+      meals:         summarizeMealSelections_(existingRow[COLUMNS.MEAL_SELECTIONS])
+    };
+
+    // ── Rebuild and recalculate ──────────────────────────────────────────
+    var guestList        = rebuildGuestListFromAdminInput(incomingGuests);
+    if (guestList.length === 0) {
+      return { success: false, error: 'No valid guests after normalization' };
+    }
+
+    var derived          = recalculateRegistrationDerivedFields(existingRow, guestList, config);
+    var childClassCounts = buildChildClassCounts(guestList);
+
+    // ── Batch write to Registrations sheet ──────────────────────────────
+    // Counts: Q(17), R(18), S(19)
+    regSheet.getRange(rowNum, COLUMNS.ADULTS_COUNT + 1, 1, 3)
+            .setValues([[derived.adultsCount, derived.childrenCount, derived.totalGuests]]);
+
+    // Guest details JSON (T=20) and meal selections JSON (U=21)
+    regSheet.getRange(rowNum, COLUMNS.GUEST_DETAILS   + 1).setValue(JSON.stringify(guestList));
+    regSheet.getRange(rowNum, COLUMNS.MEAL_SELECTIONS + 1).setValue(JSON.stringify(derived.mealSelections));
+
+    // Financial derived fields: P(16), X(24), Y(25), AC(29)
+    regSheet.getRange(rowNum, COLUMNS.HOUSING_SUBTOTAL + 1).setValue(derived.housingSubtotal);
+    regSheet.getRange(rowNum, COLUMNS.MEAL_SUBTOTAL    + 1).setValue(derived.mealSubtotal);
+    regSheet.getRange(rowNum, COLUMNS.SUBTOTAL         + 1).setValue(derived.subtotal);
+    regSheet.getRange(rowNum, COLUMNS.BALANCE_DUE      + 1).setValue(derived.balanceDue);
+
+    SpreadsheetApp.flush();
+
+    // ── Sync GuestDetails sheet ─────────────────────────────────────────
+    adminSyncGuestDetailsSheet(regId, guestList);
+
+    // ── Sync MealTickets sheet ──────────────────────────────────────────
+    var mealData = {
+      name:         String(existingRow[COLUMNS.PRIMARY_NAME] || ''),
+      regType:      regType,
+      staffRole:    String(existingRow[32] || ''), // AG: staff_role
+      guests:       guestList,
+      mealSelections: derived.mealSelections,
+      dietaryNeeds: String(existingRow[COLUMNS.DIETARY_NEEDS] || '')
+    };
+    var ticketSync = syncMealTicketsForRegistration(regId, mealData, true /* skipLock */);
+
+    // ── Activity log with before/after diff ─────────────────────────────
+    var after = {
+      adultsCount:   derived.adultsCount,
+      childrenCount: derived.childrenCount,
+      totalGuests:   derived.totalGuests,
+      mealSubtotal:  derived.mealSubtotal,
+      subtotal:      derived.subtotal,
+      balanceDue:    derived.balanceDue,
+      meals:         summarizeMealSelections_(derived.mealSelections)
+    };
+
+    var logMsg =
+      'regType=' + regType +
+      ' | guests: '        + before.totalGuests   + '→' + after.totalGuests   +
+      ' (adults: '         + before.adultsCount    + '→' + after.adultsCount   +
+      ', children: '       + before.childrenCount  + '→' + after.childrenCount + ')' +
+      ' | mealSubtotal: $' + before.mealSubtotal   + '→$' + after.mealSubtotal +
+      ' | meals: ['        + before.meals          + '] → [' + after.meals     + ']' +
+      ' | tickets: deleted=' + ticketSync.deletedCount +
+      ' preserved_redeemed=' + ticketSync.redeemedPreserved;
+
+    logActivity('admin_repair', regId, logMsg, 'admin');
+
+    return {
+      success:          true,
+      regId:            regId,
+      regType:          regType,
+      adultsCount:      derived.adultsCount,
+      childrenCount:    derived.childrenCount,
+      totalGuests:      derived.totalGuests,
+      mealSelections:   derived.mealSelections,
+      housingSubtotal:  derived.housingSubtotal,
+      mealSubtotal:     derived.mealSubtotal,
+      subtotal:         derived.subtotal,
+      balanceDue:       derived.balanceDue,
+      childClassCounts: childClassCounts,
+      ticketsDeleted:   ticketSync.deletedCount,
+      ticketsPreserved: ticketSync.redeemedPreserved
+    };
+
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  } finally {
+    lock.releaseLock();
+  }
 }
