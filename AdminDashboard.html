@@ -1055,10 +1055,33 @@
         var regId = (r.regId || '').toString();
         return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:6px;margin-bottom:8px;">' +
           '<div><strong>' + esc(regId) + '</strong> · ' + esc(r.name) + ' <span style="color:var(--text-muted);font-size:12px;">(' + esc(r.status) + ')</span></div>' +
-          '<button class="btn btn-outline btn-sm" data-action="repair-open" data-reg-id="' + esc(regId) + '">Open</button>' +
+          '<div style="display:flex;gap:8px;align-items:center;">' +
+            '<button class="btn btn-outline btn-sm" data-action="repair-open" data-reg-id="' + esc(regId) + '">Open</button>' +
+            '<button class="btn btn-primary btn-sm" data-action="resend-confirmation" data-reg-id="' + esc(regId) + '">Resend Confirmation</button>' +
+          '</div>' +
           '</div>';
       }).join('');
       console.log('[Registration Repair] search results rendered', { count: rows.length, query: query });
+    },
+    resendConfirmation: function(regId, button) {
+      var normalizedRegId = (regId || '').toString().trim();
+      if (!normalizedRegId) {
+        Toast.show('Could not resend confirmation: Missing registration ID', 'error');
+        return;
+      }
+      runServer('resendConfirmationEmail', [normalizedRegId], {
+        requestKey: 'repair.resend.' + normalizedRegId,
+        button: button,
+        loadingText: 'Resending…'
+      }).then(function(result) {
+        if (!result || !result.success) {
+          Toast.show('Could not resend confirmation: ' + ((result && result.error) || 'Unknown error'), 'error');
+          return;
+        }
+        Toast.show('Confirmation email resent to ' + (result.email || 'recipient'), 'success');
+      }).catch(function(err) {
+        Toast.show('Could not resend confirmation: ' + err.message, 'error');
+      });
     },
     openRegistration: function(regId, button, force) {
       GuestRepair.clearError();
@@ -1218,6 +1241,7 @@
       var action = el.dataset.action;
       if (action === 'repair-search') GuestRepair.search(el, true);
       else if (action === 'repair-open') GuestRepair.openRegistration(el.dataset.regId, el, false);
+      else if (action === 'resend-confirmation') GuestRepair.resendConfirmation(el.dataset.regId, el);
       else if (action === 'repair-save') GuestRepair.save(el);
       else if (action === 'repair-add-row') GuestRepair.addRow();
       else if (action === 'repair-remove-row') GuestRepair.removeRow(Number(el.dataset.index));

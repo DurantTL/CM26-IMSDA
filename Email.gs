@@ -6,27 +6,39 @@
  * Sends the HTML confirmation email to a registrant
  */
 function sendConfirmationEmail(regId) {
-  var config = getConfig();
-  var regResult = getRegistration(regId);
-  
-  if (!regResult.success) {
-    Logger.log("Error: Registration not found for email " + regId);
-    return;
-  }
-  
-  var reg = regResult.registration;
-
-  // Prepare the template
-  var template = HtmlService.createTemplateFromFile('EmailTemplate');
-  template.reg = reg;
-  
-  var emailBody = template.evaluate().getContent();
-  
-  // Send the email
   try {
+    var normalizedRegId = (regId || '').toString().trim();
+    if (!normalizedRegId) {
+      Logger.log('sendConfirmationEmail failed: missing registration ID');
+      return { success: false, error: 'Missing registration ID', regId: regId };
+    }
+
+    var config = getConfig();
+    var regResult = getRegistration(normalizedRegId);
+    if (!regResult || !regResult.success || !regResult.registration) {
+      var notFoundError = 'Registration not found';
+      Logger.log('sendConfirmationEmail failed for ' + normalizedRegId + ': ' + notFoundError);
+      logActivity('error', normalizedRegId, 'Confirmation email failed: ' + notFoundError, 'system');
+      return { success: false, error: notFoundError, regId: normalizedRegId };
+    }
+
+    var reg = regResult.registration;
+    var toEmail = (reg.email || '').toString().trim();
+    if (!toEmail) {
+      var missingEmailError = 'Missing email address on registration';
+      Logger.log('sendConfirmationEmail failed for ' + normalizedRegId + ': ' + missingEmailError);
+      logActivity('error', normalizedRegId, 'Confirmation email failed: ' + missingEmailError, 'system');
+      return { success: false, error: missingEmailError, regId: normalizedRegId };
+    }
+
+    // Preserve existing EmailTemplate rendering path.
+    var template = HtmlService.createTemplateFromFile('EmailTemplate');
+    template.reg = reg;
+    var emailBody = template.evaluate().getContent();
+
     GmailApp.sendEmail(
-      reg.email,
-      'Camp Meeting 2026 Confirmation - ' + regId,
+      toEmail,
+      'Camp Meeting 2026 Confirmation - ' + normalizedRegId,
       'Your email client does not support HTML. Please view online.', // Fallback text
       {
         htmlBody: emailBody,
@@ -35,11 +47,14 @@ function sendConfirmationEmail(regId) {
       }
     );
 
-    logActivity('email_sent', regId, 'Confirmation email sent to ' + reg.email, 'system');
-    Logger.log("Email sent successfully to " + reg.email);
+    logActivity('email_sent', normalizedRegId, 'Confirmation email sent to ' + toEmail, 'system');
+    Logger.log('Email sent successfully to ' + toEmail + ' for ' + normalizedRegId);
+    return { success: true, email: toEmail, regId: normalizedRegId };
   } catch (e) {
-    Logger.log("Failed to send confirmation email: " + e.toString());
-    logActivity('error', regId, 'Confirmation email failed: ' + e.toString(), 'system');
+    var sendError = e && e.toString ? e.toString() : 'Unknown email error';
+    Logger.log('Failed to send confirmation email for ' + regId + ': ' + sendError);
+    logActivity('error', regId, 'Confirmation email failed: ' + sendError, 'system');
+    return { success: false, error: sendError, regId: regId };
   }
 }
 
