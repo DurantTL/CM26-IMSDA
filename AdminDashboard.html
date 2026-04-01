@@ -803,14 +803,14 @@
       var runner = google.script.run
         .withSuccessHandler(function(response) {
           console.log('[runServer raw success]', functionName, response);
-          if (key) AppState.inFlight[key] = false;
+          if (key) delete AppState.inFlight[key];
           restoreBtn();
           var resolvedValue = response;
           console.log('[runServer resolved payload]', functionName, resolvedValue);
           resolve(resolvedValue);
         })
         .withFailureHandler(function(err) {
-          if (key) AppState.inFlight[key] = false;
+          if (key) delete AppState.inFlight[key];
           restoreBtn();
           reject(new Error(normalizeError(err)));
         });
@@ -1144,7 +1144,7 @@
         return;
       }
       GuestRepair.clearError();
-      runServer('adminRepairGuestRows', [{ regId: AppState.repair.regId, guests: AppState.repair.guests }], {
+      runServer('adminRepairGuestRows', { regId: AppState.repair.regId, guests: AppState.repair.guests }, {
         requestKey: 'repair.save', button: button, loadingText: 'Saving…'
       }).then(function(result) {
         if (!result || !result.success) {
