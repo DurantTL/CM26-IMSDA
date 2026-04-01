@@ -425,7 +425,7 @@
       </div>
       <div class="nav-section-label">Administration</div>
       <div class="nav-item" data-tab="repair" >
-        <span class="nav-icon">🛠️</span> Guest Repair
+        <span class="nav-icon">🛠️</span> Registration Repair
       </div>
       <div class="nav-item" data-tab="setup" >
         <span class="nav-icon">⚙️</span> System Setup
@@ -554,10 +554,10 @@
         </div>
       </div>
 
-      <!-- ── Guest Repair tab ───────────────────────────────────── -->
+      <!-- ── Registration Repair tab ───────────────────────────────────── -->
       <div id="tab-repair" class="tab-panel">
         <div class="page-header">
-          <h1>Guest Parser Repair</h1>
+          <h1>Registration Repair</h1>
           <p>Search a registration, fix guest rows, then recalculate derived totals and assignments.</p>
         </div>
 
@@ -708,7 +708,7 @@
     dashboard: 'Dashboard',
     activity: 'Activity Feed',
     dietary: 'Dietary Needs Report',
-    repair: 'Guest Repair',
+    repair: 'Registration Repair',
     setup: 'System Setup'
   };
 
@@ -1035,7 +1035,7 @@
         })
         .catch(function(err) {
           resultsEl.innerHTML = '<div class="alert alert-danger">' + esc(err.message) + '</div>';
-          Toast.show('Guest repair search failed', 'error');
+          Toast.show('Registration repair search failed', 'error');
         });
     },
     scheduleSearch: function() {
@@ -1057,7 +1057,7 @@
           '<button class="btn btn-outline btn-sm" data-action="repair-open" data-reg-id="' + esc(regId) + '">Open</button>' +
           '</div>';
       }).join('');
-      console.log('[Guest Repair] search results rendered', { count: rows.length, query: query });
+      console.log('[Registration Repair] search results rendered', { count: rows.length, query: query });
     },
     openRegistration: function(regId, button, force) {
       GuestRepair.clearError();
@@ -1072,10 +1072,10 @@
         Toast.show('Loaded from cache: ' + normalizedRegId, 'info');
         return;
       }
-      console.log('[Guest Repair] backend call started', { regId: normalizedRegId, regIdType: typeof normalizedRegId });
+      console.log('[Registration Repair] backend call started', { regId: normalizedRegId, regIdType: typeof normalizedRegId });
       runServer('adminGetRegistrationForRepair', normalizedRegId, { requestKey: 'repair.open', button: button, loadingText: 'Opening…' })
         .then(function(result) {
-          console.log('[Guest Repair open result]', result);
+          console.log('[Registration Repair open result]', result);
           if (!result || !result.success) {
             GuestRepair.showError('Failed to load registration: ' + ((result && result.error) || 'Unknown error'));
             Toast.show('Failed to load registration', 'error');
@@ -1092,7 +1092,7 @@
     },
     applyRegistration: function(reg) {
       var guests = (reg.guests || []).filter(function(g) {
-        return (g.name || '').toString().trim() && (g.name || '') !== reg.name;
+        return (g.name || '').toString().trim();
       }).map(function(g) {
         return {
           name: g.name || '',
@@ -1152,12 +1152,14 @@
           return;
         }
         AppState.repair.registrationCache[AppState.repair.regId] = null;
+        AppState.repair.regName = result.primaryName || AppState.repair.regName;
         var summary = 'Saved. Adults: ' + (result.adultsCount || 0) + ', Children: ' + (result.childrenCount || 0) + ', Total: ' + (result.totalGuests || 0);
         document.getElementById('repair-active-reg').innerHTML = esc('Editing ' + AppState.repair.regId + ' — ' + AppState.repair.regName) + '<br><span style="color:var(--text-muted);font-size:12px;">' + esc(summary) + '</span>';
+        GuestRepair.openRegistration(AppState.repair.regId, null, true);
         Toast.show(summary, 'success');
       }).catch(function(err) {
         GuestRepair.showError(err.message);
-        Toast.show('Guest repair save failed', 'error');
+        Toast.show('Registration repair save failed', 'error');
       });
     }
   };

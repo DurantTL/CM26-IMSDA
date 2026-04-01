@@ -1011,7 +1011,7 @@ function summarizeMealSelections_(mealSelectionsJson) {
  *   guests  {Array}   Required. Complete guest list including primary registrant
  *                     as first element. Each entry: {name, age, attendanceRaw}.
  *
- * @returns {Object} {success, regId, regType, adultsCount, childrenCount, totalGuests,
+ * @returns {Object} {success, regId, regType, primaryName, adultsCount, childrenCount, totalGuests,
  *                    mealSelections, mealSubtotal, subtotal, balanceDue,
  *                    childClassCounts, ticketsDeleted, ticketsPreserved}
  */
@@ -1062,11 +1062,16 @@ function adminRepairRegistration(payload) {
 
     var derived          = recalculateRegistrationDerivedFields(existingRow, guestList, config);
     var childClassCounts = buildChildClassCounts(guestList);
+    var primaryName      = String((guestList[0] && guestList[0].name) || '').trim();
 
     // ── Batch write to Registrations sheet ──────────────────────────────
     // Counts: Q(17), R(18), S(19)
     regSheet.getRange(rowNum, COLUMNS.ADULTS_COUNT + 1, 1, 3)
             .setValues([[derived.adultsCount, derived.childrenCount, derived.totalGuests]]);
+
+    // Primary name (E=5) is anchored to first editable guest row to keep
+    // Registrations.primary_name aligned with guest JSON and GuestDetails.
+    regSheet.getRange(rowNum, COLUMNS.PRIMARY_NAME + 1).setValue(primaryName);
 
     // Guest details JSON (T=20) and meal selections JSON (U=21)
     regSheet.getRange(rowNum, COLUMNS.GUEST_DETAILS   + 1).setValue(JSON.stringify(guestList));
@@ -1085,7 +1090,7 @@ function adminRepairRegistration(payload) {
 
     // ── Sync MealTickets sheet ──────────────────────────────────────────
     var mealData = {
-      name:         String(existingRow[COLUMNS.PRIMARY_NAME] || ''),
+      name:         primaryName,
       regType:      regType,
       staffRole:    String(existingRow[32] || ''), // AG: staff_role
       guests:       guestList,
@@ -1121,6 +1126,7 @@ function adminRepairRegistration(payload) {
       success:          true,
       regId:            regId,
       regType:          regType,
+      primaryName:      primaryName,
       adultsCount:      derived.adultsCount,
       childrenCount:    derived.childrenCount,
       totalGuests:      derived.totalGuests,
