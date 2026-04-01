@@ -2,9 +2,15 @@
 /**
  * Plugin Name: Camp Meeting 2026 Integration
  * Description: Connects Fluent Forms to Google Apps Script with field mapping debug.
- * Version: 5.0
+ * Version: 6.0
  * Author: IMC
  * 
+ * CHANGELOG v6.0:
+ * - Added dispatch queue architecture for background GAS delivery
+ * - Added queue processor cron hook (cm26_dispatch_queue_process)
+ * - Added admin queue status and manual "Run Queue Now" action
+ * - Added GAS domain allowlist validation before server-side HTTP calls
+ *
  * CHANGELOG v5.0:
  * - Added "View Last Submission" debug feature
  * - Flexible field name mapping (tries multiple names)
@@ -80,6 +86,25 @@ function cm26_is_offline_payment( $formData ) {
     return in_array( $raw, cm26_offline_values(), true );
 }
 
+function cm26_is_allowed_gas_url($url) {
+    $host = wp_parse_url($url, PHP_URL_HOST);
+    if (empty($host)) {
+        return new WP_Error('cm26_invalid_url', 'Invalid Google Script URL.');
+    }
+
+    $allowedHosts = [
+        'script.google.com',
+        'script.googleusercontent.com',
+        'accounts.google.com',
+    ];
+
+    if (!in_array(strtolower($host), $allowedHosts, true)) {
+        return new WP_Error('cm26_disallowed_host', 'Disallowed host for GAS request: ' . $host);
+    }
+
+    return true;
+}
+
 /**
  * ==================================================
  * 1. ADMIN SETTINGS PAGE
@@ -109,6 +134,26 @@ function cm26_settings_init() {
     add_settings_field('cm26_form_id', 'Fluent Form ID', 'cm26_setting_id_render', 'cm26-settings', 'cm26_plugin_main');
     add_settings_field('cm26_debug_mode', 'Debug Mode', 'cm26_setting_debug_render', 'cm26-settings', 'cm26_plugin_main');
 }
+
+add_filter('cron_schedules', 'cm26_add_cron_schedules');
+function cm26_add_cron_schedules($schedules) {
+    if (!isset($schedules['cm26_every_5_minutes'])) {
+        $schedules['cm26_every_5_minutes'] = [
+            'interval' => 300,
+            'display'  => __('Every 5 Minutes (CM26)')
+        ];
+    }
+    return $schedules;
+}
+
+add_action('init', 'cm26_register_dispatch_queue_cron');
+function cm26_register_dispatch_queue_cron() {
+    if (!wp_next_scheduled('cm26_dispatch_queue_process')) {
+        wp_schedule_event(time() + 300, 'cm26_every_5_minutes', 'cm26_dispatch_queue_process');
+    }
+}
+
+add_action('cm26_dispatch_queue_process', 'cm26_process_dispatch_queue');
 
 function cm26_section_text() { 
     echo '<p>Enter your Google Apps Script Web App URL and the ID of the Fluent Form.</p>'; 
@@ -232,6 +277,16 @@ function cm26_handle_admin_actions() {
             'submittedAt' => current_time('c')
         ];
 
+        $allowed = cm26_is_allowed_gas_url($scriptUrl);
+        if (is_wp_error($allowed)) {
+            set_transient('cm26_test_result', [
+                'success' => false,
+                'message' => 'URL validation failed: ' . $allowed->get_error_message()
+            ], 300);
+            wp_redirect(add_query_arg(['page' => 'cm26-settings', 'test_done' => '1'], admin_url('admin.php')));
+            exit;
+        }
+
         $response = wp_remote_post($scriptUrl, [
             'method'    => 'POST',
             'body'      => json_encode($payload),
@@ -257,6 +312,16 @@ function cm26_handle_admin_actions() {
                     $location = $matches[1];
                 }
                 if (!empty($location)) {
+                    $redirectAllowed = cm26_is_allowed_gas_url($location);
+                    if (is_wp_error($redirectAllowed)) {
+                        $resultData['success'] = false;
+                        $resultData['message'] = 'Redirect URL validation failed: ' . $redirectAllowed->get_error_message();
+                        $resultData['http_code'] = $httpCode;
+                        $resultData['raw'] = $rawBody;
+                        set_transient('cm26_test_result', $resultData, 300);
+                        wp_redirect(add_query_arg(['page' => 'cm26-settings', 'test_done' => '1'], admin_url('admin.php')));
+                        exit;
+                    }
                     $redirectResponse = wp_remote_get($location, ['timeout' => 30, 'redirection' => 5]);
                     if (!is_wp_error($redirectResponse)) {
                         $rawBody = wp_remote_retrieve_body($redirectResponse);
@@ -288,11 +353,25 @@ function cm26_handle_admin_actions() {
         wp_redirect(add_query_arg(['page' => 'cm26-settings', 'test_done' => '1'], admin_url('admin.php')));
         exit;
     }
+
+    // Handle run queue action
+    if (isset($_GET['action']) && $_GET['action'] === 'run_queue') {
+        if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'cm26_run_queue_action')) {
+            wp_die('Security check failed');
+        }
+
+        cm26_process_dispatch_queue();
+        wp_redirect(add_query_arg(['page' => 'cm26-settings', 'queue_ran' => '1'], admin_url('admin.php')));
+        exit;
+    }
 }
 
 function cm26_options_page_html() {
     $failed = get_option('cm26_failed_submissions', []);
     $failedCount = count($failed);
+    $dispatchQueue = get_option('cm26_dispatch_queue', []);
+    $queueCount = count($dispatchQueue);
+    $lastQueueRun = get_option('cm26_dispatch_last_run');
     $lastRaw = get_option('cm26_last_submission_raw');
     $lastMapped = get_option('cm26_last_submission_mapped');
     ?>
@@ -316,6 +395,10 @@ function cm26_options_page_html() {
         
         if (isset($_GET['debug_cleared'])) {
             echo '<div class="notice notice-success"><p>Debug data cleared.</p></div>';
+        }
+
+        if (isset($_GET['queue_ran'])) {
+            echo '<div class="notice notice-success"><p>Dispatch queue processed.</p></div>';
         }
         
         // Test result
@@ -364,6 +447,16 @@ function cm26_options_page_html() {
             </p>
         </div>
         <?php endif; ?>
+
+        <div class="notice notice-info" style="padding: 15px;">
+            <h3 style="margin-top: 0;">📬 Dispatch Queue</h3>
+            <p><strong>Items in queue:</strong> <?php echo intval($queueCount); ?></p>
+            <p><strong>Last queue run:</strong> <?php echo $lastQueueRun ? esc_html(date_i18n('Y-m-d H:i:s', intval($lastQueueRun))) : 'Never'; ?></p>
+            <p>
+                <a href="<?php echo wp_nonce_url(admin_url('admin.php?page=cm26-settings&action=run_queue'), 'cm26_run_queue_action'); ?>"
+                   class="button button-secondary">▶️ Run Queue Now</a>
+            </p>
+        </div>
         
         <!-- Failed Submissions -->
         <?php if ($failedCount > 0): ?>
@@ -465,7 +558,7 @@ function cm26_send_to_google($entryId, $formData, $form) {
         update_option('cm26_last_submission_raw', json_encode($formData, JSON_PRETTY_PRINT));
     }
 
-    cm26_build_and_send( $entryId, $formData, 'pending', $scriptUrl, $debugMode );
+    cm26_queue_entry($entryId);
 }
 
 // FF5 payment hooks
@@ -506,7 +599,7 @@ function cm26_handle_payment_paid( ...$args ) {
     }
     if ( $entryId <= 0 ) return;
 
-    cm26_fire_to_gas( $entryId, 'paid' );
+    cm26_queue_entry($entryId);
 }
 
 // FF6 slash-namespaced hooks
@@ -519,7 +612,7 @@ function cm26_handle_ff6_payment_paid( $submission, $transaction ) {
     $formId  = (int) ( $submission['form_id'] ?? 0 );
     $entryId = (int) ( $submission['id']      ?? 0 );
     if ( $formId !== $targetFormId || $entryId <= 0 ) return;
-    cm26_fire_to_gas( $entryId, 'paid' );
+    cm26_queue_entry($entryId);
 }
 
 function cm26_handle_ff6_status_change( $newStatus, $submission ) {
@@ -529,31 +622,125 @@ function cm26_handle_ff6_status_change( $newStatus, $submission ) {
     $formId  = (int) ( $submission['form_id'] ?? 0 );
     $entryId = (int) ( $submission['id']      ?? 0 );
     if ( $formId !== $targetFormId || $entryId <= 0 ) return;
-    cm26_fire_to_gas( $entryId, 'paid' );
+    cm26_queue_entry($entryId);
 }
 
-function cm26_fire_to_gas( $entryId, $paymentStatus = 'paid' ) {
+function cm26_fire_to_gas( $entryId ) {
     $scriptUrl = trim( get_option( 'cm26_google_script_url' ) );
     $debugMode = get_option( 'cm26_debug_mode' );
-    if ( empty( $scriptUrl ) ) return;
+    if ( empty( $scriptUrl ) ) {
+        return new WP_Error('cm26_missing_script_url', 'Missing Google Script URL.');
+    }
+
+    $allowed = cm26_is_allowed_gas_url($scriptUrl);
+    if (is_wp_error($allowed)) {
+        return $allowed;
+    }
 
     $submission = wpFluent()->table('fluentform_submissions')
         ->where('id', $entryId)->first();
-    if ( ! $submission ) return;
+    if ( ! $submission ) {
+        return new WP_Error('cm26_missing_submission', 'Submission not found for entry ' . $entryId);
+    }
 
     $formData = is_string( $submission->response )
         ? json_decode( $submission->response, true )
         : (array) $submission->response;
-    if ( ! is_array( $formData ) ) return;
+    if ( ! is_array( $formData ) ) {
+        return new WP_Error('cm26_invalid_submission', 'Submission response is not valid JSON for entry ' . $entryId);
+    }
 
     if ( $debugMode ) {
         update_option( 'cm26_last_submission_raw', json_encode( $formData, JSON_PRETTY_PRINT ) );
     }
 
-    // Re-use the existing payload builder by temporarily overriding payment status
-    // The function already reads $formData and computes all fields.
-    // We call it directly with the confirmed status injected.
+    $paymentStatus = cm26_is_offline_payment($formData) ? 'pending' : 'paid';
+
     cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $debugMode );
+    return true;
+}
+
+function cm26_queue_entry($entryId) {
+    $entryId = intval($entryId);
+    if ($entryId <= 0) {
+        return;
+    }
+
+    $queue = get_option('cm26_dispatch_queue', []);
+    foreach ($queue as $item) {
+        if (intval($item['entry_id'] ?? 0) === $entryId) {
+            return;
+        }
+    }
+
+    $queue[] = [
+        'entry_id'   => $entryId,
+        'queued_at'  => time(),
+        'attempts'   => 0,
+    ];
+    update_option('cm26_dispatch_queue', $queue);
+
+    if (!wp_next_scheduled('cm26_dispatch_queue_process')) {
+        wp_schedule_single_event(time() + 30, 'cm26_dispatch_queue_process');
+    }
+
+    error_log('CM26 Queue: entry ' . $entryId . ' queued for dispatch.');
+}
+
+function cm26_process_dispatch_queue() {
+    $queue = get_option('cm26_dispatch_queue', []);
+    $remaining = [];
+    $maxAttempts = 5;
+
+    update_option('cm26_dispatch_last_run', time());
+
+    if (empty($queue)) {
+        return;
+    }
+
+    foreach ($queue as $item) {
+        $entryId = intval($item['entry_id'] ?? 0);
+        $attempts = intval($item['attempts'] ?? 0);
+
+        if ($entryId <= 0) {
+            continue;
+        }
+
+        $result = cm26_fire_to_gas($entryId);
+        if (!is_wp_error($result)) {
+            continue;
+        }
+
+        $attempts++;
+        if ($attempts >= $maxAttempts) {
+            $errorMsg = $result->get_error_message();
+            error_log('CM26 Queue: max attempts reached for entry ' . $entryId . '. Error: ' . $errorMsg);
+
+            $submission = wpFluent()->table('fluentform_submissions')->where('id', $entryId)->first();
+            $formData = [];
+            if ($submission && isset($submission->response)) {
+                $formData = is_string($submission->response)
+                    ? json_decode($submission->response, true)
+                    : (array) $submission->response;
+            }
+            if (!is_array($formData)) {
+                $formData = [];
+            }
+
+            cm26_queue_failed_submission($formData, $entryId, 'Dispatch queue max attempts reached: ' . $errorMsg);
+            wp_mail(get_option('admin_email'), 'CM26 Queue Failure', 'Entry ' . $entryId . ' failed queue dispatch after ' . $maxAttempts . ' attempts. Error: ' . $errorMsg);
+            continue;
+        }
+
+        $item['attempts'] = $attempts;
+        $remaining[] = $item;
+    }
+
+    update_option('cm26_dispatch_queue', $remaining);
+
+    if (!empty($remaining)) {
+        wp_schedule_single_event(time() + 300, 'cm26_dispatch_queue_process');
+    }
 }
 
 function cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $debugMode ) {
@@ -919,6 +1106,12 @@ function cm26_handle_verify_submission($entryId, $payload) {
         return;
     }
 
+    $allowed = cm26_is_allowed_gas_url($scriptUrl);
+    if (is_wp_error($allowed)) {
+        cm26_queue_failed_submission($payload, $entryId, 'Verification blocked: ' . $allowed->get_error_message());
+        return;
+    }
+
     $verifyUrl = add_query_arg([
         'action' => 'getRegistration',
         'id'     => 'FF-' . $entryId
@@ -1006,6 +1199,12 @@ function cm26_process_failed_submissions_manual($force = false) {
     if (empty($failed) || empty($scriptUrl)) {
         return $result;
     }
+
+    $allowed = cm26_is_allowed_gas_url($scriptUrl);
+    if (is_wp_error($allowed)) {
+        $result['success'] = false;
+        return $result;
+    }
     
     $stillFailed = [];
     
@@ -1042,6 +1241,15 @@ function cm26_process_failed_submissions_manual($force = false) {
                 $location = $matches[1];
             }
             if (!empty($location)) {
+                $redirectAllowed = cm26_is_allowed_gas_url($location);
+                if (is_wp_error($redirectAllowed)) {
+                    $item['attempts']++;
+                    $item['last_attempt'] = time();
+                    $item['last_error'] = $redirectAllowed->get_error_message();
+                    $stillFailed[] = $item;
+                    $result['failed']++;
+                    continue;
+                }
                 $redirectResponse = wp_remote_get($location, ['timeout' => 30, 'redirection' => 5]);
                 if (!is_wp_error($redirectResponse)) {
                     $rawBody = wp_remote_retrieve_body($redirectResponse);
@@ -1298,4 +1506,5 @@ function cm26_form_availability_script() {
 register_deactivation_hook(__FILE__, function() {
     wp_clear_scheduled_hook('cm26_retry_submissions');
     wp_clear_scheduled_hook('cm26_verify_submission');
+    wp_clear_scheduled_hook('cm26_dispatch_queue_process');
 });
