@@ -34,6 +34,7 @@ function onOpen() {
     .addItem('Open Admin Panel', 'showAdminSidebar')
     .addSeparator()
     .addItem('Resend Confirmation Email', 'promptResendConfirmationEmail')
+    .addItem('Delete Registration', 'promptDeleteRegistration')
     .addSeparator()
     .addItem('Recalculate All Totals', 'recalculateAllTotals')
     .addItem('Generate Key Report', 'generateKeyReport')
@@ -311,6 +312,49 @@ function promptResendConfirmationEmail() {
   } else {
     ui.alert('Resend Failed', 'Could not resend confirmation: ' + (result.error || 'Unknown error'), ui.ButtonSet.OK);
   }
+}
+
+/**
+ * Admin menu flow for deleting (soft-cancelling) a registration.
+ * Requires explicit ID entry and confirmation.
+ */
+function promptDeleteRegistration() {
+  var ui = SpreadsheetApp.getUi();
+  var response = ui.prompt(
+    'Delete Registration',
+    'Enter Registration ID to delete (example: CM26-0001):',
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (response.getSelectedButton() !== ui.Button.OK) return;
+
+  var regId = (response.getResponseText() || '').toString().trim();
+  if (!regId) {
+    ui.alert('Delete Failed', 'Registration ID is required.', ui.ButtonSet.OK);
+    return;
+  }
+
+  var confirmResponse = ui.alert(
+    'Confirm Deletion',
+    'Are you sure you want to delete registration ' + regId + '?\n\nThis marks the registration as cancelled for audit safety.',
+    ui.ButtonSet.YES_NO
+  );
+  if (confirmResponse !== ui.Button.YES) return;
+
+  var result = deleteRegistration(regId);
+  if (result && result.success) {
+    SpreadsheetApp.getActive().toast(result.message || ('Deleted ' + regId), 'Delete Registration', 5);
+    ui.alert('Success', result.message || ('Registration ' + regId + ' deleted.'), ui.ButtonSet.OK);
+  } else {
+    ui.alert('Delete Failed', (result && result.error) || 'Unknown error', ui.ButtonSet.OK);
+  }
+}
+
+/**
+ * Dashboard entry point for registration deletion.
+ */
+function adminDeleteRegistration(regId) {
+  return deleteRegistration(regId);
 }
 
 /**

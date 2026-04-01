@@ -692,3 +692,85 @@ function cancelRegistration(data) {
     lock.releaseLock();
   }
 }
+
+/**
+ * Admin-safe soft delete for a registration.
+ * Uses the existing status model by marking rows as "cancelled"
+ * instead of physically removing sheet rows.
+ *
+ * @param {string|Object} input registration ID string or { regId: 'CM26-0001' }
+ * @returns {{success:boolean, regId:string, message?:string, error?:string}}
+ */
+function deleteRegistration(input) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    return { success: false, regId: '', error: 'System busy, please try again.' };
+  }
+
+  var normalizedRegId = '';
+  try {
+    normalizedRegId = (typeof input === 'string' ? input : (input && input.regId)).toString().trim();
+    if (!normalizedRegId) {
+      logActivity('registration_delete_failed', 'unknown', 'Missing registration ID', 'admin');
+      return { success: false, regId: '', error: 'Missing registration ID' };
+    }
+
+    logActivity('registration_delete_requested', normalizedRegId, 'Delete requested by admin', 'admin');
+
+    var ss = getSS();
+    var regSheet = ss.getSheetByName('Registrations');
+    var regData = regSheet.getDataRange().getValues();
+    var rowIndex = -1;
+    var regRow = null;
+    for (var i = 1; i < regData.length; i++) {
+      if (String(regData[i][COLUMNS.REG_ID] || '') === normalizedRegId) {
+        rowIndex = i + 1;
+        regRow = regData[i];
+        break;
+      }
+    }
+
+    if (rowIndex === -1 || !regRow) {
+      logActivity('registration_delete_failed', normalizedRegId, 'Registration not found', 'admin');
+      return { success: false, regId: normalizedRegId, error: 'Registration not found.' };
+    }
+
+    var existingStatus = String(regRow[COLUMNS.STATUS] || '').toLowerCase();
+    var regName = String(regRow[COLUMNS.PRIMARY_NAME] || '');
+    var regEmail = String(regRow[COLUMNS.EMAIL] || '');
+    if (existingStatus === 'cancelled') {
+      var alreadyMessage = 'Registration already deleted.';
+      logActivity('registration_delete_success', normalizedRegId, alreadyMessage + ' name=' + regName + ', email=' + regEmail, 'admin');
+      return { success: true, regId: normalizedRegId, message: alreadyMessage };
+    }
+
+    // Soft delete: mark cancelled to preserve audit history and related records.
+    regSheet.getRange(rowIndex, COLUMNS.STATUS + 1).setValue('cancelled');
+
+    // Release any reserved room assignment for consistency with active inventory.
+    var roomAssignment = regRow[COLUMNS.ROOM_ASSIGNMENT];
+    if (roomAssignment) {
+      try {
+        updateRoomStatus(roomAssignment, 'available', '', '');
+      } catch (roomError) {
+        logActivity('error', normalizedRegId, 'Delete: room release failed: ' + roomError.toString(), 'admin');
+      }
+      regSheet.getRange(rowIndex, COLUMNS.ROOM_ASSIGNMENT + 1).setValue('');
+      regSheet.getRange(rowIndex, COLUMNS.BUILDING + 1).setValue('');
+    }
+
+    logActivity(
+      'registration_delete_success',
+      normalizedRegId,
+      'Registration deleted (soft). name=' + regName + ', email=' + regEmail + ', previous_status=' + existingStatus,
+      'admin'
+    );
+    return { success: true, regId: normalizedRegId, message: 'Registration deleted.' };
+  } catch (error) {
+    var errorText = error && error.toString ? error.toString() : 'Unknown error';
+    logActivity('registration_delete_failed', normalizedRegId || 'unknown', errorText, 'admin');
+    return { success: false, regId: normalizedRegId || '', error: errorText };
+  } finally {
+    lock.releaseLock();
+  }
+}
