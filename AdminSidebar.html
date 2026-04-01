@@ -204,6 +204,46 @@
     </button>
   </div>
 
+  <div class="section">
+    <h3>🔧 Repair Registration</h3>
+    <p style="font-size:11px; color:#64748b; margin-top:0;">
+      Edit guests for any registration type. Counts, class assignments, meal selections,
+      and financials are all recalculated on save.
+    </p>
+    <div class="input-group">
+      <label>Registration ID:</label>
+      <input type="text" id="repair-reg-id" placeholder="CM26-0001">
+    </div>
+    <button class="btn btn-secondary" data-action="load-for-repair">
+      Load Registration
+    </button>
+
+    <div id="repair-panel" style="display:none; margin-top:12px;">
+      <div id="repair-info" style="padding:8px; background:#f8fafc; border-radius:4px; font-size:12px; margin-bottom:8px; line-height:1.6;"></div>
+
+      <table style="width:100%; border-collapse:collapse; font-size:12px;">
+        <thead>
+          <tr style="background:#f1f5f9; text-align:left;">
+            <th style="padding:4px 3px;">#</th>
+            <th style="padding:4px 3px;">Name</th>
+            <th style="padding:4px 3px; width:36px;">Age</th>
+            <th style="padding:4px 3px;">Attendance</th>
+            <th style="padding:4px 3px; width:22px;"></th>
+          </tr>
+        </thead>
+        <tbody id="repair-tbody"></tbody>
+      </table>
+
+      <button id="repair-add-btn" class="btn btn-secondary"
+              style="margin-top:6px; padding:5px 10px; font-size:12px;">
+        + Add Guest
+      </button>
+      <button class="btn btn-warning" data-action="save-repair" style="margin-top:8px;">
+        💾 Save Repair
+      </button>
+    </div>
+  </div>
+
   <script>
     function escapeHtml(text) {
       if (!text) return '';
@@ -311,8 +351,171 @@
           if (result && result.success) showStatus('Housing changed! New subtotal: $' + result.newHousingSubtotal, false);
           else showStatus((result && result.error) || 'Failed to change housing', true);
         });
+      } else if (action === 'load-for-repair') {
+        loadForRepair(btn);
+      } else if (action === 'save-repair') {
+        saveRepair(btn);
       }
     });
+
+    // ── Registration Repair ──────────────────────────────────────────────
+
+    var repairState = { regId: null };
+
+    function renderRepairRow(guest, index) {
+      var tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid #f1f5f9';
+      tr.dataset.idx = index;
+      var cellStyle = 'padding:2px 2px;';
+      var inputStyle = 'width:100%; font-size:12px; padding:2px 3px; border:1px solid #e2e8f0; border-radius:3px; box-sizing:border-box;';
+      tr.innerHTML =
+        '<td style="' + cellStyle + ' color:#94a3b8; font-size:11px;">' + (index + 1) + '</td>' +
+        '<td style="' + cellStyle + '">' +
+          '<input data-field="name" value="' + escapeHtml(guest.name || '') + '" style="' + inputStyle + '">' +
+        '</td>' +
+        '<td style="' + cellStyle + '">' +
+          '<input data-field="age" type="number" min="0" max="120" value="' + (guest.age !== undefined ? guest.age : 30) + '" style="width:36px; font-size:12px; padding:2px 3px; border:1px solid #e2e8f0; border-radius:3px;">' +
+        '</td>' +
+        '<td style="' + cellStyle + '">' +
+          '<input data-field="attendanceRaw" value="' + escapeHtml(guest.attendanceRaw || 'Full Time') + '" style="' + inputStyle + '" placeholder="Full Time">' +
+        '</td>' +
+        '<td style="' + cellStyle + ' text-align:center;">' +
+          (index === 0
+            ? '<span style="color:#94a3b8; font-size:10px;">primary</span>'
+            : '<button data-del="' + index + '" title="Remove guest" style="background:none; border:none; color:#dc2626; cursor:pointer; font-size:15px; line-height:1; padding:0;">×</button>'
+          ) +
+        '</td>';
+      return tr;
+    }
+
+    function renderRepairTable() {
+      var tbody = document.getElementById('repair-tbody');
+      tbody.innerHTML = '';
+      var guests = collectGuestsFromTable_() || [];
+      for (var i = 0; i < guests.length; i++) {
+        tbody.appendChild(renderRepairRow(guests[i], i));
+      }
+    }
+
+    // Collect current input values from the table (used before re-render)
+    function collectGuestsFromTable_() {
+      var rows = document.querySelectorAll('#repair-tbody tr');
+      var guests = [];
+      rows.forEach(function(tr) {
+        var nameInput = tr.querySelector('[data-field="name"]');
+        var ageInput  = tr.querySelector('[data-field="age"]');
+        var attInput  = tr.querySelector('[data-field="attendanceRaw"]');
+        if (nameInput) {
+          guests.push({
+            name:          nameInput.value,
+            age:           ageInput  ? (parseInt(ageInput.value, 10) || 30) : 30,
+            attendanceRaw: attInput  ? (attInput.value || 'Full Time') : 'Full Time'
+          });
+        }
+      });
+      return guests;
+    }
+
+    function loadForRepair(button) {
+      var regId = document.getElementById('repair-reg-id').value.trim();
+      if (!regId) return showStatus('Enter a registration ID', true);
+
+      runAction('load-for-repair', button, 'Loading…', 'adminGetRegistrationForRepair', [regId], function(result) {
+        if (!result || !result.success) {
+          showStatus((result && result.error) || 'Registration not found', true);
+          document.getElementById('repair-panel').style.display = 'none';
+          return;
+        }
+        var reg = result.registration;
+        repairState.regId = reg.regId;
+
+        var infoHtml =
+          '<strong>' + escapeHtml(reg.name) + '</strong> (' + escapeHtml(reg.regId) + ')' +
+          '<br>Type: <strong>' + escapeHtml(reg.regType || 'paid') + '</strong>' +
+          ' &nbsp;|&nbsp; Status: ' + escapeHtml(reg.status || '') +
+          '<br>Adults: ' + (reg.adultsCount || 0) + ', Children: ' + (reg.childrenCount || 0) +
+          ' &nbsp;|&nbsp; Housing: ' + escapeHtml(reg.housingOption || 'none') +
+          '<br>Meal subtotal: $' + (reg.mealSubtotal || 0) +
+          ' &nbsp;|&nbsp; Balance due: $' + (reg.balanceDue || 0);
+        document.getElementById('repair-info').innerHTML = infoHtml;
+
+        // Pre-populate table with existing guests
+        var guests = Array.isArray(reg.guests) && reg.guests.length > 0
+          ? reg.guests
+          : [{ name: reg.name, age: 30, attendanceRaw: 'Full Time' }];
+
+        var tbody = document.getElementById('repair-tbody');
+        tbody.innerHTML = '';
+        for (var i = 0; i < guests.length; i++) {
+          tbody.appendChild(renderRepairRow(guests[i], i));
+        }
+
+        document.getElementById('repair-panel').style.display = 'block';
+        showStatus('Loaded ' + reg.regId + ' — ' + guests.length + ' guests', false);
+      });
+    }
+
+    // Delete-row and add-row via event delegation on tbody
+    document.getElementById('repair-tbody').addEventListener('click', function(e) {
+      var delBtn = e.target.closest('[data-del]');
+      if (!delBtn) return;
+      var idx = parseInt(delBtn.dataset.del, 10);
+      var guests = collectGuestsFromTable_();
+      guests.splice(idx, 1);
+      var tbody = document.getElementById('repair-tbody');
+      tbody.innerHTML = '';
+      for (var i = 0; i < guests.length; i++) {
+        tbody.appendChild(renderRepairRow(guests[i], i));
+      }
+    });
+
+    document.getElementById('repair-add-btn').addEventListener('click', function() {
+      var guests = collectGuestsFromTable_();
+      guests.push({ name: '', age: 30, attendanceRaw: 'Full Time' });
+      var tbody = document.getElementById('repair-tbody');
+      tbody.innerHTML = '';
+      for (var i = 0; i < guests.length; i++) {
+        tbody.appendChild(renderRepairRow(guests[i], i));
+      }
+    });
+
+    function saveRepair(button) {
+      if (!repairState.regId) return showStatus('Load a registration first', true);
+
+      var guests = collectGuestsFromTable_().filter(function(g) { return g.name.trim(); });
+      if (guests.length === 0) return showStatus('At least one guest is required', true);
+
+      var summary = guests.length + ' guest(s): ' +
+        guests.map(function(g) { return g.name + ' (' + g.age + ')'; }).join(', ');
+
+      if (!confirm(
+        'Save repair for ' + repairState.regId + '?\n\n' +
+        summary + '\n\n' +
+        'Meal tickets will be regenerated for this registration.\n' +
+        'Already-redeemed tickets are preserved.'
+      )) return;
+
+      runAction('save-repair', button, 'Saving…', 'adminRepairRegistration',
+        [{ regId: repairState.regId, guests: guests }],
+        function(result) {
+          if (result && result.success) {
+            showStatus(
+              'Saved ' + result.regId + ' (' + result.regType + ')' +
+              ' — ' + result.totalGuests + ' guests' +
+              ', meal subtotal: $' + (result.mealSubtotal || 0) +
+              ', balance: $' + (result.balanceDue || 0) +
+              '. Tickets replaced: ' + (result.ticketsDeleted || 0) +
+              ', preserved: ' + (result.ticketsPreserved || 0),
+              false
+            );
+            document.getElementById('repair-panel').style.display = 'none';
+            repairState.regId = null;
+          } else {
+            showStatus((result && result.error) || 'Save failed', true);
+          }
+        }
+      );
+    }
 
     loadUnassigned(document.querySelector('[data-action="load-unassigned"]'));
   </script>
