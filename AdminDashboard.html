@@ -1058,6 +1058,7 @@
           '<div style="display:flex;gap:8px;align-items:center;">' +
             '<button class="btn btn-outline btn-sm" data-action="repair-open" data-reg-id="' + esc(regId) + '">Open</button>' +
             '<button class="btn btn-primary btn-sm" data-action="resend-confirmation" data-reg-id="' + esc(regId) + '">Resend Confirmation</button>' +
+            '<button class="btn btn-danger btn-sm" data-action="delete-registration" data-reg-id="' + esc(regId) + '" data-name="' + esc(r.name || '') + '">Delete Registration</button>' +
           '</div>' +
           '</div>';
       }).join('');
@@ -1081,6 +1082,36 @@
         Toast.show('Confirmation email resent to ' + (result.email || 'recipient'), 'success');
       }).catch(function(err) {
         Toast.show('Could not resend confirmation: ' + err.message, 'error');
+      });
+    },
+    deleteRegistration: function(regId, name, button) {
+      var normalizedRegId = (regId || '').toString().trim();
+      var displayName = (name || '').toString().trim() || 'Unknown Name';
+      if (!normalizedRegId) {
+        Toast.show('Could not delete registration: Missing registration ID', 'error');
+        return;
+      }
+
+      if (!window.confirm('Are you sure you want to delete registration ' + normalizedRegId + ' for ' + displayName + '?')) {
+        return;
+      }
+
+      runServer('adminDeleteRegistration', [normalizedRegId], {
+        requestKey: 'repair.delete.' + normalizedRegId,
+        button: button,
+        loadingText: 'Deleting…'
+      }).then(function(result) {
+        if (!result || !result.success) {
+          Toast.show('Delete failed: ' + ((result && result.error) || 'Unknown error'), 'error');
+          return;
+        }
+
+        AppState.repair.registrationCache[normalizedRegId] = null;
+        Toast.show(result.message || ('Deleted ' + normalizedRegId), 'success');
+        GuestRepair.search(document.querySelector('[data-action="repair-search"]'), true);
+        if (AppState.repair.regId === normalizedRegId) GuestRepair.clear();
+      }).catch(function(err) {
+        Toast.show('Delete failed: ' + err.message, 'error');
       });
     },
     openRegistration: function(regId, button, force) {
@@ -1242,6 +1273,7 @@
       if (action === 'repair-search') GuestRepair.search(el, true);
       else if (action === 'repair-open') GuestRepair.openRegistration(el.dataset.regId, el, false);
       else if (action === 'resend-confirmation') GuestRepair.resendConfirmation(el.dataset.regId, el);
+      else if (action === 'delete-registration') GuestRepair.deleteRegistration(el.dataset.regId, el.dataset.name, el);
       else if (action === 'repair-save') GuestRepair.save(el);
       else if (action === 'repair-add-row') GuestRepair.addRow();
       else if (action === 'repair-remove-row') GuestRepair.removeRow(Number(el.dataset.index));

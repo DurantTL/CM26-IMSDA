@@ -80,6 +80,9 @@ function doPost(e) {
 
       case 'cancelRegistration':
         return jsonResponse(cancelRegistration(data));
+
+      case 'deleteRegistration':
+        return jsonResponse(deleteRegistration(data));
         
       case 'addToWaitlist':
         return jsonResponse(addToWaitlist(data));
