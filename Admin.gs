@@ -622,24 +622,97 @@ function adminSearchRegistrations(query) {
  * Load one registration payload for manual guest repair in admin UI.
  */
 function adminGetRegistrationForRepair(input) {
-  var regId = '';
+  try {
+    var regId = '';
 
-  if (typeof input === 'string') {
-    regId = input.trim();
-  } else if (input && typeof input === 'object' && input.regId) {
-    regId = String(input.regId).trim();
+    if (typeof input === 'string') {
+      regId = input.trim();
+    } else if (input && typeof input === 'object' && input.regId) {
+      regId = String(input.regId).trim();
+    }
+
+    Logger.log('[adminGetRegistrationForRepair] normalized regId: "%s"', regId);
+    Logger.log('[adminGetRegistrationForRepair] typeof regId: %s', typeof regId);
+
+    if (!regId) {
+      return { success: false, error: 'Missing registration ID' };
+    }
+
+    var registration = null;
+    var getRegistrationResult = null;
+    try {
+      if (typeof getRegistration === 'function') {
+        getRegistrationResult = getRegistration(regId);
+      }
+    } catch (e) {
+      Logger.log('[adminGetRegistrationForRepair] getRegistration threw: %s', e.toString());
+      getRegistrationResult = null;
+    }
+
+    if (getRegistrationResult && getRegistrationResult.success && getRegistrationResult.registration) {
+      registration = getRegistrationResult.registration;
+    } else {
+      var regData = getSheetValuesSafe('Registrations').values;
+      var regRowIdx = findRegistrationRowById(regId, regData);
+      if (regRowIdx === -1) {
+        return { success: false, error: 'Registration not found' };
+      }
+      var row = regData[regRowIdx];
+      registration = {
+        regId: row[COLUMNS.REG_ID],
+        name: row[COLUMNS.PRIMARY_NAME] || '',
+        regType: row[COLUMNS.REG_TYPE] || '',
+        status: row[COLUMNS.STATUS] || '',
+        housingOption: row[COLUMNS.HOUSING_OPTION] || '',
+        adultsCount: row[COLUMNS.ADULTS_COUNT] || 0,
+        childrenCount: row[COLUMNS.CHILDREN_COUNT] || 0,
+        mealSubtotal: row[COLUMNS.MEAL_SUBTOTAL] || 0,
+        balanceDue: row[COLUMNS.BALANCE_DUE] || 0
+      };
+    }
+
+    var fallbackRegData = null;
+    var fallbackRegRow = null;
+    var guests = [];
+    var guestsRaw = '';
+    if (registration && registration.guests && registration.guests.splice) {
+      guests = registration.guests;
+    } else {
+      fallbackRegData = getSheetValuesSafe('Registrations').values;
+      var fallbackRegIdx = findRegistrationRowById(regId, fallbackRegData);
+      if (fallbackRegIdx !== -1) fallbackRegRow = fallbackRegData[fallbackRegIdx];
+      guestsRaw = (fallbackRegRow && fallbackRegRow[COLUMNS.GUEST_DETAILS]) || '[]';
+      try {
+        guests = JSON.parse(guestsRaw);
+      } catch (e2) {
+        guests = [];
+      }
+    }
+
+    if (!guests || !guests.length) {
+      guests = [{
+        name: (registration && registration.name) || (fallbackRegRow && fallbackRegRow[COLUMNS.PRIMARY_NAME]) || '',
+        age: 30,
+        attendanceRaw: 'Full Time'
+      }];
+    }
+
+    registration = registration || {};
+    registration.regId = registration.regId || regId;
+    registration.name = registration.name || (fallbackRegRow && fallbackRegRow[COLUMNS.PRIMARY_NAME]) || '';
+    registration.regType = registration.regType || (fallbackRegRow && fallbackRegRow[COLUMNS.REG_TYPE]) || '';
+    registration.status = registration.status || (fallbackRegRow && fallbackRegRow[COLUMNS.STATUS]) || '';
+    registration.housingOption = registration.housingOption || (fallbackRegRow && fallbackRegRow[COLUMNS.HOUSING_OPTION]) || '';
+    registration.adultsCount = registration.adultsCount || (fallbackRegRow && fallbackRegRow[COLUMNS.ADULTS_COUNT]) || 0;
+    registration.childrenCount = registration.childrenCount || (fallbackRegRow && fallbackRegRow[COLUMNS.CHILDREN_COUNT]) || 0;
+    registration.mealSubtotal = registration.mealSubtotal || (fallbackRegRow && fallbackRegRow[COLUMNS.MEAL_SUBTOTAL]) || 0;
+    registration.balanceDue = registration.balanceDue || (fallbackRegRow && fallbackRegRow[COLUMNS.BALANCE_DUE]) || 0;
+    registration.guests = guests;
+
+    return { success: true, registration: registration };
+  } catch (e) {
+    return { success: false, error: 'adminGetRegistrationForRepair threw: ' + e.toString() };
   }
-
-  Logger.log('[adminGetRegistrationForRepair] normalized regId: "%s"', regId);
-  Logger.log('[adminGetRegistrationForRepair] typeof regId: %s', typeof regId);
-
-  if (!regId) {
-    return { success: false, error: 'Missing registration ID' };
-  }
-
-  var reg = getRegistration(regId);
-  if (!reg.success) return reg;
-  return { success: true, registration: reg.registration };
 }
 
 /**

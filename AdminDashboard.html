@@ -819,6 +819,7 @@
         if (args.length) runner[functionName].apply(runner, args);
         else runner[functionName]();
       } else if (args !== undefined && args !== null) {
+        console.log('[runServer invoking scalar arg]', functionName, args, typeof args);
         runner[functionName](args);
       } else {
         runner[functionName]();
