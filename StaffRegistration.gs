@@ -131,7 +131,7 @@ function onStaffFormSubmit(e) {
     // Deduplication Check
     if (data.email) {
       var ss = getSS();
-      var regSheet = ss.getSheetByName("Worker Registrations");
+      var regSheet = ss.getSheetByName("Registrations");
       var regData = regSheet.getDataRange().getValues();
       for (var i = 1; i < regData.length; i++) {
         if (regData[i][COLUMNS.EMAIL] === data.email && regData[i][COLUMNS.STATUS] !== "cancelled") {
@@ -204,6 +204,57 @@ function parseGuestDetails(text) {
   if (!raw) return guests;
 
   var lines = raw.split('\n');
+
+  // Preprocess single-line comma-separated segments like:
+  // "John Smith 8, Jane Smith 35, Baby Smith 1"
+  // If every segment parses as a valid guest line, use that structured result.
+  if (lines.length === 1 && raw.indexOf(',') !== -1) {
+    var singleLineParts = raw.split(/,\s*/).map(function(part) { return part.trim(); }).filter(function(part) { return !!part; });
+    if (singleLineParts.length > 1) {
+      var singleLineGuests = [];
+      var allValid = true;
+      for (var sl = 0; sl < singleLineParts.length; sl++) {
+        var parsedPart = parseGuestLine(singleLineParts[sl]);
+        if (!parsedPart || !parsedPart.name) {
+          allValid = false;
+          break;
+        }
+        var parsedAttendance = parseAttendanceDetails(parsedPart.attendanceRaw);
+        if (parsedAttendance.attendanceType === 'unknown') {
+          guests._attendanceWarnings.push(parsedPart.name + ' ("' + (parsedPart.attendanceRaw || 'blank') + '")');
+          parsedAttendance.attendanceDays = getCampMeetingDays();
+        }
+        if (parsedPart.warningMissingAge) {
+          guests._missingAgeWarnings = guests._missingAgeWarnings || [];
+          guests._missingAgeWarnings.push(parsedPart.name);
+        }
+        singleLineGuests.push({
+          name: parsedPart.name,
+          age: parsedPart.age,
+          isChild: parsedPart.age < 18,
+          attendanceType: parsedAttendance.attendanceType,
+          attendanceRaw: parsedAttendance.attendanceRaw,
+          attendanceDays: parsedAttendance.attendanceDays,
+          parserConfidence: parsedPart.parserConfidence || 'high',
+          parserWarnings: parsedPart.parserWarnings || []
+        });
+      }
+      if (allValid && singleLineGuests.length === singleLineParts.length) {
+        Array.prototype.push.apply(guests, singleLineGuests);
+      }
+    }
+    if (guests.length > 0) {
+      var preWarningParts = [];
+      if (guests._missingAgeWarnings && guests._missingAgeWarnings.length > 0) {
+        preWarningParts.push('Missing age for: ' + guests._missingAgeWarnings.join(', '));
+      }
+      if (guests._attendanceWarnings.length > 0) {
+        preWarningParts.push('Unrecognized attendance for: ' + guests._attendanceWarnings.join(', '));
+      }
+      guests._adminWarning = preWarningParts.join(' | ');
+      return guests;
+    }
+  }
 
   // Legacy fallback: comma-separated names with no line breaks (no attendance data)
   if (lines.length === 1 && raw.indexOf(',') !== -1) {

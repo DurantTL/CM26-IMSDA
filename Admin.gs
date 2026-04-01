@@ -620,9 +620,17 @@ function adminSearchRegistrations(query) {
 
 /**
  * Load one registration payload for manual guest repair in admin UI.
+ *
+ * IMPORTANT: The return value must remain a plain, shallow, google.script.run-
+ * serializable object. Do not return full getRegistration() payloads because
+ * Date objects and deeply nested structures can serialize to null client-side.
  */
 function adminGetRegistrationForRepair(input) {
   try {
+    function toIsoStringIfDate(value) {
+      return Object.prototype.toString.call(value) === '[object Date]' ? value.toISOString() : value;
+    }
+
     var regId = '';
 
     if (typeof input === 'string') {
@@ -651,65 +659,64 @@ function adminGetRegistrationForRepair(input) {
 
     if (getRegistrationResult && getRegistrationResult.success && getRegistrationResult.registration) {
       registration = getRegistrationResult.registration;
-    } else {
-      var regData = getSheetValuesSafe('Registrations').values;
-      var regRowIdx = findRegistrationRowById(regId, regData);
-      if (regRowIdx === -1) {
-        return { success: false, error: 'Registration not found' };
-      }
-      var row = regData[regRowIdx];
-      registration = {
-        regId: row[COLUMNS.REG_ID],
-        name: row[COLUMNS.PRIMARY_NAME] || '',
-        regType: row[COLUMNS.REG_TYPE] || '',
-        status: row[COLUMNS.STATUS] || '',
-        housingOption: row[COLUMNS.HOUSING_OPTION] || '',
-        adultsCount: row[COLUMNS.ADULTS_COUNT] || 0,
-        childrenCount: row[COLUMNS.CHILDREN_COUNT] || 0,
-        mealSubtotal: row[COLUMNS.MEAL_SUBTOTAL] || 0,
-        balanceDue: row[COLUMNS.BALANCE_DUE] || 0
-      };
     }
 
-    var fallbackRegData = null;
-    var fallbackRegRow = null;
+    var regData = getSheetValuesSafe('Registrations').values;
+    var regRowIdx = findRegistrationRowById(regId, regData);
+    if (regRowIdx === -1 && !registration) {
+      return { success: false, error: 'Registration not found' };
+    }
+    var row = regRowIdx !== -1 ? regData[regRowIdx] : null;
+
+    var guestsRaw = (row && row[COLUMNS.GUEST_DETAILS]) || '[]';
+    var guestsFromSheet = [];
+    try {
+      guestsFromSheet = JSON.parse(guestsRaw || '[]');
+    } catch (e2) {
+      guestsFromSheet = [];
+    }
+
+    var sourceGuests = [];
+    if (registration && Array.isArray(registration.guests)) {
+      sourceGuests = registration.guests;
+    } else {
+      sourceGuests = guestsFromSheet;
+    }
+
     var guests = [];
-    var guestsRaw = '';
-    if (registration && registration.guests && registration.guests.splice) {
-      guests = registration.guests;
-    } else {
-      fallbackRegData = getSheetValuesSafe('Registrations').values;
-      var fallbackRegIdx = findRegistrationRowById(regId, fallbackRegData);
-      if (fallbackRegIdx !== -1) fallbackRegRow = fallbackRegData[fallbackRegIdx];
-      guestsRaw = (fallbackRegRow && fallbackRegRow[COLUMNS.GUEST_DETAILS]) || '[]';
-      try {
-        guests = JSON.parse(guestsRaw);
-      } catch (e2) {
-        guests = [];
-      }
+    for (var g = 0; g < sourceGuests.length; g++) {
+      var guest = sourceGuests[g] || {};
+      var guestName = (guest.name || '').toString().trim();
+      if (!guestName) continue;
+      guests.push({
+        name: guestName,
+        age: guest.age === undefined || guest.age === null || guest.age === '' ? '' : Number(guest.age),
+        attendanceRaw: String(toIsoStringIfDate(guest.attendanceRaw || 'Full Time'))
+      });
     }
 
-    if (!guests || !guests.length) {
+    if (!guests.length) {
       guests = [{
-        name: (registration && registration.name) || (fallbackRegRow && fallbackRegRow[COLUMNS.PRIMARY_NAME]) || '',
+        name: String((registration && registration.name) || (row && row[COLUMNS.PRIMARY_NAME]) || ''),
         age: 30,
         attendanceRaw: 'Full Time'
       }];
     }
 
-    registration = registration || {};
-    registration.regId = registration.regId || regId;
-    registration.name = registration.name || (fallbackRegRow && fallbackRegRow[COLUMNS.PRIMARY_NAME]) || '';
-    registration.regType = registration.regType || (fallbackRegRow && fallbackRegRow[COLUMNS.REG_TYPE]) || '';
-    registration.status = registration.status || (fallbackRegRow && fallbackRegRow[COLUMNS.STATUS]) || '';
-    registration.housingOption = registration.housingOption || (fallbackRegRow && fallbackRegRow[COLUMNS.HOUSING_OPTION]) || '';
-    registration.adultsCount = registration.adultsCount || (fallbackRegRow && fallbackRegRow[COLUMNS.ADULTS_COUNT]) || 0;
-    registration.childrenCount = registration.childrenCount || (fallbackRegRow && fallbackRegRow[COLUMNS.CHILDREN_COUNT]) || 0;
-    registration.mealSubtotal = registration.mealSubtotal || (fallbackRegRow && fallbackRegRow[COLUMNS.MEAL_SUBTOTAL]) || 0;
-    registration.balanceDue = registration.balanceDue || (fallbackRegRow && fallbackRegRow[COLUMNS.BALANCE_DUE]) || 0;
-    registration.guests = guests;
+    var minimalRegistration = {
+      regId: String(toIsoStringIfDate((registration && registration.regId) || (row && row[COLUMNS.REG_ID]) || regId) || ''),
+      name: String(toIsoStringIfDate((registration && registration.name) || (row && row[COLUMNS.PRIMARY_NAME]) || '') || ''),
+      regType: String(toIsoStringIfDate((registration && registration.regType) || (row && row[COLUMNS.REG_TYPE]) || '') || ''),
+      status: String(toIsoStringIfDate((registration && registration.status) || (row && row[COLUMNS.STATUS]) || '') || ''),
+      housingOption: String(toIsoStringIfDate((registration && registration.housingOption) || (row && row[COLUMNS.HOUSING_OPTION]) || '') || ''),
+      adultsCount: Number(toIsoStringIfDate((registration && registration.adultsCount) || (row && row[COLUMNS.ADULTS_COUNT]) || 0)) || 0,
+      childrenCount: Number(toIsoStringIfDate((registration && registration.childrenCount) || (row && row[COLUMNS.CHILDREN_COUNT]) || 0)) || 0,
+      mealSubtotal: Number(toIsoStringIfDate((registration && registration.mealSubtotal) || (row && row[COLUMNS.MEAL_SUBTOTAL]) || 0)) || 0,
+      balanceDue: Number(toIsoStringIfDate((registration && registration.balanceDue) || (row && row[COLUMNS.BALANCE_DUE]) || 0)) || 0,
+      guests: guests
+    };
 
-    return { success: true, registration: registration };
+    return { success: true, registration: minimalRegistration };
   } catch (e) {
     return { success: false, error: 'adminGetRegistrationForRepair threw: ' + e.toString() };
   }
