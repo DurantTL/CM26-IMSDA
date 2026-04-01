@@ -37,6 +37,11 @@ function onStaffFormSubmit(e) {
 
     // Parse guest list first (attendance-aware) so counts and meals are derived from it
     var guests = parseGuestDetails(responses['Family Members Attending'] ? responses['Family Members Attending'][0] : '');
+    var spouseVolunteering = responses['Is your spouse interested in volunteering at Camp Meeting 2026?']
+      ? String(responses['Is your spouse interested in volunteering at Camp Meeting 2026?'][0]).trim().toLowerCase() === 'yes'
+      : false;
+    var spouseName = responses['Spouse\'s Full Name'] ? responses['Spouse\'s Full Name'][0] : '';
+    var spouseAutoAdded = ensureSpouseVolunteerGuest(guests, spouseVolunteering, spouseName);
 
     // Derive party counts from parsed guest list
     // Primary registrant is always counted as an adult (+1)
@@ -88,10 +93,8 @@ function onStaffFormSubmit(e) {
       mealSubtotal: 0,
 
       // Spouse volunteer interest
-      spouseVolunteering: responses['Is your spouse interested in volunteering at Camp Meeting 2026?']
-        ? responses['Is your spouse interested in volunteering at Camp Meeting 2026?'][0] === 'Yes'
-        : false,
-      spouseName: responses['Spouse\'s Full Name'] ? responses['Spouse\'s Full Name'][0] : '',
+      spouseVolunteering: spouseVolunteering,
+      spouseName: spouseName,
       spouseDepartments: responses['Preferred Volunteer Department(s)'] ? responses['Preferred Volunteer Department(s)'][0] : '',
       spouseDepartmentOther: responses['Other Department (if selected above)'] ? responses['Other Department (if selected above)'][0] : '',
 
@@ -104,6 +107,11 @@ function onStaffFormSubmit(e) {
 
     // Add one aggregated parser warning note for admin review
     var warningNote = guests._adminWarning || '';
+    if (spouseAutoAdded) {
+      warningNote = warningNote
+        ? warningNote + ' | Spouse auto-added for attendance/meals'
+        : 'Spouse auto-added for attendance/meals';
+    }
     if (warningNote) {
       data.specialNeeds = data.specialNeeds
         ? data.specialNeeds + ' | ' + warningNote
@@ -163,6 +171,47 @@ function onStaffFormSubmit(e) {
     logActivity('error', 'staff_form', error.toString(), 'form');
     return { success: false, error: error.toString() };
   }
+}
+
+function normalizeGuestName_(value) {
+  return (value || '').toString().trim().toLowerCase();
+}
+
+function guestNameMatches_(guest, normalizedName) {
+  if (!guest || !normalizedName) return false;
+  return normalizeGuestName_(guest.name) === normalizedName;
+}
+
+/**
+ * Ensures spouse volunteer is represented in the parsed guest list.
+ * Returns true when a spouse guest row was injected.
+ */
+function ensureSpouseVolunteerGuest(guests, spouseVolunteering, spouseName) {
+  if (!spouseVolunteering || !Array.isArray(guests)) return false;
+
+  var normalizedSpouseName = normalizeGuestName_(spouseName);
+  var spouseAlreadyListed = false;
+  if (normalizedSpouseName) {
+    for (var i = 0; i < guests.length; i++) {
+      if (guestNameMatches_(guests[i], normalizedSpouseName)) {
+        spouseAlreadyListed = true;
+        break;
+      }
+    }
+  }
+  if (spouseAlreadyListed) return false;
+
+  guests.push({
+    name: spouseName || 'Spouse',
+    age: 30,
+    isChild: false,
+    attendanceType: 'full',
+    attendanceRaw: 'Full Time (Auto-added spouse volunteer)',
+    attendanceDays: getCampMeetingDays(),
+    isAutoAddedSpouse: true,
+    relationship: 'spouse'
+  });
+  return true;
 }
 
 /**

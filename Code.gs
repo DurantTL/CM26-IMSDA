@@ -95,6 +95,9 @@ function doPost(e) {
         
       case 'updatePayment':
         return jsonResponse(recordPayment(data));
+
+      case 'resendConfirmationEmail':
+        return jsonResponse(resendConfirmationEmail(data.regId));
         
       default:
         return jsonResponse({error: 'Unknown action: ' + action}, 400);

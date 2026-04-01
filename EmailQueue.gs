@@ -90,8 +90,15 @@ function processEmailQueue() {
   for (var i = 0; i < batch.length; i++) {
     var regId = batch[i];
     try {
-      sendConfirmationEmail(regId);
-      logActivity('email_sent', regId, 'Confirmation email sent via queue', 'EmailQueue');
+      var sendResult = sendConfirmationEmail(regId);
+      if (!sendResult || !sendResult.success) {
+        var sendError = (sendResult && sendResult.error) || 'Unknown queue send error';
+        console.error('processEmailQueue: failed for ' + regId + ': ' + sendError);
+        logActivity('error', regId, 'Email queue send failed: ' + sendError, 'EmailQueue');
+        failed.push(regId);
+      } else {
+        logActivity('email_sent', regId, 'Confirmation email sent via queue', 'EmailQueue');
+      }
     } catch (e) {
       console.error('processEmailQueue: failed for ' + regId + ': ' + e.toString());
       logActivity('error', regId, 'Email queue send failed: ' + e.toString(), 'EmailQueue');

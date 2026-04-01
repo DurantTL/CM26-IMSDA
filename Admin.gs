@@ -33,6 +33,8 @@ function onOpen() {
   ui.createMenu('🏕️ Camp Meeting')
     .addItem('Open Admin Panel', 'showAdminSidebar')
     .addSeparator()
+    .addItem('Resend Confirmation Email', 'promptResendConfirmationEmail')
+    .addSeparator()
     .addItem('Recalculate All Totals', 'recalculateAllTotals')
     .addItem('Generate Key Report', 'generateKeyReport')
     .addItem('Export Check-In List', 'exportCheckInList')
@@ -249,8 +251,66 @@ function generateKeyReport() {
  * Resend confirmation email
  */
 function resendConfirmationEmail(regId) {
-  sendConfirmationEmail(regId);
-  return { success: true, message: 'Email sent for ' + regId };
+  var normalizedRegId = (regId || '').toString().trim();
+  Logger.log('Resend confirmation requested for: ' + normalizedRegId);
+  logActivity('email_resend_requested', normalizedRegId || 'unknown', 'Admin requested confirmation resend', 'admin');
+
+  if (!normalizedRegId) {
+    var missingIdResult = { success: false, regId: normalizedRegId, error: 'Missing registration ID' };
+    Logger.log('Resend confirmation failed: ' + missingIdResult.error);
+    logActivity('email_resend_failed', 'unknown', missingIdResult.error, 'admin');
+    return missingIdResult;
+  }
+
+  try {
+    var sendResult = sendConfirmationEmail(normalizedRegId);
+    if (!sendResult || !sendResult.success) {
+      var failure = {
+        success: false,
+        regId: normalizedRegId,
+        error: (sendResult && sendResult.error) || 'Unknown send error'
+      };
+      Logger.log('Resend confirmation failed for ' + normalizedRegId + ': ' + failure.error);
+      logActivity('email_resend_failed', normalizedRegId, failure.error, 'admin');
+      return failure;
+    }
+
+    var successResult = {
+      success: true,
+      regId: normalizedRegId,
+      email: sendResult.email,
+      message: 'Confirmation email resent to ' + sendResult.email
+    };
+    Logger.log('Resend confirmation succeeded for ' + normalizedRegId + ' -> ' + sendResult.email);
+    logActivity('email_resend_sent', normalizedRegId, 'Confirmation resent to ' + sendResult.email, 'admin');
+    return successResult;
+  } catch (error) {
+    var errorText = error && error.toString ? error.toString() : 'Unknown resend error';
+    Logger.log('Resend confirmation failed for ' + normalizedRegId + ': ' + errorText);
+    logActivity('email_resend_failed', normalizedRegId, errorText, 'admin');
+    return { success: false, regId: normalizedRegId, error: errorText };
+  }
+}
+
+function promptResendConfirmationEmail() {
+  var ui = SpreadsheetApp.getUi();
+  var response = ui.prompt(
+    'Resend Confirmation Email',
+    'Enter Registration ID:',
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (response.getSelectedButton() !== ui.Button.OK) {
+    return;
+  }
+
+  var regId = response.getResponseText();
+  var result = resendConfirmationEmail(regId);
+  if (result.success) {
+    ui.alert('Success', result.message, ui.ButtonSet.OK);
+  } else {
+    ui.alert('Resend Failed', 'Could not resend confirmation: ' + (result.error || 'Unknown error'), ui.ButtonSet.OK);
+  }
 }
 
 /**
