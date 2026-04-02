@@ -109,6 +109,27 @@ function calculateSquareFee(subtotal) {
   return Math.round(fee * 100) / 100;
 }
 
+/**
+ * Normalize registration status values from sheet/user input.
+ */
+function normalizeRegistrationStatus(status) {
+  return String(status || '').trim().toLowerCase();
+}
+
+/**
+ * Returns true when a registration row is soft-cancelled.
+ */
+function isCancelledRegistration(row) {
+  return normalizeRegistrationStatus(row[COLUMNS.STATUS]) === 'cancelled';
+}
+
+/**
+ * Returns true when a registration row is operationally active.
+ */
+function isActiveRegistration(row) {
+  return !isCancelledRegistration(row);
+}
+
 // Column Indices (0-based) for consistency
 var COLUMNS = {
   REG_ID: 0,        // A

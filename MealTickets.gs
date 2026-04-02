@@ -2,6 +2,18 @@
 // FILE: MealTickets.gs (FIXED LOGIC)
 // ==========================================
 
+function getRegistrationRowById_(regId) {
+  var ss = getSS();
+  var regSheet = ss.getSheetByName('Registrations');
+  var regData = regSheet.getDataRange().getValues();
+  for (var i = 1; i < regData.length; i++) {
+    if (regData[i][COLUMNS.REG_ID] === regId) {
+      return regData[i];
+    }
+  }
+  return null;
+}
+
 function createMealTickets(regId, data, skipLock) {
   var lock = LockService.getScriptLock();
 
@@ -240,6 +252,14 @@ function redeemMealTicket(data) {
  * Get all meal tickets for a registration
  */
 function getGuestMeals(regId) {
+  var regRow = getRegistrationRowById_(regId);
+  if (!regRow) {
+    return { success: false, error: 'Registration not found' };
+  }
+  if (isCancelledRegistration(regRow)) {
+    return { success: false, error: 'Registration is cancelled' };
+  }
+
   var ss = getSS();
   var sheet = ss.getSheetByName('MealTickets');
   var data = sheet.getDataRange().getValues();
@@ -263,27 +283,14 @@ function getGuestMeals(regId) {
     }
   }
   
-  var regSheet = ss.getSheetByName('Registrations');
-  var regData = regSheet.getDataRange().getValues();
-  var regInfo = null;
-  
-  for (var j = 1; j < regData.length; j++) {
-    if (regData[j][0] === regId) {
-      regInfo = {
-        regId: regData[j][0],
-        name: regData[j][4],
-        email: regData[j][5],
-        housing: regData[j][12],
-        totalGuests: regData[j][18],
-        dietaryNeeds: regData[j][21]
-      };
-      break;
-    }
-  }
-  
-  if (!regInfo) {
-    return { success: false, error: 'Registration not found' };
-  }
+  var regInfo = {
+    regId: regRow[0],
+    name: regRow[4],
+    email: regRow[5],
+    housing: regRow[12],
+    totalGuests: regRow[18],
+    dietaryNeeds: regRow[21]
+  };
   
   return {
     success: true,
@@ -298,6 +305,10 @@ function getGuestMeals(regId) {
  * Get tickets for current meal service only
  */
 function getCurrentMealTickets(regId, mealType, day) {
+  var regRow = getRegistrationRowById_(regId);
+  if (!regRow) return { success: false, error: 'Registration not found' };
+  if (isCancelledRegistration(regRow)) return { success: false, error: 'Registration is cancelled' };
+
   var ss = getSS();
   var sheet = ss.getSheetByName('MealTickets');
   var data = sheet.getDataRange().getValues();
@@ -333,6 +344,10 @@ function bulkRedeemMeals(regId, mealType, day, volunteer) {
   }
   
   try {
+    var regRow = getRegistrationRowById_(regId);
+    if (!regRow) return { success: false, error: 'Registration not found' };
+    if (isCancelledRegistration(regRow)) return { success: false, error: 'Registration is cancelled' };
+
     var ss = getSS();
     var sheet = ss.getSheetByName('MealTickets');
     var data = sheet.getDataRange().getValues();

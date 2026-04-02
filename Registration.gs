@@ -611,8 +611,7 @@ function cancelRegistration(data) {
       return { success: false, error: 'Registration not found' };
     }
 
-    var currentStatus = regRow[COLUMNS.STATUS];
-    if (currentStatus === 'cancelled') {
+    if (isCancelledRegistration(regRow)) {
       return { success: false, error: 'Registration already cancelled' };
     }
 
@@ -735,10 +734,10 @@ function deleteRegistration(input) {
       return { success: false, regId: normalizedRegId, error: 'Registration not found.' };
     }
 
-    var existingStatus = String(regRow[COLUMNS.STATUS] || '').toLowerCase();
+    var existingStatus = normalizeRegistrationStatus(regRow[COLUMNS.STATUS]);
     var regName = String(regRow[COLUMNS.PRIMARY_NAME] || '');
     var regEmail = String(regRow[COLUMNS.EMAIL] || '');
-    if (existingStatus === 'cancelled') {
+    if (isCancelledRegistration(regRow)) {
       var alreadyMessage = 'Registration already deleted.';
       logActivity('registration_delete_success', normalizedRegId, alreadyMessage + ' name=' + regName + ', email=' + regEmail, 'admin');
       return { success: true, regId: normalizedRegId, message: alreadyMessage };
