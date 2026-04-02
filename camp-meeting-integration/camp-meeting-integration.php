@@ -1300,7 +1300,41 @@ function cm26_recursive_utf8_clean($data) {
 
 /**
  * ==================================================
- * 4. SHORTCODE: [cm_availability]
+ * 4. AVAILABILITY AJAX PROXY + SHORTCODES
+ * ==================================================
+ */
+add_action('wp_ajax_cm26_get_availability', 'cm26_ajax_get_availability');
+add_action('wp_ajax_nopriv_cm26_get_availability', 'cm26_ajax_get_availability');
+
+function cm26_ajax_get_availability() {
+    $scriptUrl = trim(get_option('cm26_google_script_url'));
+    if (empty($scriptUrl)) {
+        wp_send_json_error(['message' => 'Google Script URL not configured'], 500);
+    }
+
+    $response = wp_remote_get(add_query_arg('action', 'getAvailability', $scriptUrl), [
+        'timeout'     => 20,
+        'redirection' => 3,
+    ]);
+
+    if (is_wp_error($response)) {
+        wp_send_json_error(['message' => 'Availability service is unavailable'], 502);
+    }
+
+    $statusCode = wp_remote_retrieve_response_code($response);
+    $rawBody = wp_remote_retrieve_body($response);
+    $payload = json_decode($rawBody, true);
+
+    if ($statusCode >= 400 || !is_array($payload)) {
+        wp_send_json_error(['message' => 'Invalid availability response'], 502);
+    }
+
+    wp_send_json($payload);
+}
+
+/**
+ * ==================================================
+ * 5. SHORTCODE: [cm_availability]
  * ==================================================
  */
 add_shortcode('cm_availability', 'cm26_render_availability_widget');
@@ -1311,15 +1345,17 @@ function cm26_render_availability_widget($atts) {
         'refresh' => '60',
     ], $atts);
     
-    $scriptUrl = trim(get_option('cm26_google_script_url'));
-    if (empty($scriptUrl)) {
+    if (empty(trim(get_option('cm26_google_script_url')))) {
         return '<p style="color:red;">Camp Meeting: Google Script URL not configured.</p>';
     }
+
+    $widgetId = 'cm-availability-widget-' . wp_rand(1000, 999999);
+    $ajaxUrl = admin_url('admin-ajax.php?action=cm26_get_availability');
 
     // Inline the JS to avoid needing a separate file
     ob_start();
     ?>
-    <div id="cm-availability-widget" class="cm-style-<?php echo esc_attr($atts['style']); ?>">
+    <div id="<?php echo esc_attr($widgetId); ?>" class="cm-availability-widget cm-style-<?php echo esc_attr($atts['style']); ?>">
         <style>
             .cm-style-cards .cm-grid { 
                 display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; margin: 20px 0; 
@@ -1373,22 +1409,23 @@ function cm26_render_availability_widget($atts) {
     </div>
     <script>
     (function() {
-        var apiUrl = <?php echo json_encode($scriptUrl); ?>;
+        var apiUrl = <?php echo wp_json_encode($ajaxUrl); ?>;
         var refreshInterval = <?php echo intval($atts['refresh']) * 1000; ?>;
-        var widget = document.getElementById('cm-availability-widget');
+        var widget = document.getElementById(<?php echo wp_json_encode($widgetId); ?>);
+        if (!widget) return;
         var loading = widget.querySelector('.cm-loading');
         var grid = widget.querySelector('.cm-grid');
         var lastUpdated = widget.querySelector('.cm-last-updated');
-        var timestamp = document.getElementById('cm-timestamp');
+        var timestamp = widget.querySelector('#cm-timestamp');
         
         function loadAvailability() {
-            fetch(apiUrl + '?action=getAvailability')
+            fetch(apiUrl, { credentials: 'same-origin' })
                 .then(function(r) { return r.json(); })
                 .then(function(data) {
                     if (data.success && data.housing) {
                         data.housing.forEach(function(item) {
-                            var countEl = document.getElementById('count-' + item.optionId);
-                            var cardEl = document.getElementById('card-' + item.optionId);
+                            var countEl = widget.querySelector('#count-' + item.optionId);
+                            var cardEl = widget.querySelector('#card-' + item.optionId);
                             if (!countEl) return;
                             
                             countEl.className = 'cm-stat';
@@ -1429,7 +1466,115 @@ function cm26_render_availability_widget($atts) {
 
 /**
  * ==================================================
- * 5. FORM PAGE INTEGRATION
+ * 6. SHORTCODE: [cm_availability_banner]
+ * ==================================================
+ */
+add_shortcode('cm_availability_banner', 'cm26_render_availability_banner');
+
+function cm26_render_availability_banner($atts) {
+    $atts = shortcode_atts([
+        'refresh' => '60',
+        'cta'     => 'Check availability below',
+    ], $atts);
+
+    if (empty(trim(get_option('cm26_google_script_url')))) {
+        return '<p style="color:red;">Camp Meeting: Google Script URL not configured.</p>';
+    }
+
+    $bannerId = 'cm-availability-banner-' . wp_rand(1000, 999999);
+    $ajaxUrl = admin_url('admin-ajax.php?action=cm26_get_availability');
+
+    ob_start();
+    ?>
+    <div id="<?php echo esc_attr($bannerId); ?>" class="cm-availability-banner">
+        <style>
+            .cm-availability-banner { border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px; background: #ffffff; margin: 12px 0; }
+            .cm-availability-banner .cm-banner-cta { margin: 0 0 12px; color: #1e293b; font-weight: 600; font-size: 1rem; }
+            .cm-availability-banner .cm-banner-grid { display: flex; gap: 10px; align-items: stretch; }
+            .cm-availability-banner .cm-banner-item { flex: 1 1 0; border-radius: 10px; padding: 10px 12px; border: 1px solid transparent; background: #f8fafc; min-width: 0; }
+            .cm-availability-banner .cm-banner-title { display: block; font-size: 0.88rem; color: #334155; font-weight: 600; margin-bottom: 4px; }
+            .cm-availability-banner .cm-banner-status { display: block; font-size: 0.92rem; font-weight: 700; color: #0f172a; }
+            .cm-availability-banner .cm-state-available { background: #ecfdf5; border-color: #86efac; }
+            .cm-availability-banner .cm-state-low { background: #fefce8; border-color: #fde047; }
+            .cm-availability-banner .cm-state-sold { background: #fef2f2; border-color: #fca5a5; }
+            .cm-availability-banner .cm-banner-loading { color: #64748b; font-style: italic; }
+            @media (max-width: 700px) {
+                .cm-availability-banner .cm-banner-grid { flex-direction: column; }
+            }
+        </style>
+        <p class="cm-banner-cta"><?php echo esc_html($atts['cta']); ?></p>
+        <div class="cm-banner-loading">⏳ Checking availability...</div>
+        <div class="cm-banner-grid" style="display:none;">
+            <div class="cm-banner-item" data-option="dorm">
+                <span class="cm-banner-title">Dorm Rooms</span>
+                <span class="cm-banner-status">--</span>
+            </div>
+            <div class="cm-banner-item" data-option="rv">
+                <span class="cm-banner-title">RV Hookups</span>
+                <span class="cm-banner-status">--</span>
+            </div>
+            <div class="cm-banner-item" data-option="tent">
+                <span class="cm-banner-title">Tent Sites</span>
+                <span class="cm-banner-status">--</span>
+            </div>
+        </div>
+    </div>
+    <script>
+    (function() {
+        var banner = document.getElementById(<?php echo wp_json_encode($bannerId); ?>);
+        if (!banner) return;
+        var apiUrl = <?php echo wp_json_encode($ajaxUrl); ?>;
+        var refreshInterval = <?php echo intval($atts['refresh']) * 1000; ?>;
+        var loading = banner.querySelector('.cm-banner-loading');
+        var grid = banner.querySelector('.cm-banner-grid');
+
+        function getStateClasses(item) {
+            var base = 'cm-banner-item ';
+            if (item.isUnlimited || item.available >= 10) return base + 'cm-state-available';
+            if (item.available > 0) return base + 'cm-state-low';
+            return base + 'cm-state-sold';
+        }
+
+        function getStatusText(item) {
+            if (item.isUnlimited) return 'Available';
+            if (item.available > 0) return item.available + ' available';
+            if (item.waitlistAllowed) return 'Sold out — waitlist available';
+            return 'Sold out';
+        }
+
+        function loadAvailability() {
+            fetch(apiUrl, { credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (!data.success || !data.housing) return;
+                    data.housing.forEach(function(item) {
+                        var card = banner.querySelector('[data-option="' + item.optionId + '"]');
+                        if (!card) return;
+                        card.className = getStateClasses(item);
+                        var status = card.querySelector('.cm-banner-status');
+                        if (status) status.textContent = getStatusText(item);
+                    });
+                    loading.style.display = 'none';
+                    grid.style.display = 'flex';
+                })
+                .catch(function() {
+                    loading.textContent = '⚠️ Unable to load availability.';
+                });
+        }
+
+        loadAvailability();
+        if (refreshInterval > 0) {
+            setInterval(loadAvailability, refreshInterval);
+        }
+    })();
+    </script>
+    <?php
+    return ob_get_clean();
+}
+
+/**
+ * ==================================================
+ * 7. FORM PAGE INTEGRATION
  * Disables sold-out options in forms
  * ==================================================
  */
@@ -1437,9 +1582,9 @@ add_action('wp_footer', 'cm26_form_availability_script');
 
 function cm26_form_availability_script() {
     $formId = get_option('cm26_form_id');
-    $scriptUrl = trim(get_option('cm26_google_script_url'));
+    $ajaxUrl = admin_url('admin-ajax.php?action=cm26_get_availability');
     
-    if (empty($formId) || empty($scriptUrl)) {
+    if (empty($formId) || empty(trim(get_option('cm26_google_script_url')))) {
         return;
     }
     ?>
@@ -1448,7 +1593,7 @@ function cm26_form_availability_script() {
         var formEl = document.querySelector('.fluentform[data-form_id="<?php echo esc_js($formId); ?>"]');
         if (!formEl) return;
         
-        fetch('<?php echo esc_js($scriptUrl); ?>?action=getAvailability')
+        fetch(<?php echo wp_json_encode($ajaxUrl); ?>, { credentials: 'same-origin' })
             .then(function(r) { return r.json(); })
             .then(function(data) {
                 if (!data.success || !data.housing) return;
