@@ -83,11 +83,9 @@ function getUnassignedRegistrations() {
     var row = data[i];
     var housingOption = row[COLUMNS.HOUSING_OPTION];
     var roomAssignment = row[COLUMNS.ROOM_ASSIGNMENT];
-    var status = row[COLUMNS.STATUS];
-    
-    if (housingOption === 'dorm' && 
-        !roomAssignment && 
-        status !== 'cancelled') {
+    if (housingOption === 'dorm' &&
+        !roomAssignment &&
+        isActiveRegistration(row)) {
       unassigned.push({
         regId: row[COLUMNS.REG_ID],
         name: row[COLUMNS.PRIMARY_NAME],
@@ -121,6 +119,8 @@ function recalculateAllTotals() {
     
     for (var i = 1; i < data.length; i++) {
       var row = data[i];
+
+      if (isCancelledRegistration(row)) continue;
 
       // Calculate housing subtotal
       var housingOption = row[COLUMNS.HOUSING_OPTION];
@@ -204,6 +204,7 @@ function generateKeyReport() {
   
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
+    if (isCancelledRegistration(row)) continue;
     
     if (row[COLUMNS.KEY_DEPOSIT_PAID] === 'yes') {
       var key1Out = row[COLUMNS.KEY_1_RETURNED] !== 'yes';
@@ -373,6 +374,9 @@ function changeHousingType(regId, newHousingType) {
     var data = regData.values;
     var index = findRegistrationRowById(regId, data);
     if (index !== -1) {
+        if (isCancelledRegistration(data[index])) {
+          return { success: false, error: 'Cannot change housing for cancelled registration' };
+        }
         var row = index + 1;
         var numNights = data[index][COLUMNS.NUM_NIGHTS] || 0;
 
@@ -484,9 +488,8 @@ function exportCheckInList() {
   
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
+    if (isCancelledRegistration(row)) continue;
     var status = row[COLUMNS.STATUS];
-    
-    if (status === 'cancelled') continue;
     
     exportData.push([
       row[COLUMNS.REG_ID],
@@ -564,8 +567,7 @@ function getDietaryReport() {
 
     for (var i = 1; i < data.length; i++) {
       var row = data[i];
-      var status = (row[COLUMNS.STATUS] || '').toString().toLowerCase();
-      if (status === 'cancelled') continue;
+      if (isCancelledRegistration(row)) continue;
 
       totalRegistrations++;
 
@@ -625,7 +627,7 @@ function processNoShows() {
 
     for (var i = 1; i < data.length; i++) {
       var row = data[i];
-      var status = row[COLUMNS.STATUS];
+      var status = normalizeRegistrationStatus(row[COLUMNS.STATUS]);
       var nights = (row[COLUMNS.NIGHTS] || '').toLowerCase(); // e.g. "tue,wed,thu"
       var checkedIn = row[COLUMNS.CHECKED_IN];
 
@@ -702,7 +704,7 @@ function adminSearchRegistrations(query) {
       var regId = String(row[COLUMNS.REG_ID] || '');
       var name = String(row[COLUMNS.PRIMARY_NAME] || '');
       var status = String(row[COLUMNS.STATUS] || '');
-      if (status === 'cancelled') continue;
+      if (isCancelledRegistration(row)) continue;
 
       if (!term || regId.toLowerCase().indexOf(term) !== -1 || name.toLowerCase().indexOf(term) !== -1) {
         matches.push({

@@ -142,7 +142,7 @@ function onStaffFormSubmit(e) {
       var regSheet = ss.getSheetByName("Registrations");
       var regData = regSheet.getDataRange().getValues();
       for (var i = 1; i < regData.length; i++) {
-        if (regData[i][COLUMNS.EMAIL] === data.email && regData[i][COLUMNS.STATUS] !== "cancelled") {
+        if (regData[i][COLUMNS.EMAIL] === data.email && isActiveRegistration(regData[i])) {
            Logger.log("Duplicate staff registration blocked for " + data.email);
            sendStaffRegFailureNotification(data, "Duplicate email: " + data.email);
            return { success: false, error: "Email already registered." };

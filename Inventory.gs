@@ -127,7 +127,7 @@ function countReservations(housingOptionId) {
   var count = 0;
   for (var i = 0; i < numRows; i++) {
     var opt    = housingValues[i][0];
-    var status = statusValues[i][0];
+    var status = normalizeRegistrationStatus(statusValues[i][0]);
     if (opt === housingOptionId &&
         (status === 'confirmed' || status === 'pending' || status === 'deposit')) {
       count++;

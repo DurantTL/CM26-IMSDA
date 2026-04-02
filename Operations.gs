@@ -15,6 +15,9 @@ function checkInRegistration(data) {
 
     for (var i = 1; i < rows.length; i++) {
       if (rows[i][COLUMNS.REG_ID] === data.regId) {
+        if (isCancelledRegistration(rows[i])) {
+          return { success: false, error: 'Registration is cancelled' };
+        }
         var row = i + 1;
 
         // Update checked_in status and time
@@ -57,6 +60,9 @@ function checkOutRegistration(data) {
 
     for (var i = 1; i < rows.length; i++) {
       if (rows[i][COLUMNS.REG_ID] === data.regId) {
+        if (isCancelledRegistration(rows[i])) {
+          return { success: false, error: 'Registration is cancelled' };
+        }
         var row = i + 1;
 
         // Update checked_out status and time

@@ -13,6 +13,9 @@ function getCheckInData(regId) {
   for (var i = 1; i < data.length; i++) {
     if (data[i][COLUMNS.REG_ID] === regId) {
       var row = data[i];
+      if (isCancelledRegistration(row)) {
+        return { success: false, error: 'Registration is cancelled' };
+      }
 
       // Parse guest details
       var guests = [];
@@ -101,9 +104,11 @@ function getArrivals(dateStr) {
 
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
-    var status = row[COLUMNS.STATUS];
+    var status = normalizeRegistrationStatus(row[COLUMNS.STATUS]);
     var nights = (row[COLUMNS.NIGHTS] || '').toLowerCase();
     var checkedIn = row[COLUMNS.CHECKED_IN];
+
+    if (isCancelledRegistration(row)) continue;
 
     // Include if: confirmed/pending, includes this night, not yet checked in
     if ((status === 'confirmed' || status === 'pending' || status === 'deposit') &&
@@ -146,6 +151,9 @@ function processCheckIn(data) {
 
     for (var i = 1; i < regData.length; i++) {
       if (regData[i][COLUMNS.REG_ID] === data.regId) {
+        if (isCancelledRegistration(regData[i])) {
+          return { success: false, error: 'Registration is cancelled' };
+        }
         var row = i + 1;
 
         // Batch update room and key info (columns AI-AN, 1-based 35-40)
@@ -222,6 +230,9 @@ function processCheckOut(data) {
 
     for (var i = 1; i < regData.length; i++) {
       if (regData[i][COLUMNS.REG_ID] === data.regId) {
+        if (isCancelledRegistration(regData[i])) {
+          return { success: false, error: 'Registration is cancelled' };
+        }
         var row = i + 1;
 
         // Batch update key returns and refund (columns AO-AR, 1-based 41-44)
@@ -346,6 +357,9 @@ function assignRoom(data) {
 
   for (var i = 1; i < regData.length; i++) {
     if (regData[i][COLUMNS.REG_ID] === data.regId) {
+      if (isCancelledRegistration(regData[i])) {
+        return { success: false, error: 'Registration is cancelled' };
+      }
       var row = i + 1;
 
       // Set room assignment
@@ -376,6 +390,9 @@ function recordBalancePayment(data) {
 
   for (var i = 1; i < regData.length; i++) {
     if (regData[i][COLUMNS.REG_ID] === data.regId) {
+      if (isCancelledRegistration(regData[i])) {
+        return { success: false, error: 'Registration is cancelled' };
+      }
       var row = i + 1;
 
       var currentPaid = regData[i][COLUMNS.AMOUNT_PAID] || 0;
@@ -438,10 +455,7 @@ function searchRegistrations(params) {
     var row = data[i];
     var fullName  = (row[COLUMNS.PRIMARY_NAME] || '').toLowerCase();
     var rowRegId  = (row[COLUMNS.REG_ID]       || '').toLowerCase();
-    var status    = row[COLUMNS.STATUS];
-
-    // Skip cancelled
-    if (status === 'cancelled') continue;
+    if (isCancelledRegistration(row)) continue;
 
     var matches = false;
 
@@ -499,9 +513,7 @@ function getCheckInStats() {
 
   for (var i = 1; i < data.length; i++) {
     var row = data[i];
-    var status = row[COLUMNS.STATUS];
-
-    if (status === 'cancelled') continue;
+    if (isCancelledRegistration(row)) continue;
 
     stats.totalRegistrations++;
 
