@@ -252,55 +252,28 @@ function parseGuestDetails(text) {
   var raw = String(text).replace(/\r/g, '').trim();
   if (!raw) return guests;
 
+  Logger.log('[parseGuestDetails] rawInput="' + raw + '"');
+
   var lines = raw.split('\n');
 
-  // Preprocess single-line comma-separated segments like:
-  // "John Smith 8, Jane Smith 35, Baby Smith 1"
-  // If every segment parses as a valid guest line, use that structured result.
+  // Single-line strategy:
+  // 1) parse as one full guest first
+  // 2) only split into multiple guests when repeated guest boundaries are detected
   if (lines.length === 1 && raw.indexOf(',') !== -1) {
-    var singleLineParts = raw.split(/,\s*/).map(function(part) { return part.trim(); }).filter(function(part) { return !!part; });
-    if (singleLineParts.length > 1) {
-      var singleLineGuests = [];
-      var allValid = true;
-      for (var sl = 0; sl < singleLineParts.length; sl++) {
-        var parsedPart = parseGuestLine(singleLineParts[sl]);
-        if (!parsedPart || !parsedPart.name) {
-          allValid = false;
-          break;
-        }
-        var parsedAttendance = parseAttendanceDetails(parsedPart.attendanceRaw);
-        if (parsedAttendance.attendanceType === 'unknown') {
-          guests._attendanceWarnings.push(parsedPart.name + ' ("' + (parsedPart.attendanceRaw || 'blank') + '")');
-          parsedAttendance.attendanceDays = getCampMeetingDays();
-        }
-        if (parsedPart.warningMissingAge) {
-          guests._missingAgeWarnings = guests._missingAgeWarnings || [];
-          guests._missingAgeWarnings.push(parsedPart.name);
-        }
-        singleLineGuests.push({
-          name: parsedPart.name,
-          age: parsedPart.age,
-          isChild: parsedPart.age < 18,
-          attendanceType: parsedAttendance.attendanceType,
-          attendanceRaw: parsedAttendance.attendanceRaw,
-          attendanceDays: parsedAttendance.attendanceDays,
-          parserConfidence: parsedPart.parserConfidence || 'high',
-          parserWarnings: parsedPart.parserWarnings || []
-        });
+    var fullLineParsed = parseGuestLine(raw);
+    var multiLineCandidates = parseMultipleGuestsFromSingleLine(raw);
+    var useMultiGuestMode = multiLineCandidates.length > 1;
+    Logger.log('[parseGuestDetails] mode=' + (useMultiGuestMode ? 'multi-guest-single-line' : 'single-guest-single-line'));
+    if (useMultiGuestMode) {
+      for (var mg = 0; mg < multiLineCandidates.length; mg++) {
+        appendParsedGuestToList(multiLineCandidates[mg], guests);
       }
-      if (allValid && singleLineGuests.length === singleLineParts.length) {
-        Array.prototype.push.apply(guests, singleLineGuests);
-      }
+    } else if (fullLineParsed && fullLineParsed.name) {
+      appendParsedGuestToList(fullLineParsed, guests);
     }
     if (guests.length > 0) {
-      var preWarningParts = [];
-      if (guests._missingAgeWarnings && guests._missingAgeWarnings.length > 0) {
-        preWarningParts.push('Missing age for: ' + guests._missingAgeWarnings.join(', '));
-      }
-      if (guests._attendanceWarnings.length > 0) {
-        preWarningParts.push('Unrecognized attendance for: ' + guests._attendanceWarnings.join(', '));
-      }
-      guests._adminWarning = preWarningParts.join(' | ');
+      finalizeGuestParserWarnings(guests);
+      Logger.log('[parseGuestDetails] parsedGuests=' + JSON.stringify(guests));
       return guests;
     }
   }
@@ -323,6 +296,7 @@ function parseGuestDetails(text) {
           });
         }
       }
+      Logger.log('[parseGuestDetails] mode=legacy-comma-names | parsedGuests=' + JSON.stringify(guests));
       return guests;
     }
   }
@@ -336,6 +310,7 @@ function parseGuestDetails(text) {
     if (hasMultipleAges && !hasLikelyAttendanceText) {
       var legacyGuests = parseLegacyAgeBlob(raw);
       if (legacyGuests.length > 0) {
+        Logger.log('[parseGuestDetails] mode=legacy-age-blob | parsedGuests=' + JSON.stringify(legacyGuests));
         return legacyGuests;
       }
     }
@@ -348,41 +323,52 @@ function parseGuestDetails(text) {
     var parsed = parseGuestLine(line);
     if (!parsed || !parsed.name) continue;
 
-    var attendance = parseAttendanceDetails(parsed.attendanceRaw);
-
-    // Unknown attendance does not block registration.
-    // Keep attendanceType='unknown' for audit, but default meal/day handling to full time.
-    if (attendance.attendanceType === 'unknown') {
-      guests._attendanceWarnings.push(parsed.name + ' ("' + (parsed.attendanceRaw || 'blank') + '")');
-      attendance.attendanceDays = getCampMeetingDays();
-    }
-
-    if (parsed.warningMissingAge) {
-      guests._missingAgeWarnings = guests._missingAgeWarnings || [];
-      guests._missingAgeWarnings.push(parsed.name);
-    }
-
-    guests.push({
-      name: parsed.name,
-      age: parsed.age,
-      isChild: parsed.age < 18,
-      attendanceType: attendance.attendanceType,
-      attendanceRaw: attendance.attendanceRaw,
-      attendanceDays: attendance.attendanceDays,
-      parserConfidence: parsed.parserConfidence || 'high',
-      parserWarnings: parsed.parserWarnings || []
-    });
+    var lineAttendance = parseAttendanceDetails(parsed.attendanceRaw);
+    appendParsedGuestToList(parsed, guests);
 
     Logger.log(
       '[parseGuestDetails] line="' + line +
       '" | name="' + parsed.name +
       '" | age=' + parsed.age +
       ' | attendanceRaw="' + parsed.attendanceRaw +
-      '" | attendanceType="' + attendance.attendanceType +
-      '" | warning="' + (parsed.warningText || (attendance.attendanceType === 'unknown' ? 'unrecognized attendance' : '')) + '"'
+      '" | attendanceType="' + lineAttendance.attendanceType +
+      '" | warning="' + (parsed.warningText || (lineAttendance.attendanceType === 'unknown' ? 'unrecognized attendance' : '')) + '"'
     );
   }
 
+  finalizeGuestParserWarnings(guests);
+  Logger.log('[parseGuestDetails] mode=per-line | parsedGuests=' + JSON.stringify(guests));
+
+  return guests;
+}
+
+function appendParsedGuestToList(parsed, guests) {
+  if (!parsed || !parsed.name || isInvalidStandaloneGuestName(parsed.name)) return;
+
+  var attendance = parseAttendanceDetails(parsed.attendanceRaw);
+  if (attendance.attendanceType === 'unknown') {
+    guests._attendanceWarnings.push(parsed.name + ' ("' + (parsed.attendanceRaw || 'blank') + '")');
+    attendance.attendanceDays = getCampMeetingDays();
+  }
+
+  if (parsed.warningMissingAge) {
+    guests._missingAgeWarnings = guests._missingAgeWarnings || [];
+    guests._missingAgeWarnings.push(parsed.name);
+  }
+
+  guests.push({
+    name: parsed.name,
+    age: parsed.age,
+    isChild: parsed.age < 18,
+    attendanceType: attendance.attendanceType,
+    attendanceRaw: attendance.attendanceRaw,
+    attendanceDays: attendance.attendanceDays,
+    parserConfidence: parsed.parserConfidence || 'high',
+    parserWarnings: parsed.parserWarnings || []
+  });
+}
+
+function finalizeGuestParserWarnings(guests) {
   var warningParts = [];
   if (guests._missingAgeWarnings && guests._missingAgeWarnings.length > 0) {
     warningParts.push('Missing age for: ' + guests._missingAgeWarnings.join(', '));
@@ -400,8 +386,75 @@ function parseGuestDetails(text) {
     warningParts.push('Parser review suggested for: ' + lowConfidenceNames.join(', '));
   }
   guests._adminWarning = warningParts.join(' | ');
+}
 
-  return guests;
+/**
+ * Detect and parse multiple guests entered on a single physical line.
+ * This parser is conservative: ambiguous input falls back to single-guest handling.
+ *
+ * Coverage examples:
+ * 1) "Caleb Durant, 29, Full Time" => 1 guest (fallback single mode)
+ * 2) "Caleb Durant, 29, Full Time, Cashmere Durant, 30, Full Time" => 2 guests
+ * 3) "Caleb Durant, 29" => 1 guest (fallback single mode)
+ * 4) "Caleb Durant, Full Time" => 1 guest (fallback single mode, missing age warning)
+ * 5) "Caleb Durant 29 Cashmere Durant 30" => handled by parseLegacyAgeBlob
+ * 6) "Caleb Durant, 29, Wed-Fri" => 1 guest (fallback single mode)
+ * 7) Never emit standalone names like "29" or "Full Time".
+ */
+function parseMultipleGuestsFromSingleLine(raw) {
+  if (!raw || String(raw).indexOf(',') === -1) return [];
+
+  var segments = String(raw).split(',').map(function(part) { return part.trim(); }).filter(function(part) { return !!part; });
+  if (segments.length < 4) return [];
+
+  var ageSegmentCount = 0;
+  for (var ac = 0; ac < segments.length; ac++) {
+    if (isStandaloneAgeToken(segments[ac])) ageSegmentCount++;
+  }
+  if (ageSegmentCount < 2) return [];
+
+  var parsedGuests = [];
+  var i = 0;
+  while (i < segments.length) {
+    var nameSegment = segments[i];
+    var ageSegment = segments[i + 1];
+    if (!nameSegment || !ageSegment || isInvalidStandaloneGuestName(nameSegment) || !isStandaloneAgeToken(ageSegment)) {
+      return [];
+    }
+
+    var combined = nameSegment + ', ' + ageSegment;
+    var nextSegment = segments[i + 2];
+    var segmentAfterNext = segments[i + 3];
+    var shouldUseNextAsAttendance = false;
+    if (nextSegment && !isStandaloneAgeToken(nextSegment)) {
+      // Don't consume next segment as attendance if it clearly starts the next name+age pair.
+      shouldUseNextAsAttendance = !(segmentAfterNext && isStandaloneAgeToken(segmentAfterNext));
+    }
+    if (shouldUseNextAsAttendance) {
+      combined += ', ' + nextSegment;
+      i += 3;
+    } else {
+      i += 2;
+    }
+
+    var parsed = parseGuestLine(combined);
+    if (!parsed || !parsed.name || isInvalidStandaloneGuestName(parsed.name)) return [];
+    parsedGuests.push(parsed);
+  }
+
+  return parsedGuests.length > 1 ? parsedGuests : [];
+}
+
+function isStandaloneAgeToken(value) {
+  return /^\d{1,3}$/.test(String(value || '').trim());
+}
+
+function isInvalidStandaloneGuestName(name) {
+  var cleaned = String(name || '').trim();
+  if (!cleaned) return true;
+  if (/^\d{1,3}$/.test(cleaned)) return true;
+  if (parseAttendanceDetails(cleaned).attendanceType !== 'unknown') return true;
+  return false;
 }
 
 /**
