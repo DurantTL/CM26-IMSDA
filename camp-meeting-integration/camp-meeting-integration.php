@@ -666,6 +666,13 @@ function cm26_queue_entry($entryId) {
         return;
     }
 
+    // Prevent re-queue if already successfully dispatched
+    $dispatched = get_option('cm26_dispatched_entries', []);
+    if (in_array($entryId, $dispatched, true)) {
+        error_log('CM26 Queue: entry ' . $entryId . ' already dispatched, skipping.');
+        return;
+    }
+
     $queue = get_option('cm26_dispatch_queue', []);
     foreach ($queue as $item) {
         if (intval($item['entry_id'] ?? 0) === $entryId) {
@@ -708,6 +715,10 @@ function cm26_process_dispatch_queue() {
 
         $result = cm26_fire_to_gas($entryId);
         if (!is_wp_error($result)) {
+            // Mark as successfully dispatched to prevent duplicate sends
+            $dispatched = get_option('cm26_dispatched_entries', []);
+            $dispatched[] = $entryId;
+            update_option('cm26_dispatched_entries', array_slice($dispatched, -500));
             continue;
         }
 
@@ -859,8 +870,8 @@ function cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $
     // 4. NUMBER OF NIGHTS (supports number or checkbox)
     // =============================================
     $nightsRaw = cm26_get_field($formData, [
-        'nights_attending', 'number_of_nights', 'num_nights', 'nights', 
-        'number_of_nights_1_5', 'nights_count'
+        'cm_num_nights', 'nights_attending', 'number_of_nights', 'num_nights',
+        'nights', 'number_of_nights_1_5', 'nights_count'
     ], '');
     
     $numNights = 0;
