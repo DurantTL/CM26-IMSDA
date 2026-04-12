@@ -548,9 +548,23 @@ function cm26_send_to_google($entryId, $formData, $form) {
     }
 
     // Only fire immediately for offline/check payments.
-    // Square payments are handled by the payment_paid hooks below.
+    // Square payments are normally handled by the payment_paid hooks below,
+    // EXCEPT when the custom payment amount is empty/zero — in that case
+    // Fluent Forms never actually charges Square, so no payment_paid hook
+    // will fire. Without this fallback the submission is silently dropped.
     if ( ! cm26_is_offline_payment( $formData ) ) {
-        return;
+        $customAmount = cm26_get_field( $formData, [
+            'custom_payment_amount', 'payment_amount', 'total_charged', 'total_payment'
+        ], '' );
+        if ( is_array( $customAmount ) ) {
+            $customAmount = '';
+        }
+        $customAmount = trim( (string) $customAmount );
+        if ( $customAmount !== '' && floatval( $customAmount ) > 0 ) {
+            // Payment will fire — wait for the payment_paid hook.
+            return;
+        }
+        error_log( 'CM26 Send: Square submission with empty custom_payment_amount (entry ' . $entryId . '); dispatching immediately to avoid silent drop.' );
     }
 
     // Save raw form data for debugging
@@ -788,13 +802,13 @@ function cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $
     if ($guestData) {
         foreach ($guestData as $guest) {
             $name = '';
-            $age = 0;
-            
+            $age = 30;
+
             // Check if it's a numeric array (Fluent Forms repeater format)
             // [0] = name, [1] = age
             if (isset($guest[0]) && is_string($guest[0])) {
                 $name = sanitize_text_field($guest[0]);
-                $age = isset($guest[1]) ? intval($guest[1]) : 0;
+                $age = (isset($guest[1]) && $guest[1] !== '') ? intval($guest[1]) : 30;
             } else {
                 // Try named keys as fallback
                 foreach (['guest_name', 'name', 'Name', 'full_name', 'fullname'] as $nameField) {
@@ -1075,7 +1089,7 @@ function cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $
     $paymentMethodRaw = sanitize_text_field(cm26_get_field($formData, [
         'payment_method', 'pay_method'
     ], 'square'));
-    $isCheck = (stripos($paymentMethodRaw, 'check') !== false);
+    $isCheck = cm26_is_offline_payment($formData);
     $totalCharged = $isCheck ? $subtotal : ($housingSubtotal + $mealSubtotal + $processingFee);
 
     // =============================================
