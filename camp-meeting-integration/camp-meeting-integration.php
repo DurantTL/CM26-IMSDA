@@ -1021,6 +1021,47 @@ function cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $
         'fee_payment', 'processing_fee', 'card_fee', 'square_fee', 'payment_fee'
     ], 0));
 
+    // ── SERVER-SIDE FALLBACK CALCULATION ──────────────────────────────────────
+    // If JS did not run (stale cache, blocked JS, etc.) recalculate server-side.
+    if ( $housingSubtotal == 0 && $mealSubtotal == 0 ) {
+        // Housing rate map
+        $housingRates = [ 'dorm' => 25, 'rv' => 15, 'tent' => 5, 'none' => 0 ];
+        $housingRate  = $housingRates[ $housingOption ] ?? 0;
+
+        // Count nights from array
+        $nightsArr = cm26_get_field( $formData, ['nights_attending'], [] );
+        if ( is_array( $nightsArr ) ) {
+            $countedNights = count( array_filter( $nightsArr, function( $n ) {
+                return strtolower( trim( $n ) ) !== 'none' && trim( $n ) !== '';
+            }));
+        } else {
+            $countedNights = $numNights;
+        }
+        if ( $countedNights > 0 ) $numNights = $countedNights;
+
+        $housingSubtotal = $housingRate * $numNights;
+
+        // Meal subtotal
+        $mealSubtotal =
+            intval( cm26_get_field( $formData, ['bf_adult_qty',     'adult_breakfast_qty'],  0 ) ) * CM26_ADULT_BREAKFAST +
+            intval( cm26_get_field( $formData, ['bf_child_qty',     'child_breakfast_qty'],  0 ) ) * CM26_CHILD_BREAKFAST +
+            intval( cm26_get_field( $formData, ['lunch_adult_qty',  'adult_lunch_qty'],      0 ) ) * CM26_ADULT_LUNCH +
+            intval( cm26_get_field( $formData, ['lunch_child_qty',  'child_lunch_qty'],      0 ) ) * CM26_CHILD_LUNCH +
+            intval( cm26_get_field( $formData, ['supper_adult_qty', 'adult_supper_qty'],     0 ) ) * CM26_ADULT_SUPPER +
+            intval( cm26_get_field( $formData, ['supper_child_qty', 'child_supper_qty'],     0 ) ) * CM26_CHILD_SUPPER;
+
+        $subtotal = $housingSubtotal + $mealSubtotal;
+
+        // Processing fee for Square payments
+        $isSquare = ! cm26_is_offline_payment( $formData );
+        $processingFee = $isSquare && $subtotal > 0
+            ? round( ( $subtotal / 0.971 ) - $subtotal + ( 0.30 / 0.971 ), 2 )
+            : 0;
+
+        error_log( 'CM26 Fallback Calc [Entry ' . $entryId . ']: housing=' . $housingSubtotal . ' meals=' . $mealSubtotal . ' fee=' . $processingFee );
+    }
+    // ── END FALLBACK ───────────────────────────────────────────────────────────
+
     $firstFloorNeeded = sanitize_text_field(cm26_get_field($formData, [
         'first_floor_needed'
     ], ''));
