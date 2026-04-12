@@ -54,7 +54,26 @@ function processRegistration(data) {
     // Compute fee and total: prefer frontend-supplied values (guarantees an
     // exact match with what Square actually charged the customer) and fall
     // back to server-side calculation via calculateSquareFee() if absent.
-    var calculatedSubtotal = (data.housingSubtotal || 0) + (data.mealSubtotal || 0);
+    // Housing price map — must match JS/PHP pricing constants
+    var HOUSING_PRICES = { dorm: 25, rv: 15, tent: 5, none: 0 };
+
+    // Recalculate housing subtotal server-side if frontend sent 0
+    var housingPrice = HOUSING_PRICES[data.housingOption] || 0;
+    var numNights = data.numNights || 0;
+
+    // Count nights from array if numNights is 0
+    if (numNights === 0 && data.nights && typeof data.nights === 'string' && data.nights.length > 0) {
+      numNights = data.nights.split(',').filter(function(n) { return n.trim().length > 0; }).length;
+    }
+
+    var serverHousingSubtotal = housingPrice * numNights;
+
+    // Use server-calculated value if frontend sent 0
+    var housingSubtotal = (data.housingSubtotal && parseFloat(data.housingSubtotal) > 0)
+      ? parseFloat(data.housingSubtotal)
+      : serverHousingSubtotal;
+
+    var calculatedSubtotal = housingSubtotal + (data.mealSubtotal || 0);
     var processingFee = data.processingFee !== undefined
       ? parseFloat(data.processingFee)
       : calculateSquareFee(calculatedSubtotal);
@@ -98,8 +117,8 @@ function processRegistration(data) {
       data.church || '',                // L: church
       data.housingOption || 'none',     // M: housing_option
       data.nights || '',                // N: nights
-      data.numNights || 0,              // O: num_nights
-      data.housingSubtotal || 0,        // P: housing_subtotal
+      numNights,                        // O: num_nights
+      housingSubtotal,                  // P: housing_subtotal
       data.adultsCount || 1,            // Q: adults_count
       data.childrenCount || 0,          // R: children_count
       (data.adultsCount || 1) + (data.childrenCount || 0), // S: total_guests
