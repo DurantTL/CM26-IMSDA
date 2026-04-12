@@ -66,11 +66,12 @@ function processRegistration(data) {
     // registration processing and then re-used for both sheet rows and
     // stored registration JSON/email rendering.
     var guestsWithProgramAssignments = (data.guests || []).map(function(guest) {
-      var programGroup = getChildProgramGroup(guest.age);
+      var resolvedAge = (guest.age === null || guest.age === undefined || guest.age === 0 || guest.age === '') ? 30 : guest.age;
+      var programGroup = getChildProgramGroup(resolvedAge);
       return {
         name: guest.name || '',
-        age: guest.age,
-        isChild: !!guest.isChild,
+        age: resolvedAge,
+        isChild: resolvedAge < 18,
         attendanceType: guest.attendanceType || 'full',
         attendanceRaw: guest.attendanceRaw || 'Full Time',
         attendanceDays: (guest.attendanceDays && guest.attendanceDays.join) ? guest.attendanceDays : ['tue', 'wed', 'thu', 'fri', 'sat'],
