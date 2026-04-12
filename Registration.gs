@@ -161,6 +161,7 @@ function processRegistration(data) {
     ];
     
     // 4. Save to Registration Sheet
+    Logger.log('CM26 Registration: housingSubtotal=%s, mealSubtotal=%s, numNights=%s', housingSubtotal, data.mealSubtotal, numNights);
     regSheet.appendRow(regRow);
     
     // Flush to ensure row exists before Guests/Meals processing
