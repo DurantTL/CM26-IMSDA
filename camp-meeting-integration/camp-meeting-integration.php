@@ -761,6 +761,14 @@ function cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $
     // =============================================
     // totalCharged is computed after section 8 once all mapped values are available
 
+    $firstName = cm26_get_nested($formData, 'names', 'first_name', '');
+    $lastName  = cm26_get_nested($formData, 'names', 'last_name', '');
+    $fullName  = trim($firstName . ' ' . $lastName);
+
+    if (empty($fullName)) {
+        $fullName = sanitize_text_field(cm26_get_field($formData, ['name', 'full_name', 'registrant_name'], 'Unknown'));
+    }
+
     // =============================================
     // 2. PARSE GUEST DETAILS (flexible field names)
     // =============================================
@@ -818,7 +826,7 @@ function cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $
     if (empty($guests)) {
         $firstName = cm26_get_nested($formData, 'names', 'first_name', '');
         $lastName = cm26_get_nested($formData, 'names', 'last_name', '');
-        
+
         // Also try 'name' as direct field
         if (empty($firstName) && !empty($formData['name'])) {
             $guests[] = [
@@ -833,6 +841,39 @@ function cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $
                 'isChild' => false
             ];
         }
+    }
+
+    // Ensure primary registrant is in the guest list
+    $primaryInList = false;
+    foreach ($guests as $g) {
+        if (
+            !empty($fullName) && (
+                stripos($g['name'], $firstName) !== false ||
+                stripos($g['name'], $lastName)  !== false ||
+                stripos($g['name'], $fullName)  !== false
+            )
+        ) {
+            $primaryInList = true;
+            break;
+        }
+    }
+
+    if (!$primaryInList && !empty($fullName)) {
+        array_unshift($guests, [
+            'name'    => $fullName,
+            'age'     => 30,
+            'isChild' => false
+        ]);
+    }
+
+    // If adultsCount + childrenCount exceeds guest list, pad with placeholder guests
+    $totalExpected = $adultsCount + $childrenCount;
+    while (count($guests) < $totalExpected) {
+        $guests[] = [
+            'name'    => 'Guest ' . count($guests),
+            'age'     => 30,
+            'isChild' => false
+        ];
     }
 
     // =============================================
@@ -941,15 +982,8 @@ function cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $
     // =============================================
     // 7. CONTACT INFORMATION
     // =============================================
-    $firstName = cm26_get_nested($formData, 'names', 'first_name', '');
-    $lastName = cm26_get_nested($formData, 'names', 'last_name', '');
-    $fullName = trim($firstName . ' ' . $lastName);
-    
-    // Fallback to 'name' field if names array is empty
-    if (empty($fullName)) {
-        $fullName = sanitize_text_field(cm26_get_field($formData, ['name', 'full_name', 'registrant_name'], 'Unknown'));
-    }
-    
+    // $firstName, $lastName, $fullName parsed above for guest list use.
+
     $email = sanitize_email(cm26_get_field($formData, ['email', 'email_address', 'e_mail'], ''));
     $phone = sanitize_text_field(cm26_get_field($formData, ['phone', 'phone_mobile', 'phone_number', 'mobile'], ''));
     
