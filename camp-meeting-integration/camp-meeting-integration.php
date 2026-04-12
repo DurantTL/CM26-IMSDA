@@ -843,6 +843,16 @@ function cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $
         }
     }
 
+    $adultsCount = intval(cm26_get_field($formData, [
+        'num_adults', 'number_of_adults', 'adults', 'adult_count',
+        'number_of_adults_18', 'adults_count'
+    ], 1));
+
+    $childrenCount = intval(cm26_get_field($formData, [
+        'num_children', 'number_of_children', 'children', 'child_count',
+        'children_count', 'kids'
+    ], 0));
+
     // Ensure primary registrant is in the guest list
     $primaryInList = false;
     foreach ($guests as $g) {
@@ -933,15 +943,7 @@ function cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $
     // =============================================
     // 5. GUEST COUNTS
     // =============================================
-    $adultsCount = intval(cm26_get_field($formData, [
-        'num_adults', 'number_of_adults', 'adults', 'adult_count', 
-        'number_of_adults_18', 'adults_count'
-    ], 1));
-    
-    $childrenCount = intval(cm26_get_field($formData, [
-        'num_children', 'number_of_children', 'children', 'child_count',
-        'children_count', 'kids'
-    ], 0));
+    // $adultsCount, $childrenCount parsed above for guest list use.
 
     // =============================================
     // 6. MEAL SELECTIONS (flexible field names)
