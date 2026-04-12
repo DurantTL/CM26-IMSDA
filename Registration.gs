@@ -759,7 +759,43 @@ function deleteRegistration(input) {
     var regName = String(regRow[COLUMNS.PRIMARY_NAME] || '');
     var regEmail = String(regRow[COLUMNS.EMAIL] || '');
     if (isCancelledRegistration(regRow)) {
-      var alreadyMessage = 'Registration already deleted.';
+      try {
+        var guestSheetEarly = ss.getSheetByName('GuestDetails');
+        if (guestSheetEarly) {
+          var guestDataEarly = guestSheetEarly.getDataRange().getValues();
+          var guestHeadersEarly = guestDataEarly[0];
+          var guestRegIdColEarly = guestHeadersEarly.indexOf('reg_id');
+          if (guestRegIdColEarly >= 0) {
+            for (var gei = guestDataEarly.length - 1; gei >= 1; gei--) {
+              if (String(guestDataEarly[gei][guestRegIdColEarly] || '').trim() === normalizedRegId) {
+                guestSheetEarly.deleteRow(gei + 1);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        logActivity('error', normalizedRegId, 'Delete (already cancelled): GuestDetails cleanup failed: ' + e.toString(), 'admin');
+      }
+
+      try {
+        var mealSheetEarly = ss.getSheetByName('MealTickets');
+        if (mealSheetEarly) {
+          var mealDataEarly = mealSheetEarly.getDataRange().getValues();
+          var mealHeadersEarly = mealDataEarly[0];
+          var mealRegIdColEarly = mealHeadersEarly.indexOf('reg_id');
+          if (mealRegIdColEarly >= 0) {
+            for (var mei = mealDataEarly.length - 1; mei >= 1; mei--) {
+              if (String(mealDataEarly[mei][mealRegIdColEarly] || '').trim() === normalizedRegId) {
+                mealSheetEarly.deleteRow(mei + 1);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        logActivity('error', normalizedRegId, 'Delete (already cancelled): MealTickets cleanup failed: ' + e.toString(), 'admin');
+      }
+
+      var alreadyMessage = 'Registration already cancelled — removed from rosters.';
       logActivity('registration_delete_success', normalizedRegId, alreadyMessage + ' name=' + regName + ', email=' + regEmail, 'admin');
       return { success: true, regId: normalizedRegId, message: alreadyMessage };
     }
@@ -779,13 +815,49 @@ function deleteRegistration(input) {
       regSheet.getRange(rowIndex, COLUMNS.BUILDING + 1).setValue('');
     }
 
+    try {
+      var guestSheet = ss.getSheetByName('GuestDetails');
+      if (guestSheet) {
+        var guestData = guestSheet.getDataRange().getValues();
+        var guestHeaders = guestData[0];
+        var guestRegIdCol = guestHeaders.indexOf('reg_id');
+        if (guestRegIdCol >= 0) {
+          for (var gi = guestData.length - 1; gi >= 1; gi--) {
+            if (String(guestData[gi][guestRegIdCol] || '').trim() === normalizedRegId) {
+              guestSheet.deleteRow(gi + 1);
+            }
+          }
+        }
+      }
+    } catch (guestError) {
+      logActivity('error', normalizedRegId, 'Delete: GuestDetails cleanup failed: ' + guestError.toString(), 'admin');
+    }
+
+    try {
+      var mealSheet = ss.getSheetByName('MealTickets');
+      if (mealSheet) {
+        var mealData = mealSheet.getDataRange().getValues();
+        var mealHeaders = mealData[0];
+        var mealRegIdCol = mealHeaders.indexOf('reg_id');
+        if (mealRegIdCol >= 0) {
+          for (var mi = mealData.length - 1; mi >= 1; mi--) {
+            if (String(mealData[mi][mealRegIdCol] || '').trim() === normalizedRegId) {
+              mealSheet.deleteRow(mi + 1);
+            }
+          }
+        }
+      }
+    } catch (mealError) {
+      logActivity('error', normalizedRegId, 'Delete: MealTickets cleanup failed: ' + mealError.toString(), 'admin');
+    }
+
     logActivity(
       'registration_delete_success',
       normalizedRegId,
-      'Registration deleted (soft). name=' + regName + ', email=' + regEmail + ', previous_status=' + existingStatus,
+      'Registration deleted (soft). Removed from GuestDetails and MealTickets. name=' + regName + ', email=' + regEmail + ', previous_status=' + existingStatus,
       'admin'
     );
-    return { success: true, regId: normalizedRegId, message: 'Registration deleted.' };
+    return { success: true, regId: normalizedRegId, message: 'Registration removed from all rosters. Record kept for audit purposes.' };
   } catch (error) {
     var errorText = error && error.toString ? error.toString() : 'Unknown error';
     logActivity('registration_delete_failed', normalizedRegId || 'unknown', errorText, 'admin');
