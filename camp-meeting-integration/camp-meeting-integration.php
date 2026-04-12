@@ -76,14 +76,14 @@ function cm26_get_nested($formData, $key, $subkey, $default = '') {
 }
 
 function cm26_offline_values() {
-    return ['check', 'cash', 'offline'];
+    return ['check', 'cash', 'offline', 'test', 'Offline'];
 }
 
 function cm26_is_offline_payment( $formData ) {
     $raw = strtolower( sanitize_text_field(
         cm26_get_field( $formData, ['payment_method', 'pay_method'], '' )
     ));
-    return in_array( $raw, cm26_offline_values(), true );
+    return in_array( $raw, ['check', 'cash', 'offline', 'test'], true );
 }
 
 function cm26_is_allowed_gas_url($url) {
