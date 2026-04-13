@@ -896,3 +896,128 @@ function deleteRegistration(input) {
     lock.releaseLock();
   }
 }
+
+/**
+ * Scans all cancelled registrations and removes their associated rows
+ * from GuestDetails and MealTickets sheets.
+ * Safe to run multiple times — skips if no orphaned rows found.
+ * Returns a summary of what was cleaned up.
+ */
+function cleanupCancelledRegistrations() {
+  var ss = getSS();
+  var regSheet = ss.getSheetByName('Registrations');
+  var regData = regSheet.getDataRange().getValues();
+
+  // Collect all cancelled reg IDs
+  var cancelledIds = [];
+  for (var i = 1; i < regData.length; i++) {
+    var status = String(regData[i][COLUMNS.STATUS] || '').trim().toLowerCase();
+    if (status === 'cancelled') {
+      var rid = String(regData[i][COLUMNS.REG_ID] || '').trim();
+      if (rid) cancelledIds.push(rid);
+    }
+  }
+
+  console.log('[cleanupCancelledRegistrations] Cancelled reg IDs found: %s', cancelledIds.length);
+  console.log('[cleanupCancelledRegistrations] IDs: %s', JSON.stringify(cancelledIds));
+
+  if (cancelledIds.length === 0) {
+    return { success: true, message: 'No cancelled registrations found.', guestRowsDeleted: 0, mealRowsDeleted: 0 };
+  }
+
+  var cancelledSet = {};
+  cancelledIds.forEach(function(id) { cancelledSet[id] = true; });
+
+  // --- Clean up GuestDetails ---
+  var guestRowsDeleted = 0;
+  try {
+    var guestSheet = ss.getSheetByName('GuestDetails');
+    if (guestSheet) {
+      var guestData = guestSheet.getDataRange().getValues();
+      var guestHeaders = guestData[0];
+      console.log('[cleanupCancelledRegistrations] GuestDetails headers: %s', JSON.stringify(guestHeaders));
+
+      var guestRegIdCol = -1;
+      for (var h = 0; h < guestHeaders.length; h++) {
+        if (String(guestHeaders[h]).trim().toLowerCase() === 'reg_id') {
+          guestRegIdCol = h;
+          break;
+        }
+      }
+      if (guestRegIdCol === -1) {
+        console.log('[cleanupCancelledRegistrations] reg_id header not found in GuestDetails — falling back to column index 1');
+        guestRegIdCol = 1;
+      }
+      console.log('[cleanupCancelledRegistrations] GuestDetails reg_id col index: %s', guestRegIdCol);
+
+      for (var gi = guestData.length - 1; gi >= 1; gi--) {
+        var guestRegId = String(guestData[gi][guestRegIdCol] || '').trim();
+        if (cancelledSet[guestRegId]) {
+          console.log('[cleanupCancelledRegistrations] Deleting GuestDetails row %s (reg_id: %s)', gi + 1, guestRegId);
+          guestSheet.deleteRow(gi + 1);
+          guestRowsDeleted++;
+        }
+      }
+      console.log('[cleanupCancelledRegistrations] GuestDetails rows deleted: %s', guestRowsDeleted);
+    } else {
+      console.log('[cleanupCancelledRegistrations] GuestDetails sheet not found');
+    }
+  } catch (e) {
+    console.log('[cleanupCancelledRegistrations] GuestDetails error: %s', e.toString());
+    logActivity('error', 'batch_cleanup', 'GuestDetails cleanup failed: ' + e.toString(), 'admin');
+  }
+
+  // --- Clean up MealTickets ---
+  var mealRowsDeleted = 0;
+  try {
+    var mealSheet = ss.getSheetByName('MealTickets');
+    if (mealSheet) {
+      var mealData = mealSheet.getDataRange().getValues();
+      var mealHeaders = mealData[0];
+      console.log('[cleanupCancelledRegistrations] MealTickets headers: %s', JSON.stringify(mealHeaders));
+
+      var mealRegIdCol = -1;
+      for (var mh = 0; mh < mealHeaders.length; mh++) {
+        if (String(mealHeaders[mh]).trim().toLowerCase() === 'reg_id') {
+          mealRegIdCol = mh;
+          break;
+        }
+      }
+      if (mealRegIdCol === -1) {
+        console.log('[cleanupCancelledRegistrations] reg_id header not found in MealTickets — falling back to column index 1');
+        mealRegIdCol = 1;
+      }
+      console.log('[cleanupCancelledRegistrations] MealTickets reg_id col index: %s', mealRegIdCol);
+
+      for (var mi = mealData.length - 1; mi >= 1; mi--) {
+        var mealRegId = String(mealData[mi][mealRegIdCol] || '').trim();
+        if (cancelledSet[mealRegId]) {
+          console.log('[cleanupCancelledRegistrations] Deleting MealTickets row %s (reg_id: %s)', mi + 1, mealRegId);
+          mealSheet.deleteRow(mi + 1);
+          mealRowsDeleted++;
+        }
+      }
+      console.log('[cleanupCancelledRegistrations] MealTickets rows deleted: %s', mealRowsDeleted);
+    } else {
+      console.log('[cleanupCancelledRegistrations] MealTickets sheet not found');
+    }
+  } catch (e) {
+    console.log('[cleanupCancelledRegistrations] MealTickets error: %s', e.toString());
+    logActivity('error', 'batch_cleanup', 'MealTickets cleanup failed: ' + e.toString(), 'admin');
+  }
+
+  var summary = 'Cleanup complete. Cancelled registrations: ' + cancelledIds.length +
+    ', GuestDetails rows deleted: ' + guestRowsDeleted +
+    ', MealTickets rows deleted: ' + mealRowsDeleted;
+
+  logActivity('batch_cleanup', 'admin', summary, 'admin');
+  console.log('[cleanupCancelledRegistrations] %s', summary);
+
+  return {
+    success: true,
+    message: summary,
+    cancelledRegistrationCount: cancelledIds.length,
+    guestRowsDeleted: guestRowsDeleted,
+    mealRowsDeleted: mealRowsDeleted
+  };
+}
