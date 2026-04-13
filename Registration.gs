@@ -764,14 +764,29 @@ function deleteRegistration(input) {
         if (guestSheetEarly) {
           var guestDataEarly = guestSheetEarly.getDataRange().getValues();
           var guestHeadersEarly = guestDataEarly[0];
-          var guestRegIdColEarly = guestHeadersEarly.indexOf('reg_id');
-          if (guestRegIdColEarly >= 0) {
-            for (var gei = guestDataEarly.length - 1; gei >= 1; gei--) {
-              if (String(guestDataEarly[gei][guestRegIdColEarly] || '').trim() === normalizedRegId) {
-                guestSheetEarly.deleteRow(gei + 1);
-              }
+          Logger.log('[deleteRegistration] GuestDetails headers: %s', JSON.stringify(guestHeadersEarly));
+          var guestRegIdColEarly = -1;
+          for (var hei = 0; hei < guestHeadersEarly.length; hei++) {
+            if (String(guestHeadersEarly[hei]).trim().toLowerCase() === 'reg_id') {
+              guestRegIdColEarly = hei;
+              break;
             }
           }
+          if (guestRegIdColEarly === -1) {
+            Logger.log('[deleteRegistration] reg_id header not found in GuestDetails — falling back to column index 1');
+            guestRegIdColEarly = 1;
+          }
+          Logger.log('[deleteRegistration] GuestDetails reg_id col: %s, looking for: "%s"', guestRegIdColEarly, normalizedRegId);
+          var earlyDeletedCount = 0;
+          for (var gei = guestDataEarly.length - 1; gei >= 1; gei--) {
+            var earlyCell = String(guestDataEarly[gei][guestRegIdColEarly] || '').trim();
+            if (earlyCell === normalizedRegId) {
+              Logger.log('[deleteRegistration] Deleting GuestDetails row %s (reg_id: "%s")', gei + 1, earlyCell);
+              guestSheetEarly.deleteRow(gei + 1);
+              earlyDeletedCount++;
+            }
+          }
+          Logger.log('[deleteRegistration] GuestDetails rows deleted (early path): %s', earlyDeletedCount);
         }
       } catch (e) {
         logActivity('error', normalizedRegId, 'Delete (already cancelled): GuestDetails cleanup failed: ' + e.toString(), 'admin');
@@ -820,14 +835,29 @@ function deleteRegistration(input) {
       if (guestSheet) {
         var guestData = guestSheet.getDataRange().getValues();
         var guestHeaders = guestData[0];
-        var guestRegIdCol = guestHeaders.indexOf('reg_id');
-        if (guestRegIdCol >= 0) {
-          for (var gi = guestData.length - 1; gi >= 1; gi--) {
-            if (String(guestData[gi][guestRegIdCol] || '').trim() === normalizedRegId) {
-              guestSheet.deleteRow(gi + 1);
-            }
+        Logger.log('[deleteRegistration] GuestDetails headers: %s', JSON.stringify(guestHeaders));
+        var guestRegIdCol = -1;
+        for (var h = 0; h < guestHeaders.length; h++) {
+          if (String(guestHeaders[h]).trim().toLowerCase() === 'reg_id') {
+            guestRegIdCol = h;
+            break;
           }
         }
+        if (guestRegIdCol === -1) {
+          Logger.log('[deleteRegistration] reg_id header not found in GuestDetails — falling back to column index 1');
+          guestRegIdCol = 1;
+        }
+        Logger.log('[deleteRegistration] Using GuestDetails reg_id col: %s, looking for: "%s"', guestRegIdCol, normalizedRegId);
+        var deletedCount = 0;
+        for (var gi = guestData.length - 1; gi >= 1; gi--) {
+          var cellVal = String(guestData[gi][guestRegIdCol] || '').trim();
+          if (cellVal === normalizedRegId) {
+            Logger.log('[deleteRegistration] Deleting GuestDetails row %s (reg_id: "%s")', gi + 1, cellVal);
+            guestSheet.deleteRow(gi + 1);
+            deletedCount++;
+          }
+        }
+        Logger.log('[deleteRegistration] GuestDetails rows deleted: %s', deletedCount);
       }
     } catch (guestError) {
       logActivity('error', normalizedRegId, 'Delete: GuestDetails cleanup failed: ' + guestError.toString(), 'admin');
