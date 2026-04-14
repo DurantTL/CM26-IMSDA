@@ -1332,3 +1332,215 @@ function adminRepairRegistration(payload) {
     lock.releaseLock();
   }
 }
+
+// ==========================================
+// PAYMENT REPAIR (ADMIN)
+// ==========================================
+
+/**
+ * Allowed payment method values. Only 'square' triggers Square processing-fee
+ * behavior (fee row in confirmation email, non-zero processing_fee column).
+ * Everything else is treated as a non-card payment with fee = $0.
+ */
+var ADMIN_PAYMENT_METHODS = ['square', 'cash', 'check', 'free', 'test', 'other'];
+
+/**
+ * Admin: fetch the current payment-related fields for one registration.
+ *
+ * Returns a flat, JSON-safe object the AdminDashboard can bind directly to form
+ * inputs. Does NOT mutate anything.
+ *
+ * @param {string|Object} input  Reg ID string or {regId}.
+ * @returns {Object} {success, registration:{regId, name, paymentMethod,
+ *                     processingFee, subtotal, totalCharged, amountPaid,
+ *                     balanceDue, paymentStatus, transactionId}}
+ */
+function adminGetPaymentInfo(input) {
+  try {
+    var regId = '';
+    if (typeof input === 'string') regId = input.trim();
+    else if (input && typeof input === 'object' && input.regId) regId = String(input.regId).trim();
+    if (!regId) return { success: false, error: 'Missing registration ID' };
+
+    var regData = getSheetValuesSafe('Registrations').values;
+    var idx = findRegistrationRowById(regId, regData);
+    if (idx === -1) return { success: false, error: 'Registration not found' };
+
+    var row = regData[idx];
+    return {
+      success: true,
+      registration: {
+        regId:          String(row[COLUMNS.REG_ID] || ''),
+        name:           String(row[COLUMNS.PRIMARY_NAME] || ''),
+        paymentMethod:  String(row[COLUMNS.PAYMENT_METHOD] || ''),
+        processingFee:  Number(row[25]) || 0,                // Z
+        subtotal:       Number(row[COLUMNS.SUBTOTAL]) || 0,
+        totalCharged:   Number(row[COLUMNS.TOTAL_CHARGED]) || 0,
+        amountPaid:     Number(row[COLUMNS.AMOUNT_PAID]) || 0,
+        balanceDue:     Number(row[COLUMNS.BALANCE_DUE]) || 0,
+        paymentStatus:  String(row[COLUMNS.PAYMENT_STATUS] || ''),
+        transactionId:  String(row[31] || '')                 // AF
+      },
+      allowedMethods: ADMIN_PAYMENT_METHODS.slice()
+    };
+  } catch (e) {
+    return { success: false, error: 'adminGetPaymentInfo threw: ' + e.toString() };
+  }
+}
+
+/**
+ * Admin: update payment method, processing fee, total, and amount paid.
+ *
+ * Rules enforced:
+ *   - Only paymentMethod='square' may keep a non-zero processing fee.
+ *     Any other method forces processingFee=0 and totalCharged=subtotal.
+ *   - totalCharged is recomputed as subtotal + processingFee unless caller
+ *     supplies an explicit totalCharged override.
+ *   - balanceDue is always totalCharged - amountPaid.
+ *   - paymentStatus is derived: paid when amountPaid >= totalCharged (integer
+ *     cents compare), partial when 0 < amountPaid < totalCharged, pending when
+ *     amountPaid == 0.
+ *
+ * @param {Object} payload
+ *   regId          {string}  Required.
+ *   paymentMethod  {string}  Required. Must be one of ADMIN_PAYMENT_METHODS.
+ *   processingFee  {number}  Optional. Ignored (forced to 0) when method!='square'.
+ *   totalCharged   {number}  Optional. Override the auto-calc.
+ *   amountPaid     {number}  Optional. Defaults to existing value.
+ *   transactionId  {string}  Optional. Updated when supplied.
+ *   notes          {string}  Optional. Written to ActivityLog details.
+ *
+ * @returns {Object} {success, registration:{...updated fields...}}
+ */
+function adminUpdatePaymentInfo(payload) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) {
+    return { success: false, error: 'System busy. Please try again.' };
+  }
+
+  try {
+    if (!payload || typeof payload !== 'object') {
+      return { success: false, error: 'Missing payload' };
+    }
+
+    var regId = payload.regId ? String(payload.regId).trim() : '';
+    if (!regId) return { success: false, error: 'Missing registration ID' };
+
+    var method = String(payload.paymentMethod || '').trim().toLowerCase();
+    if (!method) return { success: false, error: 'Missing payment method' };
+    if (ADMIN_PAYMENT_METHODS.indexOf(method) === -1) {
+      return { success: false, error: 'Invalid payment method: ' + method };
+    }
+
+    var regDataObj = getSheetValuesSafe('Registrations');
+    var regSheet   = regDataObj.sheet;
+    var regData    = regDataObj.values;
+
+    var idx = findRegistrationRowById(regId, regData);
+    if (idx === -1) return { success: false, error: 'Registration not found' };
+
+    var rowNum      = idx + 1;
+    var existingRow = regData[idx];
+
+    // ── Resolve numeric fields ─────────────────────────────────────────
+    var subtotal = Number(existingRow[COLUMNS.SUBTOTAL]) || 0;
+
+    var oldMethod        = String(existingRow[COLUMNS.PAYMENT_METHOD] || '').trim().toLowerCase();
+    var oldProcessingFee = Number(existingRow[25]) || 0;
+    var oldTotalCharged  = Number(existingRow[COLUMNS.TOTAL_CHARGED]) || 0;
+    var oldAmountPaid    = Number(existingRow[COLUMNS.AMOUNT_PAID]) || 0;
+
+    var isSquare = (method === 'square');
+
+    // Processing fee: only Square allows a fee. Everything else is forced to 0.
+    var processingFee;
+    if (isSquare) {
+      processingFee = payload.processingFee !== undefined && payload.processingFee !== ''
+        ? Number(payload.processingFee)
+        : oldProcessingFee;
+      if (isNaN(processingFee) || processingFee < 0) processingFee = 0;
+    } else {
+      processingFee = 0;
+    }
+    processingFee = Math.round(processingFee * 100) / 100;
+
+    // Total charged: explicit override, else subtotal + processingFee.
+    var totalCharged;
+    if (payload.totalCharged !== undefined && payload.totalCharged !== '') {
+      totalCharged = Number(payload.totalCharged);
+      if (isNaN(totalCharged) || totalCharged < 0) totalCharged = subtotal + processingFee;
+    } else {
+      totalCharged = subtotal + processingFee;
+    }
+    totalCharged = Math.round(totalCharged * 100) / 100;
+
+    // Amount paid: explicit override, else preserve existing.
+    var amountPaid;
+    if (payload.amountPaid !== undefined && payload.amountPaid !== '') {
+      amountPaid = Number(payload.amountPaid);
+      if (isNaN(amountPaid) || amountPaid < 0) amountPaid = oldAmountPaid;
+    } else {
+      amountPaid = oldAmountPaid;
+    }
+    amountPaid = Math.round(amountPaid * 100) / 100;
+
+    var balanceDue = Math.round((totalCharged - amountPaid) * 100) / 100;
+
+    // Payment status — integer cents compare to dodge float rounding.
+    var paidCents    = Math.round(amountPaid * 100);
+    var chargedCents = Math.round(totalCharged * 100);
+    var paymentStatus;
+    if (chargedCents <= 0 || paidCents >= chargedCents) {
+      paymentStatus = 'paid';
+    } else if (paidCents <= 0) {
+      paymentStatus = 'pending';
+    } else {
+      paymentStatus = 'partial';
+    }
+
+    // ── Write back to Registrations sheet ─────────────────────────────
+    regSheet.getRange(rowNum, 25 + 1).setValue(processingFee);                 // Z: processing_fee
+    regSheet.getRange(rowNum, COLUMNS.TOTAL_CHARGED   + 1).setValue(totalCharged);
+    regSheet.getRange(rowNum, COLUMNS.AMOUNT_PAID     + 1).setValue(amountPaid);
+    regSheet.getRange(rowNum, COLUMNS.BALANCE_DUE     + 1).setValue(balanceDue);
+    regSheet.getRange(rowNum, COLUMNS.PAYMENT_METHOD  + 1).setValue(method);   // AD
+    regSheet.getRange(rowNum, COLUMNS.PAYMENT_STATUS  + 1).setValue(paymentStatus);
+
+    if (payload.transactionId !== undefined) {
+      regSheet.getRange(rowNum, 31 + 1).setValue(String(payload.transactionId || '')); // AF
+    }
+
+    SpreadsheetApp.flush();
+
+    // ── Activity log ───────────────────────────────────────────────────
+    var noteSuffix = payload.notes ? ' | note: ' + String(payload.notes).slice(0, 180) : '';
+    var logMsg =
+      'method: ' + oldMethod + '→' + method +
+      ' | fee: $' + oldProcessingFee.toFixed(2) + '→$' + processingFee.toFixed(2) +
+      ' | total: $' + oldTotalCharged.toFixed(2) + '→$' + totalCharged.toFixed(2) +
+      ' | paid: $' + oldAmountPaid.toFixed(2) + '→$' + amountPaid.toFixed(2) +
+      ' | balance: $' + balanceDue.toFixed(2) +
+      ' | status: ' + paymentStatus +
+      noteSuffix;
+    logActivity('admin_payment_fix', regId, logMsg, 'admin');
+
+    return {
+      success: true,
+      registration: {
+        regId:          regId,
+        paymentMethod:  method,
+        processingFee:  processingFee,
+        subtotal:       subtotal,
+        totalCharged:   totalCharged,
+        amountPaid:     amountPaid,
+        balanceDue:     balanceDue,
+        paymentStatus:  paymentStatus
+      }
+    };
+
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  } finally {
+    lock.releaseLock();
+  }
+}
