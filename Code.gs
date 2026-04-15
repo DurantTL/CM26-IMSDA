@@ -20,6 +20,9 @@ function doGet(e) {
       case 'getRegistration':
         return jsonResponse(getRegistration(e.parameter.id));
 
+      case 'adminGetPaymentInfo':
+        return jsonResponse(adminGetPaymentInfo(e.parameter.id));
+
       case 'getGuestMeals':
         return jsonResponse(getGuestMeals(e.parameter.id));
 
@@ -98,6 +101,9 @@ function doPost(e) {
         
       case 'updatePayment':
         return jsonResponse(recordPayment(data));
+
+      case 'adminUpdatePaymentInfo':
+        return jsonResponse(adminUpdatePaymentInfo(data));
 
       case 'resendConfirmationEmail':
         return jsonResponse(resendConfirmationEmail(data.regId));

@@ -68,10 +68,15 @@
           <td class="label">Meal Tickets</td>
           <td>$<?= (Number(reg.mealSubtotal) || 0).toFixed(2) ?></td>
         </tr>
-        <? if (parseFloat(reg.processingFee) > 0) { ?>
+        <?
+          var _pm = String(reg.paymentMethod || '').trim().toLowerCase();
+          var _isSquare = _pm === 'square';
+          var _fee = parseFloat(reg.processingFee) || 0;
+        ?>
+        <? if (_isSquare && _fee > 0) { ?>
         <tr>
           <td class="label">Processing Fee</td>
-          <td>$<?= parseFloat(reg.processingFee).toFixed(2) ?></td>
+          <td>$<?= _fee.toFixed(2) ?></td>
         </tr>
         <? } ?>
         <tr class="total-row">

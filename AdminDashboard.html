@@ -600,6 +600,61 @@
             </div>
           </div>
         </div>
+
+        <!-- ── Payment Fix card ───────────────────────────────────── -->
+        <div class="card">
+          <div class="card-header">
+            <h2>Payment Fix</h2>
+            <button id="payment-save-btn" class="btn btn-success btn-sm" data-action="payment-save" disabled>Save Payment</button>
+          </div>
+          <div class="card-body">
+            <div id="payment-active-reg" style="margin-bottom:10px;color:var(--text-muted);font-size:12px;">No registration loaded.</div>
+            <div id="payment-error" class="alert alert-danger" style="display:none;margin-bottom:10px;"></div>
+
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">
+              <div>
+                <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">Payment Method (col&nbsp;AD)</label>
+                <select id="payment-method" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:6px;">
+                  <option value="square">square</option>
+                  <option value="cash">cash</option>
+                  <option value="check">check</option>
+                  <option value="free">free</option>
+                  <option value="test">test</option>
+                  <option value="other">other</option>
+                </select>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:3px;">Only <strong>square</strong> adds a processing fee to the confirmation email.</div>
+              </div>
+              <div>
+                <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">Subtotal (read-only)</label>
+                <input id="payment-subtotal" type="text" readonly style="width:100%;padding:7px;border:1px solid var(--border);border-radius:6px;background:#f8f9fa;">
+              </div>
+              <div>
+                <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">Processing Fee (Square only)</label>
+                <input id="payment-fee" type="number" min="0" step="0.01" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:6px;">
+              </div>
+              <div>
+                <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">Total Charged</label>
+                <input id="payment-total" type="number" min="0" step="0.01" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:6px;">
+              </div>
+              <div>
+                <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">Amount Paid</label>
+                <input id="payment-paid" type="number" min="0" step="0.01" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:6px;">
+              </div>
+              <div>
+                <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">Balance Due (auto)</label>
+                <input id="payment-balance" type="text" readonly style="width:100%;padding:7px;border:1px solid var(--border);border-radius:6px;background:#f8f9fa;">
+              </div>
+              <div>
+                <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">Payment Status (auto)</label>
+                <input id="payment-status" type="text" readonly style="width:100%;padding:7px;border:1px solid var(--border);border-radius:6px;background:#f8f9fa;">
+              </div>
+              <div style="grid-column:1/-1;">
+                <label style="display:block;font-size:12px;color:var(--text-muted);margin-bottom:4px;">Admin note (optional, written to ActivityLog)</label>
+                <input id="payment-note" type="text" placeholder="e.g. corrected after test-mode registration" style="width:100%;padding:7px;border:1px solid var(--border);border-radius:6px;">
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- ── System Setup tab ───────────────────────────────────── -->
@@ -1160,6 +1215,8 @@
       AppState.repair.guests = guests;
       GuestRepair.renderRows();
       document.getElementById('repair-save-btn').disabled = !AppState.repair.regId;
+      if (AppState.repair.regId) PaymentRepair.load(AppState.repair.regId);
+      else PaymentRepair.clear();
     },
     renderRows: function() {
       var tbody = document.getElementById('repair-guest-tbody');
@@ -1215,6 +1272,147 @@
       }).catch(function(err) {
         GuestRepair.showError(err.message);
         Toast.show('Registration repair save failed', 'error');
+      });
+    }
+  };
+
+  var PaymentRepair = {
+    regId: '',
+    current: null,
+
+    _$: function(id) { return document.getElementById(id); },
+
+    showError: function(msg) {
+      var el = PaymentRepair._$('payment-error');
+      el.textContent = msg || '';
+      el.style.display = msg ? 'block' : 'none';
+    },
+    clearError: function() { PaymentRepair.showError(''); },
+
+    clear: function() {
+      PaymentRepair.regId = '';
+      PaymentRepair.current = null;
+      PaymentRepair._$('payment-active-reg').textContent = 'No registration loaded.';
+      PaymentRepair._$('payment-method').value   = 'square';
+      PaymentRepair._$('payment-subtotal').value = '';
+      PaymentRepair._$('payment-fee').value      = '';
+      PaymentRepair._$('payment-total').value    = '';
+      PaymentRepair._$('payment-paid').value     = '';
+      PaymentRepair._$('payment-balance').value  = '';
+      PaymentRepair._$('payment-status').value   = '';
+      PaymentRepair._$('payment-note').value     = '';
+      PaymentRepair._$('payment-fee').disabled   = false;
+      PaymentRepair._$('payment-save-btn').disabled = true;
+      PaymentRepair.clearError();
+    },
+
+    load: function(regId) {
+      PaymentRepair.clearError();
+      var id = (regId || '').toString().trim();
+      if (!id) {
+        PaymentRepair.clear();
+        return;
+      }
+      runServer('adminGetPaymentInfo', id, { requestKey: 'payment.load.' + id, loadingText: 'Loading…' })
+        .then(function(result) {
+          if (!result || !result.success) {
+            PaymentRepair.showError('Failed to load payment info: ' + ((result && result.error) || 'Unknown error'));
+            return;
+          }
+          PaymentRepair.apply(result.registration || {});
+        })
+        .catch(function(err) {
+          PaymentRepair.showError(err.message);
+        });
+    },
+
+    apply: function(reg) {
+      PaymentRepair.regId = reg.regId || '';
+      PaymentRepair.current = reg;
+      PaymentRepair._$('payment-active-reg').textContent =
+        'Editing ' + (reg.regId || '') + ' — ' + (reg.name || '');
+      PaymentRepair._$('payment-method').value   = String(reg.paymentMethod || 'square').toLowerCase();
+      PaymentRepair._$('payment-subtotal').value = Number(reg.subtotal || 0).toFixed(2);
+      PaymentRepair._$('payment-fee').value      = Number(reg.processingFee || 0).toFixed(2);
+      PaymentRepair._$('payment-total').value    = Number(reg.totalCharged || 0).toFixed(2);
+      PaymentRepair._$('payment-paid').value     = Number(reg.amountPaid || 0).toFixed(2);
+      PaymentRepair._$('payment-note').value     = '';
+      PaymentRepair.recompute();
+      PaymentRepair._$('payment-save-btn').disabled = !PaymentRepair.regId;
+    },
+
+    recompute: function() {
+      var method = String(PaymentRepair._$('payment-method').value || '').toLowerCase();
+      var subtotal = Number(PaymentRepair._$('payment-subtotal').value) || 0;
+      var feeInput = PaymentRepair._$('payment-fee');
+      var totalInput = PaymentRepair._$('payment-total');
+      var paid = Number(PaymentRepair._$('payment-paid').value) || 0;
+
+      var isSquare = (method === 'square');
+      if (!isSquare) {
+        feeInput.value = '0.00';
+        feeInput.disabled = true;
+      } else {
+        feeInput.disabled = false;
+      }
+      var fee = Number(feeInput.value) || 0;
+
+      // Only auto-recompute total if we forced fee to 0 (non-square switch)
+      // or if total is currently empty/NaN. Otherwise leave admin override in place.
+      if (!isSquare) {
+        totalInput.value = (subtotal + fee).toFixed(2);
+      } else if (!totalInput.value || isNaN(Number(totalInput.value))) {
+        totalInput.value = (subtotal + fee).toFixed(2);
+      }
+
+      var total = Number(totalInput.value) || 0;
+      var balance = Math.round((total - paid) * 100) / 100;
+      PaymentRepair._$('payment-balance').value = balance.toFixed(2);
+
+      var paidCents = Math.round(paid * 100);
+      var totalCents = Math.round(total * 100);
+      var status;
+      if (totalCents <= 0 || paidCents >= totalCents) status = 'paid';
+      else if (paidCents <= 0) status = 'pending';
+      else status = 'partial';
+      PaymentRepair._$('payment-status').value = status;
+    },
+
+    save: function(button) {
+      if (!PaymentRepair.regId) {
+        PaymentRepair.showError('Load a registration first.');
+        return;
+      }
+      PaymentRepair.clearError();
+      var payload = {
+        regId:         PaymentRepair.regId,
+        paymentMethod: String(PaymentRepair._$('payment-method').value || '').toLowerCase(),
+        processingFee: Number(PaymentRepair._$('payment-fee').value) || 0,
+        totalCharged:  Number(PaymentRepair._$('payment-total').value) || 0,
+        amountPaid:    Number(PaymentRepair._$('payment-paid').value) || 0,
+        notes:         PaymentRepair._$('payment-note').value || ''
+      };
+      runServer('adminUpdatePaymentInfo', payload, {
+        requestKey: 'payment.save', button: button, loadingText: 'Saving…'
+      }).then(function(result) {
+        if (!result || !result.success) {
+          PaymentRepair.showError('Save failed: ' + ((result && result.error) || 'Unknown error'));
+          Toast.show('Payment save failed', 'error');
+          return;
+        }
+        PaymentRepair.apply({
+          regId:         result.registration.regId,
+          name:          PaymentRepair.current ? PaymentRepair.current.name : '',
+          paymentMethod: result.registration.paymentMethod,
+          processingFee: result.registration.processingFee,
+          subtotal:      result.registration.subtotal,
+          totalCharged:  result.registration.totalCharged,
+          amountPaid:    result.registration.amountPaid
+        });
+        Toast.show('Payment updated. Status: ' + result.registration.paymentStatus, 'success');
+      }).catch(function(err) {
+        PaymentRepair.showError(err.message);
+        Toast.show('Payment save failed', 'error');
       });
     }
   };
@@ -1277,12 +1475,23 @@
       else if (action === 'repair-save') GuestRepair.save(el);
       else if (action === 'repair-add-row') GuestRepair.addRow();
       else if (action === 'repair-remove-row') GuestRepair.removeRow(Number(el.dataset.index));
+      else if (action === 'payment-save') PaymentRepair.save(el);
     });
 
     repairTab.addEventListener('input', function(event) {
-      var input = event.target.closest('input[data-index][data-field]');
-      if (!input) return;
-      GuestRepair.updateField(Number(input.dataset.index), input.dataset.field, input.value);
+      var guestInput = event.target.closest('input[data-index][data-field]');
+      if (guestInput) {
+        GuestRepair.updateField(Number(guestInput.dataset.index), guestInput.dataset.field, guestInput.value);
+        return;
+      }
+      var paymentInput = event.target.closest('#payment-fee, #payment-total, #payment-paid');
+      if (paymentInput) PaymentRepair.recompute();
+    });
+
+    repairTab.addEventListener('change', function(event) {
+      if (event.target && event.target.id === 'payment-method') {
+        PaymentRepair.recompute();
+      }
     });
 
     var queryInput = document.getElementById('repair-query');
