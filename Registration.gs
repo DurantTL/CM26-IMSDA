@@ -130,7 +130,7 @@ function processRegistration(data) {
       data.subtotal || 0,               // Y: subtotal
       processingFee,                    // Z: processing_fee
       totalCharged,                     // AA: total_charged
-      data.paymentStatus === 'paid' ? totalCharged : 0, // AB: amount_paid
+      0,                                // AB: amount_paid — set by recordPayment() below
       0,                                // AC: balance_due (Calculated by Sheet Formula)
       data.paymentMethod || 'square',   // AD: payment_method
       data.paymentStatus || 'pending',  // AE: payment_status
