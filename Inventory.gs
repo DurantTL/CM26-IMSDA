@@ -130,6 +130,9 @@ function countReservations(housingOptionId) {
   var statusValues = regSheet
     .getRange(2, COLUMNS.STATUS + 1, numRows, 1)
     .getValues();
+  var roomCountValues = regSheet
+    .getRange(2, COLUMNS.ROOM_COUNT + 1, numRows, 1)
+    .getValues();
 
   var count = 0;
   for (var i = 0; i < numRows; i++) {
@@ -137,7 +140,7 @@ function countReservations(housingOptionId) {
     var status = normalizeRegistrationStatus(statusValues[i][0]);
     if (opt === housingOptionId &&
         (status === 'confirmed' || status === 'pending' || status === 'deposit')) {
-      count++;
+      count += (Number(roomCountValues[i][0]) || 1);
     }
   }
   return count;
