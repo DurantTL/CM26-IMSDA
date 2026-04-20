@@ -41,6 +41,16 @@ function recordPayment(data) {
       return { success: false, error: 'Registration not found: ' + data.regId };
     }
 
+    // Duplicate payment guard
+    if (data.transactionId) {
+      var payData = paySheet.getDataRange().getValues();
+      for (var p = 1; p < payData.length; p++) {
+        if (payData[p][1] === data.regId && payData[p][6] === data.transactionId) {
+          return { success: false, error: 'Duplicate payment: transaction already recorded.' };
+        }
+      }
+    }
+
     // 2. Record the payment
     var payId = 'PAY-' + Utilities.getUuid();
     paySheet.appendRow([
