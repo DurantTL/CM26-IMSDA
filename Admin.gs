@@ -184,7 +184,29 @@ function recalculateAllTotals() {
       SpreadsheetApp.flush();
     }
 
-    SpreadsheetApp.getUi().alert('Recalculated ' + updated + ' registrations.');
+    // Phase 2: Refresh Housing availability
+    var housingSheet = ss.getSheetByName('Housing');
+    var housingData = housingSheet.getDataRange().getValues();
+
+    for (var h = 1; h < housingData.length; h++) {
+      var hRow = housingData[h];
+      if (!hRow[0]) continue;
+
+      var isUnlimited = hRow[8] === 'TRUE' || hRow[8] === true;
+      if (isUnlimited) continue;
+
+      var totalCapacity = Number(hRow[3]) || 0;
+      var reservedStaff = Number(hRow[6]) || 0;
+      var reservedByRegs = countReservations(hRow[0]);
+      var available = totalCapacity - reservedByRegs - reservedStaff;
+
+      // Column E is index 4, sheet column 5
+      housingSheet.getRange(h + 1, 5).setValue(available);
+    }
+
+    SpreadsheetApp.flush();
+
+    SpreadsheetApp.getUi().alert('Recalculated ' + updated + ' registrations and refreshed housing availability.');
     return updated;
 
   } finally {
