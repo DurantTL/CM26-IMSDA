@@ -13,13 +13,19 @@ function getAvailability() {
     var row = housingData[i];
     if (!row[0]) continue;
     
+    var isUnlimited = row[8] === 'TRUE' || row[8] === true;
+    var totalCapacity = row[3];
+    var reservedByRegistrations = isUnlimited ? 0 : countReservations(row[0]);
+    var reservedStaff = isUnlimited ? 0 : (Number(row[6]) || 0);
+    var available = isUnlimited ? null : totalCapacity - reservedByRegistrations - reservedStaff;
+
     housing.push({
       optionId: row[0],
       optionName: row[1],
       pricePerNight: row[2],
-      totalCapacity: row[3],
-      available: row[4],
-      isUnlimited: row[8] === 'TRUE' || row[8] === true,
+      totalCapacity: totalCapacity,
+      available: available,
+      isUnlimited: isUnlimited,
       minNights: row[9],
       description: row[10],
       status: row[11]
@@ -85,8 +91,9 @@ function checkAvailability(optionId, numUnits, numNights) {
   }
 
   // Fix for Issue 8: Don't rely on cached formula column. Count manually.
+  var reservedStaff = Number(housingRow[6]) || 0;
   var reservedCount = countReservations(optionId);
-  var available = totalCapacity - reservedCount;
+  var available = totalCapacity - reservedCount - reservedStaff;
 
   if (available >= numUnits) {
     return { available: true };
