@@ -205,6 +205,24 @@
   </div>
 
   <div class="section">
+  <h3>🛏️ Room Count Override</h3>
+  <p style="font-size:11px; color:#64748b; margin-top:0;">
+    For families assigned more than one physical room.
+  </p>
+  <div class="input-group">
+    <label>Registration ID:</label>
+    <input type="text" id="roomcount-reg-id" placeholder="CM26-0001">
+  </div>
+  <div class="input-group">
+    <label>Number of Rooms:</label>
+    <input type="number" id="roomcount-value" min="1" max="10" value="1">
+  </div>
+  <button class="btn btn-warning" data-action="set-room-count">
+    ⚠️ Update Room Count
+  </button>
+</div>
+
+  <div class="section">
     <h3>🔧 Repair Registration</h3>
     <p style="font-size:11px; color:#64748b; margin-top:0;">
       Edit guests for any registration type. Counts, class assignments, meal selections,
@@ -351,6 +369,20 @@
           if (result && result.success) showStatus('Housing changed! New subtotal: $' + result.newHousingSubtotal, false);
           else showStatus((result && result.error) || 'Failed to change housing', true);
         });
+      } else if (action === 'set-room-count') {
+  var rcRegId = document.getElementById('roomcount-reg-id').value.trim();
+  var rcCount = parseInt(document.getElementById('roomcount-value').value, 10);
+  if (!rcRegId) return showStatus('Enter a registration ID', true);
+  if (!rcCount || rcCount < 1) return showStatus('Room count must be at least 1', true);
+  if (!confirm('Set room count for ' + rcRegId + ' to ' + rcCount + '?\n\nThis affects housing availability calculations.')) return;
+  showStatus('Updating...', false);
+  runAction(action, btn, 'Updating…', 'setRoomCount', [rcRegId, rcCount], function(result) {
+    if (result && result.success) {
+      showStatus('Room count updated for ' + result.regId + ': ' + result.roomCount + ' room(s)', false);
+    } else {
+      showStatus((result && result.error) || 'Failed to update room count', true);
+    }
+  });
       } else if (action === 'load-for-repair') {
         loadForRepair(btn);
       } else if (action === 'save-repair') {
