@@ -1360,6 +1360,57 @@ function adminRepairRegistration(payload) {
 // ==========================================
 
 /**
+ * Set the number of physical rooms occupied by a registration.
+ * Used when a family is assigned more than one room so that housing
+ * availability counts correctly.
+ */
+function setRoomCount(regId, count) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    return { success: false, error: 'System busy' };
+  }
+
+  try {
+    var normalizedId = (regId || '').toString().trim();
+    var roomCount = parseInt(count, 10);
+
+    if (!normalizedId) {
+      return { success: false, error: 'Missing registration ID' };
+    }
+    if (isNaN(roomCount) || roomCount < 1) {
+      return { success: false, error: 'Room count must be a positive integer >= 1' };
+    }
+
+    var regDataObj = getSheetValuesSafe('Registrations');
+    var regSheet   = regDataObj.sheet;
+    var regData    = regDataObj.values;
+
+    var idx = findRegistrationRowById(normalizedId, regData);
+    if (idx === -1) {
+      return { success: false, error: 'Registration not found' };
+    }
+    if (isCancelledRegistration(regData[idx])) {
+      return { success: false, error: 'Cannot update room count for cancelled registration' };
+    }
+
+    var rowNum   = idx + 1;
+    var previous = Number(regData[idx][COLUMNS.ROOM_COUNT]) || 1;
+
+    regSheet.getRange(rowNum, COLUMNS.ROOM_COUNT + 1).setValue(roomCount);
+    SpreadsheetApp.flush();
+
+    logActivity('room_count_update', normalizedId,
+      'Room count set to ' + roomCount + ' (was ' + previous + ')',
+      'admin');
+
+    return { success: true, regId: normalizedId, roomCount: roomCount };
+
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/**
  * Allowed payment method values. Only 'square' triggers Square processing-fee
  * behavior (fee row in confirmation email, non-zero processing_fee column).
  * Everything else is treated as a non-card payment with fee = $0.

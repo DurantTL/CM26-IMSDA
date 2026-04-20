@@ -157,7 +157,8 @@ function processRegistration(data) {
       data.rvDetails || '',             // AZ: notes
       data.entryId || '',               // BA: fluent_entry_id
       regId,                            // BB: qr_data
-      data.specialRequests || ''        // BC: special_requests
+      data.specialRequests || '',        // BC: special_requests
+      1                                 // BD: room_count
     ];
     
     // 4. Save to Registration Sheet
