@@ -2,16 +2,14 @@
 // FILE: Utilities.gs
 // ==========================================
 
-// *** ACTION REQUIRED ***
-// Paste your Spreadsheet ID inside the quotes below
-var SPREADSHEET_ID = '1Zx-XPcbg3oI5DK5OCH8Ryg7LC4rYKRjcRDOIxTQsyy8';
-
 /**
- * HELPER: Always opens the correct spreadsheet by ID
- * fixes "Unable to open file" errors.
+ * HELPER: Always opens the correct spreadsheet by ID.
+ * Set SPREADSHEET_ID in Apps Script: File → Project Settings → Script Properties.
  */
 function getSS() {
-  return SpreadsheetApp.openById(SPREADSHEET_ID);
+  var id = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+  if (!id) throw new Error('SPREADSHEET_ID not set in Script Properties');
+  return SpreadsheetApp.openById(id);
 }
 
 /**

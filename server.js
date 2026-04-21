@@ -1,10 +1,13 @@
+const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const path = require('path');
 
 const app = express();
 const port = process.env.PORT || 3000;
 const gasUrl = process.env.GOOGLE_SCRIPT_URL || '';
+const gasToken = process.env.GAS_ACCESS_TOKEN || '';
 const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 const sessionCookieName = 'cm26_session';
 const sessionTtlSeconds = parseInt(process.env.SESSION_TTL_SECONDS || '43200', 10);
@@ -16,6 +19,10 @@ if (!process.env.SESSION_SECRET) {
 
 if (!gasUrl) {
   console.warn('GOOGLE_SCRIPT_URL not set. Sync and proxy APIs will be unavailable.');
+}
+
+if (!gasToken) {
+  console.warn('GAS_ACCESS_TOKEN not set. GAS requests will be rejected by the auth gate.');
 }
 
 app.disable('x-powered-by');
@@ -212,6 +219,14 @@ function noStore(_req, res, next) {
   next();
 }
 
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many login attempts. Try again in 15 minutes.' }
+});
+
 function jsonOrEmpty(text) {
   if (!text) return {};
   return JSON.parse(text);
@@ -225,6 +240,7 @@ async function fetchGasJson(action, params = {}, method = 'GET') {
   if (method === 'GET') {
     const url = new URL(gasUrl);
     url.searchParams.set('action', action);
+    if (gasToken) url.searchParams.set('token', gasToken);
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== '') {
         url.searchParams.set(key, String(value));
@@ -240,7 +256,10 @@ async function fetchGasJson(action, params = {}, method = 'GET') {
     return jsonOrEmpty(text);
   }
 
-  const response = await fetch(gasUrl, {
+  const postUrl = new URL(gasUrl);
+  if (gasToken) postUrl.searchParams.set('token', gasToken);
+
+  const response = await fetch(postUrl, {
     method: 'POST',
     headers: {
       Accept: 'application/json',
@@ -277,9 +296,19 @@ const syncState = {
   syncPromise: null
 };
 
+const MIN_SYNC_THRESHOLD = parseInt(process.env.SYNC_MIN_REGISTRATIONS || '5', 10);
+
 function buildSyncIndexes(payload) {
   const registrations = Array.isArray(payload.registrations) ? payload.registrations : [];
   const tickets = Array.isArray(payload.tickets) ? payload.tickets : [];
+
+  if (syncState.registrations.length >= MIN_SYNC_THRESHOLD && registrations.length < MIN_SYNC_THRESHOLD) {
+    console.warn(
+      `[sync] Skipping cache update: GAS returned ${registrations.length} registration(s) ` +
+      `(threshold ${MIN_SYNC_THRESHOLD}). Keeping ${syncState.registrations.length} cached records.`
+    );
+    return;
+  }
 
   syncState.registrations = registrations;
   syncState.registrationsById = new Map();
@@ -474,7 +503,7 @@ function getGuestMealsLocal(regId) {
   };
 }
 
-app.post('/api/auth/login', noStore, (req, res) => {
+app.post('/api/auth/login', noStore, loginRateLimiter, async (req, res) => {
   const username = String(req.body.username || '').trim();
   const password = String(req.body.password || '');
   const appName = String(req.body.app || '').trim();
@@ -484,7 +513,8 @@ app.post('/api/auth/login', noStore, (req, res) => {
   }
 
   const user = authUsers.find((candidate) => candidate.username === username);
-  if (!user || user.password !== password) {
+  const passwordMatch = user ? await bcrypt.compare(password, user.password) : false;
+  if (!user || !passwordMatch) {
     return res.status(401).json({ success: false, error: 'Invalid username or password' });
   }
 
