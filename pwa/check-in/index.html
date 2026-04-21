@@ -15,9 +15,27 @@
     <header>
         <div class="header-content">
             <h1>🏕️ CM26 Check-In</h1>
-            <div id="connection-status" class="status-indicator online">Online</div>
+            <div class="header-actions">
+                <div id="connection-status" class="status-indicator online">Online</div>
+                <button id="logout-btn" class="btn btn-sm btn-white logout-btn" style="display:none;">Log Out</button>
+            </div>
+        </div>
+        <div class="header-subtitle">
+            <span id="user-display">Volunteer sign-in required</span>
+            <span id="sync-status">Cache not loaded</span>
         </div>
     </header>
+
+    <div id="auth-screen" class="auth-screen">
+        <form id="login-form" class="auth-card">
+            <h2>Volunteer Login</h2>
+            <p>Sign in to access the live check-in cache and protected actions.</p>
+            <input type="text" id="login-username" placeholder="Username" autocomplete="username">
+            <input type="password" id="login-password" placeholder="Password" autocomplete="current-password">
+            <button type="submit" class="btn btn-primary full-width">Sign In</button>
+            <div id="login-error" class="error-msg auth-error" style="display:none;"></div>
+        </form>
+    </div>
 
     <main>
         <!-- STATS DASHBOARD -->

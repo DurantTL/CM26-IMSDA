@@ -67,9 +67,12 @@ npm start
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `PORT` | No | Server port (default: 3000) |
-| `GOOGLE_SCRIPT_URL` | No | Google Apps Script Web App URL. If set, automatically updates PWA config files at startup. |
+| `GOOGLE_SCRIPT_URL` | Yes | Google Apps Script Web App URL used only by the Node server for sync + write proxying |
+| `SESSION_SECRET` | Yes | Secret used to sign the PWA session cookie |
+| `CM26_AUTH_USERS` | Yes | JSON array of volunteer accounts, for example `[{"username":"frontdesk","password":"...","apps":["checkin"]}]` |
+| `PWA_SYNC_INTERVAL_MS` | No | How often the server refreshes the local cache from Google (default: 60000) |
 
-If `GOOGLE_SCRIPT_URL` is not set as an environment variable, the PWAs use the URL hardcoded in `pwa/*/config.js`.
+The PWAs now call same-origin `/api/*` routes only. The browser no longer needs or receives the Google Apps Script URL.
 
 ---
 

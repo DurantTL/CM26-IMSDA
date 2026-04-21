@@ -46,6 +46,25 @@ header {
   width: 100%;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-subtitle {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.logout-btn {
+  width: auto;
+}
+
 .header-content h1 {
   margin: 0;
   font-size: 1.15rem;
@@ -65,6 +84,49 @@ main {
   padding: 14px;
   max-width: 600px;
   margin: 0 auto;
+}
+
+.auth-screen {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.75);
+  z-index: 300;
+}
+
+.auth-screen.visible {
+  display: flex;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+  background: white;
+  border-radius: 14px;
+  padding: 22px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.28);
+}
+
+.auth-card h2 {
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+
+.auth-card p {
+  margin-top: 0;
+  margin-bottom: 14px;
+  color: var(--muted);
+}
+
+.auth-card input {
+  margin-bottom: 10px;
+}
+
+.auth-error {
+  margin-top: 12px;
 }
 
 /* ── Stats grid ──────────────────────────── */

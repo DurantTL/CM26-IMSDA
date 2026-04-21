@@ -39,6 +39,25 @@ header {
     margin-bottom: 10px;
 }
 
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.header-subtitle {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.9);
+}
+
+.logout-btn {
+    width: auto;
+}
+
 h1 { margin: 0; font-size: 1.2rem; }
 
 /* Meal + date selector strip */
@@ -98,6 +117,61 @@ main {
     padding: 14px;
     max-width: 600px;
     margin: 0 auto;
+}
+
+.auth-screen {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.78);
+    z-index: 300;
+}
+
+.auth-screen.visible {
+    display: flex;
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 380px;
+    background: var(--card);
+    border-radius: 14px;
+    padding: 22px;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.28);
+}
+
+.auth-card h2 {
+    margin-top: 0;
+    margin-bottom: 8px;
+}
+
+.auth-card p {
+    margin-top: 0;
+    margin-bottom: 14px;
+    color: var(--muted);
+}
+
+.auth-card input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 1rem;
+    color: var(--text);
+    background: var(--bg);
+    margin-bottom: 10px;
+}
+
+.auth-card input:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.auth-error {
+    margin-top: 12px;
 }
 
 /* ── Buttons ─────────────────────────────── */

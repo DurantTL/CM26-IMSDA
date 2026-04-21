@@ -20,9 +20,6 @@ function doGet(e) {
       case 'getRegistration':
         return jsonResponse(getRegistration(e.parameter.id));
 
-      case 'adminGetPaymentInfo':
-        return jsonResponse(adminGetPaymentInfo(e.parameter.id));
-
       case 'getGuestMeals':
         return jsonResponse(getGuestMeals(e.parameter.id));
 
@@ -35,8 +32,8 @@ function doGet(e) {
       case 'getCheckInStats':
         return jsonResponse(getCheckInStats());
 
-      case 'getDietaryReport':
-        return jsonResponse(getDietaryReport());
+      case 'getPwaSyncData':
+        return jsonResponse(getPwaSyncData());
 
       case 'searchRegistrations':
         return jsonResponse(searchRegistrations({
@@ -83,9 +80,6 @@ function doPost(e) {
 
       case 'cancelRegistration':
         return jsonResponse(cancelRegistration(data));
-
-      case 'deleteRegistration':
-        return jsonResponse(deleteRegistration(data));
         
       case 'addToWaitlist':
         return jsonResponse(addToWaitlist(data));
@@ -101,12 +95,6 @@ function doPost(e) {
         
       case 'updatePayment':
         return jsonResponse(recordPayment(data));
-
-      case 'adminUpdatePaymentInfo':
-        return jsonResponse(adminUpdatePaymentInfo(data));
-
-      case 'resendConfirmationEmail':
-        return jsonResponse(resendConfirmationEmail(data.regId));
         
       default:
         return jsonResponse({error: 'Unknown action: ' + action}, 400);
