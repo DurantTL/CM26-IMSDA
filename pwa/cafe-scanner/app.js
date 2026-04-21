@@ -414,7 +414,10 @@ function renderNameResults(results) {
     results.forEach((result) => {
         const button = document.createElement('button');
         button.className = 'btn btn-secondary name-result-btn';
-        button.innerHTML = `<strong>${result.name}</strong> <span class="badge">${result.regId}</span>`;
+        const guestNote = result.matchedGuests && result.matchedGuests.length
+            ? `<br><small style="opacity:0.8">Guest: ${result.matchedGuests.join(', ')}</small>`
+            : '';
+        button.innerHTML = `<strong>${result.name}</strong> <span class="badge">${result.regId}</span>${guestNote}`;
         button.addEventListener('click', () => {
             switchLookupTab('id');
             els.manualInput.value = result.regId;
@@ -455,6 +458,66 @@ function renderGuestCard(data) {
 
     if (unusedTickets.length === 0) {
         els.redeemMessage.textContent = 'No valid tickets for this meal.';
+        return;
+    }
+
+    // Determine unique guests who have tickets for this meal
+    const guestNames = [...new Set(unusedTickets.map((t) => t.guestName))];
+
+    if (guestNames.length <= 1) {
+        // Single person — skip selection step
+        renderRedeemButtons(unusedTickets);
+    } else {
+        renderGuestSelection(guestNames, unusedTickets);
+    }
+}
+
+function renderGuestSelection(guestNames, allUnusedTickets) {
+    els.redeemMessage.textContent = 'Who is eating right now?';
+    els.redeemButtons.innerHTML = '';
+
+    const form = document.createElement('div');
+    form.className = 'guest-select-form';
+
+    guestNames.forEach((name) => {
+        const label = document.createElement('label');
+        label.className = 'checkbox-row guest-select-row';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = name;
+        checkbox.checked = true; // pre-select all; volunteer unchecks absent guests
+        label.appendChild(checkbox);
+        label.appendChild(document.createTextNode(' ' + name));
+        form.appendChild(label);
+    });
+
+    els.redeemButtons.appendChild(form);
+
+    const confirmBtn = document.createElement('button');
+    confirmBtn.className = 'btn btn-primary full-width';
+    confirmBtn.style.marginTop = '10px';
+    confirmBtn.textContent = 'Confirm Selection';
+    confirmBtn.addEventListener('click', () => {
+        const selected = Array.from(form.querySelectorAll('input[type=checkbox]:checked'))
+            .map((cb) => cb.value);
+
+        if (selected.length === 0) {
+            els.redeemMessage.textContent = 'Select at least one person.';
+            return;
+        }
+
+        const selectedTickets = allUnusedTickets.filter((t) => selected.includes(t.guestName));
+        renderRedeemButtons(selectedTickets);
+    });
+
+    els.redeemButtons.appendChild(confirmBtn);
+}
+
+function renderRedeemButtons(unusedTickets) {
+    els.redeemButtons.innerHTML = '';
+
+    if (unusedTickets.length === 0) {
+        els.redeemMessage.textContent = 'No unredeemed tickets for the selected guests.';
         return;
     }
 

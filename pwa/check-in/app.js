@@ -392,6 +392,13 @@ function renderGuestDetail(reg) {
             ? '<span class="status-badge checked-in">Checked In</span>'
             : '<span class="status-badge not-arrived">Not Arrived</span>';
 
+    const guests = Array.isArray(reg.guests) ? reg.guests : [];
+    const guestListHtml = guests.length
+        ? `<ul class="guest-name-list">${guests.map((g) =>
+            `<li>${g.name}${g.isChild ? ' <span class="badge-child">Child</span>' : ''}</li>`
+          ).join('')}</ul>`
+        : '<p class="info-text-sm">No guest details on file.</p>';
+
     els.guestDetail.innerHTML = `
         <div class="card-header">
             <div>
@@ -409,11 +416,91 @@ function renderGuestDetail(reg) {
             <p><strong>Meal Tickets:</strong> ${reg.mealTicketCount}</p>
         </div>
         ${reg.specialNeeds ? `<div class="warning-box">⚠️ ${reg.specialNeeds}</div>` : ''}
+        <div class="guest-list-section">
+            <div class="guest-list-header">
+                <strong>Party Members</strong>
+                <button class="btn btn-sm btn-outline" onclick="openEditGuests()">Edit Guests</button>
+            </div>
+            ${guestListHtml}
+        </div>
         <div class="detail-actions">
             ${actionBtn}
             <button class="btn btn-outline full-width" onclick="closeGuest()">← Back to Search</button>
         </div>
     `;
+}
+
+function openEditGuests() {
+    if (!currentReg) return;
+
+    const guests = Array.isArray(currentReg.guests) ? currentReg.guests : [];
+    const editor = document.getElementById('guest-list-editor');
+    editor.innerHTML = '';
+
+    guests.forEach((g, idx) => {
+        editor.appendChild(buildGuestRow(g.name, g.age || '', g.isChild || false, idx));
+    });
+
+    if (!guests.length) {
+        editor.appendChild(buildGuestRow('', '', false, 0));
+    }
+
+    document.getElementById('edit-guests-modal').style.display = 'block';
+    els.modals.overlay.style.display = 'block';
+}
+
+function buildGuestRow(name, age, isChild, idx) {
+    const row = document.createElement('div');
+    row.className = 'guest-edit-row';
+    row.dataset.idx = idx;
+    row.innerHTML = `
+        <input type="text" class="guest-name-input" placeholder="Guest name" value="${name}" style="flex:1">
+        <input type="number" class="guest-age-input" placeholder="Age" value="${age}" style="width:60px;min-width:60px" min="0" max="120">
+        <button type="button" class="btn btn-sm btn-danger-outline" onclick="this.closest('.guest-edit-row').remove()">✕</button>
+    `;
+    return row;
+}
+
+function addGuestRow() {
+    const editor = document.getElementById('guest-list-editor');
+    editor.appendChild(buildGuestRow('', '', false, Date.now()));
+}
+
+async function saveGuestList() {
+    if (!currentReg) return;
+
+    const rows = document.querySelectorAll('#guest-list-editor .guest-edit-row');
+    const guests = Array.from(rows).map((row) => {
+        const name = row.querySelector('.guest-name-input').value.trim();
+        const age = parseInt(row.querySelector('.guest-age-input').value, 10) || 0;
+        return { name, age, isChild: age > 0 && age < 18 };
+    }).filter((g) => g.name.length > 0);
+
+    const saveBtn = document.getElementById('save-guests-btn');
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+
+    try {
+        await apiRequest('/update-guests', {
+            method: 'POST',
+            body: {
+                regId: currentReg.regId,
+                guests,
+                volunteer: currentUser ? currentUser.username : 'CheckInApp'
+            }
+        });
+        logActivity(`Guests updated: ${currentReg.name}`, true);
+        closeModal('edit-guests-modal');
+        await loadGuest(currentReg.regId);
+    } catch (error) {
+        if (error.message !== 'UNAUTHORIZED') {
+            document.getElementById('edit-guests-error').textContent = 'Save failed. Try again.';
+            document.getElementById('edit-guests-error').style.display = 'block';
+        }
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+    }
 }
 
 function openCheckIn() {

@@ -197,6 +197,21 @@
         </div>
     </div>
 
+    <!-- EDIT GUESTS MODAL -->
+    <div id="edit-guests-modal" class="modal">
+        <div class="modal-content">
+            <h2>Edit Party Members</h2>
+            <p class="modal-note">Correct names so the cafe scanner can find them by first name. Adding a guest here does not create new meal tickets.</p>
+            <div id="guest-list-editor" class="guest-list-editor"></div>
+            <button type="button" class="btn btn-outline full-width" onclick="addGuestRow()" style="margin-top:8px">+ Add Person</button>
+            <div id="edit-guests-error" class="error-msg" style="display:none;margin-top:8px"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('edit-guests-modal')">Cancel</button>
+                <button type="button" id="save-guests-btn" class="btn btn-primary" onclick="saveGuestList()">Save</button>
+            </div>
+        </div>
+    </div>
+
     <div id="overlay" class="overlay"></div>
 
     <script src="config.js"></script>

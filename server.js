@@ -406,9 +406,16 @@ function searchRegistrationsLocal(params = {}) {
       }
 
       if (firstName || lastName) {
-        const firstMatch = !firstName || fullName.includes(firstName);
-        const lastMatch = !lastName || fullName.includes(lastName);
-        return firstMatch && lastMatch;
+        const primaryMatch =
+          (!firstName || fullName.includes(firstName)) &&
+          (!lastName || fullName.includes(lastName));
+        if (primaryMatch) return true;
+
+        const guests = Array.isArray(registration.guests) ? registration.guests : [];
+        return guests.some((g) => {
+          const gn = String(g.name || '').toLowerCase();
+          return (!firstName || gn.includes(firstName)) && (!lastName || gn.includes(lastName));
+        });
       }
 
       if (query) {
@@ -417,7 +424,29 @@ function searchRegistrationsLocal(params = {}) {
 
       return false;
     })
-    .map(summarizeRegistration)
+    .map((registration) => {
+      const summary = summarizeRegistration(registration);
+
+      if (firstName || lastName) {
+        const fullName = String(registration.name || '').toLowerCase();
+        const primaryMatch =
+          (!firstName || fullName.includes(firstName)) &&
+          (!lastName || fullName.includes(lastName));
+
+        if (!primaryMatch) {
+          const guests = Array.isArray(registration.guests) ? registration.guests : [];
+          const matched = guests
+            .filter((g) => {
+              const gn = String(g.name || '').toLowerCase();
+              return (!firstName || gn.includes(firstName)) && (!lastName || gn.includes(lastName));
+            })
+            .map((g) => g.name);
+          if (matched.length) summary.matchedGuests = matched;
+        }
+      }
+
+      return summary;
+    })
     .slice(0, 50);
 
   return { success: true, results, count: results.length, sync: getSyncMeta() };
@@ -494,6 +523,7 @@ function getGuestMealsLocal(regId) {
       email: registration.email,
       housing: registration.housingOption,
       totalGuests: registration.totalGuests,
+      guests: Array.isArray(registration.guests) ? registration.guests : [],
       dietaryNeeds: registration.dietaryNeeds
     },
     tickets,
@@ -638,6 +668,18 @@ app.post('/api/checkin/check-in', noStore, requireAppAccess('checkin'), async (r
 app.post('/api/checkin/check-out', noStore, requireAppAccess('checkin'), async (req, res) => {
   try {
     const payload = await fetchGasJson('checkOut', req.body, 'POST');
+    if (payload.success) {
+      await refreshSyncCache(true);
+    }
+    res.status(payload.success ? 200 : 400).json({ ...payload, sync: getSyncMeta() });
+  } catch (error) {
+    res.status(503).json({ success: false, error: error.message, sync: getSyncMeta() });
+  }
+});
+
+app.post('/api/checkin/update-guests', noStore, requireAppAccess('checkin'), async (req, res) => {
+  try {
+    const payload = await fetchGasJson('updateGuestDetails', req.body, 'POST');
     if (payload.success) {
       await refreshSyncCache(true);
     }
