@@ -3,4 +3,5 @@ node_modules
 *.log
 .env
 .env.*
-package-lock.json
+ecosystem.config.js
+*.local.js

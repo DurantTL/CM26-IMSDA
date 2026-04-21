@@ -1,0 +1,37 @@
+// Copy this file to ecosystem.config.js and populate every value.
+// ecosystem.config.js is .gitignored — never commit real secrets.
+//
+// Sensitive values are read from the HOST environment at pm2-start time.
+// Set them in a .env file (loaded by your shell or a secrets manager)
+// BEFORE running: pm2 start ecosystem.config.js
+//
+// Generate bcrypt hashes for CM26_AUTH_USERS passwords with:
+//   node -e "const b=require('bcrypt'); b.hash('yourpassword',12).then(console.log)"
+//
+// GAS Script Properties that must also be configured (via the Apps Script editor):
+//   ACCESS_TOKEN   — must match GAS_ACCESS_TOKEN below
+//   SPREADSHEET_ID — the ID of your Google Sheet
+
+module.exports = {
+  apps: [{
+    name: 'cm26',
+    script: './server.js',
+    watch: false,
+    max_restarts: 10,
+    min_uptime: '10s',
+    restart_delay: 5000,
+    env: {
+      NODE_ENV: 'production',
+      PORT: 3000,
+      GOOGLE_SCRIPT_URL: 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec',
+      GAS_ACCESS_TOKEN: 'replace-with-a-long-random-token',
+      SESSION_SECRET: 'replace-with-a-long-random-secret',
+      // passwords must be bcrypt hashes (cost factor 12 recommended)
+      CM26_AUTH_USERS: '[{"username":"frontdesk","password":"$2b$12$REPLACE_WITH_BCRYPT_HASH","apps":["checkin","cafe"]}]',
+      DB_HOST: '127.0.0.1',
+      DB_NAME: 'your_db_name',
+      DB_USERNAME: 'your_db_user',
+      DB_PASSWORD: 'your_db_password'
+    }
+  }]
+};

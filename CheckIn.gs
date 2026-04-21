@@ -181,15 +181,22 @@ function processCheckIn(data) {
           updateRoomStatus(data.room, 'occupied', data.regId, regData[i][COLUMNS.PRIMARY_NAME]);
         }
 
-        // Record key deposit as payment
-        recordPayment({
-          regId: data.regId,
-          amount: depositAmount,
-          method: 'cash',
-          type: 'key_deposit',
-          processedBy: data.volunteer || 'Check-in',
-          notes: 'Keys: ' + (data.key1 || '') + ', ' + (data.key2 || '')
-        });
+        // Record key deposit as payment (skip if deposit is zero)
+        if (depositAmount > 0) {
+          var depositResult = recordPayment({
+            regId: data.regId,
+            amount: depositAmount,
+            method: 'cash',
+            type: 'key_deposit',
+            processedBy: data.volunteer || 'Check-in',
+            notes: 'Keys: ' + (data.key1 || '') + ', ' + (data.key2 || '')
+          });
+          if (depositResult && !depositResult.success) {
+            logActivity('warning', data.regId,
+              'recordPayment failed during check-in: ' + (depositResult.error || 'unknown error'),
+              'checkin_pwa');
+          }
+        }
 
         // Log activity
         logActivity('check_in', data.regId,

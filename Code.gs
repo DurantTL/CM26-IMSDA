@@ -3,6 +3,12 @@
 // ==========================================
 
 function doGet(e) {
+  var token = (e.parameter && e.parameter.token) || '';
+  var validToken = PropertiesService.getScriptProperties().getProperty('ACCESS_TOKEN') || '';
+  if (!validToken || token !== validToken) {
+    return jsonResponse({error: 'Unauthorized'}, 401);
+  }
+
   var action = e.parameter.action || 'ping';
 
   // Serve the Admin Dashboard as an HTML page when action=admin
@@ -56,6 +62,12 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  var token = (e.parameter && e.parameter.token) || '';
+  var validToken = PropertiesService.getScriptProperties().getProperty('ACCESS_TOKEN') || '';
+  if (!validToken || token !== validToken) {
+    return jsonResponse({error: 'Unauthorized'}, 401);
+  }
+
   try {
     if (!e.postData || !e.postData.contents) {
       return jsonResponse({error: 'No data provided'}, 400);
