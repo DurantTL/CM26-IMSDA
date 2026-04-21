@@ -554,3 +554,48 @@ function getCheckInStats() {
     stats: stats
   };
 }
+
+/**
+ * Update the guest_details JSON for a registration.
+ * Used by the check-in PWA to correct names or add walk-up guests.
+ * Does NOT create new meal tickets — those require an admin operation.
+ */
+function updateGuestDetails(data) {
+  var regId = String(data.regId || '').trim();
+  var guests = data.guests;
+  var volunteer = String(data.volunteer || 'CheckInPWA');
+
+  if (!regId) return { success: false, error: 'regId is required' };
+  if (!Array.isArray(guests)) return { success: false, error: 'guests must be an array' };
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+
+  try {
+    var ss = getSS();
+    var sheet = ss.getSheetByName('Registrations');
+    var data_ = sheet.getDataRange().getValues();
+
+    for (var i = 1; i < data_.length; i++) {
+      if (String(data_[i][COLUMNS.REG_ID]) !== regId) continue;
+
+      var sanitized = guests.map(function(g) {
+        return {
+          name: String(g.name || '').trim(),
+          age: Number(g.age) || 0,
+          isChild: Boolean(g.isChild)
+        };
+      }).filter(function(g) { return g.name.length > 0; });
+
+      sheet.getRange(i + 1, COLUMNS.GUEST_DETAILS + 1).setValue(JSON.stringify(sanitized));
+      logActivity('updateGuestDetails', regId, 'Guest list updated by ' + volunteer, 'CheckInPWA');
+      return { success: true };
+    }
+
+    return { success: false, error: 'Registration not found' };
+  } catch (e) {
+    return { success: false, error: e.message };
+  } finally {
+    lock.releaseLock();
+  }
+}

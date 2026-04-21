@@ -107,7 +107,10 @@ function doPost(e) {
         
       case 'updatePayment':
         return jsonResponse(recordPayment(data));
-        
+
+      case 'updateGuestDetails':
+        return jsonResponse(updateGuestDetails(data));
+
       default:
         return jsonResponse({error: 'Unknown action: ' + action}, 400);
     }

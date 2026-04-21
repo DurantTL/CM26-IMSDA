@@ -460,3 +460,34 @@ main {
     from { transform: translateY(16px); opacity: 0; }
     to   { transform: translateY(0);    opacity: 1; }
 }
+
+/* ── Guest selection (who's eating) ─────────── */
+.guest-select-form {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.guest-select-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: #f7fafc;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.guest-select-row input[type=checkbox] {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.name-result-btn {
+    text-align: left;
+    line-height: 1.4;
+}

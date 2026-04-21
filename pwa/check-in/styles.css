@@ -550,3 +550,81 @@ input[type="date"]:focus {
   font-size: 0.88rem;
   color: #4a5568;
 }
+
+/* ── Guest list section ───────────────────── */
+.guest-list-section {
+  margin: 12px 0;
+  padding: 12px;
+  background: #f7fafc;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.guest-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.guest-name-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.guest-name-list li {
+  padding: 4px 0;
+  font-size: 0.92rem;
+  color: #2d3748;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.badge-child {
+  font-size: 0.72rem;
+  background: #bee3f8;
+  color: #2b6cb0;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.info-text-sm {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* ── Edit guests modal ────────────────────── */
+.modal-note {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.guest-list-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.guest-edit-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.btn-danger-outline {
+  background: transparent;
+  border: 1px solid #fc8181;
+  color: #c53030;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
