@@ -78,8 +78,10 @@ The `pwa/` directory contains two Progressive Web Apps served by the Express ser
    | Key | Value |
    |-----|-------|
    | `GOOGLE_SCRIPT_URL` | Your Google Apps Script Web App URL |
+   | `SESSION_SECRET` | A long random string for signing login sessions |
+   | `CM26_AUTH_USERS` | JSON array of volunteer accounts and app access |
 
-   Setting `GOOGLE_SCRIPT_URL` automatically configures both PWAs at server startup. No need to edit config files manually.
+   The Google URL stays server-side. PWAs authenticate against the Node app and use local `/api/*` routes.
 
 4. **Access Your Apps:**
    - Check-In: `https://your-app.onrender.com/checkin`
@@ -97,26 +99,23 @@ The `pwa/` directory contains two Progressive Web Apps served by the Express ser
    npm install
    ```
 
-2. **Set the backend URL** (choose one method):
+2. **Set the required server environment variables:**
 
-   **Method 1 - Environment variable (recommended):**
    ```bash
    export GOOGLE_SCRIPT_URL="https://script.google.com/macros/s/AKfycb.../exec"
+   export SESSION_SECRET="replace-with-a-long-random-secret"
+   export CM26_AUTH_USERS='[{"username":"frontdesk","password":"replace-me","apps":["checkin","cafe"]}]'
    npm start
-   ```
-
-   **Method 2 - Edit config files directly:**
-   ```bash
-   # Edit both files and set GOOGLE_SCRIPT_URL
-   nano pwa/cafe-scanner/config.js
-   nano pwa/check-in/config.js
    ```
 
 3. **Run with a process manager** (recommended for production):
    ```bash
    # Using PM2
    npm install -g pm2
-   GOOGLE_SCRIPT_URL="https://script.google.com/macros/s/..." pm2 start server.js --name cm26
+   GOOGLE_SCRIPT_URL="https://script.google.com/macros/s/..." \
+   SESSION_SECRET="replace-with-a-long-random-secret" \
+   CM26_AUTH_USERS='[{"username":"frontdesk","password":"replace-me","apps":["checkin","cafe"]}]' \
+   pm2 start server.js --name cm26
    pm2 save
    pm2 startup
    ```

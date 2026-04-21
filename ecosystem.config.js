@@ -6,6 +6,8 @@ module.exports = {
       NODE_ENV: "production",
       PORT: 3000,
       GOOGLE_SCRIPT_URL: "https://script.google.com/macros/s/AKfycb.../exec",
+      SESSION_SECRET: "replace-with-a-long-random-secret",
+      CM26_AUTH_USERS: '[{"username":"frontdesk","password":"replace-me","apps":["checkin","cafe"]}]',
       DB_HOST: "127.0.0.1",
       DB_NAME: "s201768_cm26_ims",
       DB_USERNAME: "u201768_cm26_ims",

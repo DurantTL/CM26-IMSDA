@@ -1,208 +1,342 @@
 // CM26 Check-In PWA
 
-// State
+const APP_NAME = 'checkin';
+const API_ROOT = `${typeof CM26_API_BASE === 'string' ? CM26_API_BASE : '/api'}/${APP_NAME}`;
+
 let offlineQueue = JSON.parse(localStorage.getItem('cm26_checkin_queue') || '[]');
 let currentReg = null;
 let html5QrCode = null;
+let currentUser = null;
+let bindingsInitialized = false;
 
-// DOM Elements
 const els = {
-    // Search - name tab
-    searchFirst:    document.getElementById('search-first'),
-    searchLast:     document.getElementById('search-last'),
-    searchNameBtn:  document.getElementById('search-name-btn'),
-    // Search - ID tab
-    searchRegId:    document.getElementById('search-reg-id'),
-    searchIdBtn:    document.getElementById('search-id-btn'),
-    // Tab buttons
-    tabNameBtn:     document.getElementById('tab-name-btn'),
-    tabIdBtn:       document.getElementById('tab-id-btn'),
-    tabNamePanel:   document.getElementById('search-name-panel'),
-    tabIdPanel:     document.getElementById('search-id-panel'),
-    // Arrivals
-    arrivalsDate:   document.getElementById('arrivals-date'),
-    arrivalsBtn:    document.getElementById('arrivals-btn'),
-    // Scanner
-    scanBtn:        document.getElementById('scan-btn'),
-    reader:         document.getElementById('reader'),
-    // Content
-    resultsList:    document.getElementById('search-results'),
-    guestDetail:    document.getElementById('guest-detail'),
-    // Stats
+    searchFirst: document.getElementById('search-first'),
+    searchLast: document.getElementById('search-last'),
+    searchNameBtn: document.getElementById('search-name-btn'),
+    searchRegId: document.getElementById('search-reg-id'),
+    searchIdBtn: document.getElementById('search-id-btn'),
+    tabNameBtn: document.getElementById('tab-name-btn'),
+    tabIdBtn: document.getElementById('tab-id-btn'),
+    tabNamePanel: document.getElementById('search-name-panel'),
+    tabIdPanel: document.getElementById('search-id-panel'),
+    arrivalsDate: document.getElementById('arrivals-date'),
+    arrivalsBtn: document.getElementById('arrivals-btn'),
+    scanBtn: document.getElementById('scan-btn'),
+    reader: document.getElementById('reader'),
+    resultsList: document.getElementById('search-results'),
+    guestDetail: document.getElementById('guest-detail'),
+    queueBar: document.getElementById('offline-queue-bar'),
+    queueCount: document.getElementById('queue-count'),
+    syncBtn: document.getElementById('sync-btn'),
+    activityList: document.getElementById('activity-list'),
+    connectionStatus: document.getElementById('connection-status'),
+    userDisplay: document.getElementById('user-display'),
+    syncStatus: document.getElementById('sync-status'),
+    logoutBtn: document.getElementById('logout-btn'),
     stats: {
         checkedIn: document.getElementById('stat-checked-in'),
-        expected:  document.getElementById('stat-expected'),
-        keysOut:   document.getElementById('stat-keys-out')
+        expected: document.getElementById('stat-expected'),
+        keysOut: document.getElementById('stat-keys-out')
     },
-    // Offline queue
-    queueBar:   document.getElementById('offline-queue-bar'),
-    queueCount: document.getElementById('queue-count'),
-    syncBtn:    document.getElementById('sync-btn'),
-    // Modals
     modals: {
-        checkin:  document.getElementById('checkin-modal'),
+        checkin: document.getElementById('checkin-modal'),
         checkout: document.getElementById('checkout-modal'),
-        overlay:  document.getElementById('overlay')
+        overlay: document.getElementById('overlay')
+    },
+    auth: {
+        screen: document.getElementById('auth-screen'),
+        form: document.getElementById('login-form'),
+        username: document.getElementById('login-username'),
+        password: document.getElementById('login-password'),
+        error: document.getElementById('login-error')
     }
 };
 
-// Initialization
-document.addEventListener('DOMContentLoaded', () => {
-    // Default arrivals date to today
+document.addEventListener('DOMContentLoaded', async () => {
     els.arrivalsDate.value = todayDateString();
-
+    initializeBindings();
+    updateQueueUI();
     updateOnlineStatus();
-    updateStats();
-
-    window.addEventListener('online',  updateOnlineStatus);
-    window.addEventListener('offline', updateOnlineStatus);
-
-    // Search by name
-    els.searchNameBtn.addEventListener('click', doSearchByName);
-    els.searchFirst.addEventListener('keydown', e => { if (e.key === 'Enter') doSearchByName(); });
-    els.searchLast.addEventListener('keydown',  e => { if (e.key === 'Enter') doSearchByName(); });
-
-    // Search by ID
-    els.searchIdBtn.addEventListener('click', doSearchById);
-    els.searchRegId.addEventListener('keydown', e => { if (e.key === 'Enter') doSearchById(); });
-
-    // Arrivals
-    els.arrivalsBtn.addEventListener('click', loadArrivals);
-
-    // Scanner & sync
-    els.scanBtn.addEventListener('click', toggleScanner);
-    els.syncBtn.addEventListener('click', processOfflineQueue);
-
-    // Auto-sync offline queue on load
-    if (navigator.onLine && offlineQueue.length > 0) processOfflineQueue();
+    await restoreSession();
 });
 
-// --- Tab Switching ---
+function initializeBindings() {
+    if (bindingsInitialized) return;
+    bindingsInitialized = true;
+
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+
+    els.searchNameBtn.addEventListener('click', doSearchByName);
+    els.searchFirst.addEventListener('keydown', (event) => { if (event.key === 'Enter') doSearchByName(); });
+    els.searchLast.addEventListener('keydown', (event) => { if (event.key === 'Enter') doSearchByName(); });
+
+    els.searchIdBtn.addEventListener('click', doSearchById);
+    els.searchRegId.addEventListener('keydown', (event) => { if (event.key === 'Enter') doSearchById(); });
+
+    els.arrivalsBtn.addEventListener('click', loadArrivals);
+    els.scanBtn.addEventListener('click', toggleScanner);
+    els.syncBtn.addEventListener('click', processOfflineQueue);
+    els.logoutBtn.addEventListener('click', logout);
+    els.auth.form.addEventListener('submit', handleLogin);
+
+    document.getElementById('checkin-form').addEventListener('submit', submitCheckInForm);
+    document.getElementById('checkout-form').addEventListener('submit', submitCheckOutForm);
+}
+
+async function restoreSession() {
+    try {
+        const response = await fetch(`/api/auth/me?app=${APP_NAME}`, {
+            headers: { Accept: 'application/json' },
+            cache: 'no-store'
+        });
+
+        if (!response.ok) {
+            showAuthScreen();
+            return;
+        }
+
+        const payload = await response.json();
+        currentUser = payload.user;
+        finishLogin();
+    } catch (_error) {
+        showAuthScreen('Unable to reach the server.');
+    }
+}
+
+async function handleLogin(event) {
+    event.preventDefault();
+    hideAuthError();
+
+    const username = els.auth.username.value.trim();
+    const password = els.auth.password.value;
+    if (!username || !password) {
+        showAuthError('Enter both username and password.');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json'
+            },
+            cache: 'no-store',
+            body: JSON.stringify({ username, password, app: APP_NAME })
+        });
+
+        const payload = await response.json();
+        if (!response.ok || !payload.success) {
+            showAuthError(payload.error || 'Login failed.');
+            return;
+        }
+
+        currentUser = payload.user;
+        finishLogin();
+    } catch (_error) {
+        showAuthError('Could not sign in.');
+    }
+}
+
+function finishLogin() {
+    els.auth.password.value = '';
+    els.auth.screen.classList.remove('visible');
+    els.logoutBtn.style.display = 'inline-block';
+    els.userDisplay.textContent = `Signed in as ${currentUser.username}`;
+    updateOnlineStatus();
+    bootstrapApp();
+}
+
+function showAuthScreen(message) {
+    currentUser = null;
+    els.auth.screen.classList.add('visible');
+    els.logoutBtn.style.display = 'none';
+    els.userDisplay.textContent = 'Volunteer sign-in required';
+    if (message) {
+        showAuthError(message);
+    } else {
+        hideAuthError();
+    }
+}
+
+function showAuthError(message) {
+    els.auth.error.textContent = message;
+    els.auth.error.style.display = 'block';
+}
+
+function hideAuthError() {
+    els.auth.error.style.display = 'none';
+    els.auth.error.textContent = '';
+}
+
+async function logout() {
+    if (html5QrCode) {
+        await html5QrCode.stop().catch(() => {});
+        html5QrCode = null;
+        els.reader.style.display = 'none';
+        els.scanBtn.textContent = '📷 Scan QR';
+    }
+
+    await fetch('/api/auth/logout', { method: 'POST', cache: 'no-store' }).catch(() => {});
+    showAuthScreen('Signed out.');
+}
+
+async function bootstrapApp() {
+    try {
+        const payload = await apiRequest('/bootstrap');
+        if (payload.stats) {
+            renderStats(payload.stats);
+        }
+        setSyncStatus(payload.sync);
+        if (navigator.onLine && offlineQueue.length > 0) {
+            processOfflineQueue();
+        }
+    } catch (error) {
+        if (error.message !== 'UNAUTHORIZED') {
+            showResultsError('Could not load cached event data.');
+        }
+    }
+}
+
+async function apiRequest(path, options = {}) {
+    const requestOptions = {
+        method: options.method || 'GET',
+        headers: {
+            Accept: 'application/json',
+            ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+            ...(options.headers || {})
+        },
+        cache: 'no-store'
+    };
+
+    if (options.body) {
+        requestOptions.body = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
+    }
+
+    const response = await fetch(`${API_ROOT}${path}`, requestOptions);
+    const payload = await response.json().catch(() => ({ success: false, error: 'Invalid server response' }));
+
+    if (response.status === 401 || response.status === 403) {
+        showAuthScreen('Session expired. Sign in again.');
+        throw new Error('UNAUTHORIZED');
+    }
+
+    if (!response.ok || payload.success === false) {
+        throw new Error(payload.error || 'Request failed');
+    }
+
+    if (payload.sync) {
+        setSyncStatus(payload.sync);
+    }
+
+    return payload;
+}
+
+function setSyncStatus(sync) {
+    if (!sync || !sync.lastSyncAt) {
+        els.syncStatus.textContent = 'Cache not loaded';
+        return;
+    }
+
+    const timestamp = new Date(sync.lastSyncAt);
+    const label = Number.isNaN(timestamp.getTime())
+        ? sync.lastSyncAt
+        : timestamp.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+    els.syncStatus.textContent = `Cached ${label}`;
+}
+
+function renderStats(stats) {
+    els.stats.checkedIn.textContent = stats.checkedIn;
+    els.stats.expected.textContent = stats.notArrived;
+    els.stats.keysOut.textContent = stats.keysOut;
+}
 
 function switchTab(tab) {
     if (tab === 'name') {
         els.tabNameBtn.classList.add('active');
         els.tabIdBtn.classList.remove('active');
         els.tabNamePanel.style.display = 'block';
-        els.tabIdPanel.style.display   = 'none';
+        els.tabIdPanel.style.display = 'none';
         els.searchFirst.focus();
     } else {
         els.tabIdBtn.classList.add('active');
         els.tabNameBtn.classList.remove('active');
-        els.tabIdPanel.style.display   = 'block';
+        els.tabIdPanel.style.display = 'block';
         els.tabNamePanel.style.display = 'none';
         els.searchRegId.focus();
     }
 }
 
-// --- API Interactions ---
-
-async function callAPI(action, params = {}, method = 'GET') {
-    if (!navigator.onLine && method === 'POST') {
-        throw new Error('OFFLINE');
-    }
-
-    let url = `${GOOGLE_SCRIPT_URL}?action=${action}`;
-    let options = { method };
-
-    if (method === 'GET') {
-        const query = new URLSearchParams(params).toString();
-        if (query) url += `&${query}`;
-        options.redirect = 'follow';
-    } else {
-        // Use text/plain to keep POST as a CORS simple request (no pre-flight).
-        // GAS receives this as e.postData.contents and parses it normally.
-        options.body    = JSON.stringify({ action, ...params });
-        options.mode    = 'cors';
-        options.redirect = 'follow';
-        options.headers = { 'Content-Type': 'text/plain;charset=utf-8' };
-    }
-
-    try {
-        const res = await fetch(url, options);
-        return await res.json();
-    } catch (err) {
-        console.error('API Error:', err);
-        throw err;
-    }
-}
-
-// --- Actions ---
-
-async function updateStats() {
-    if (!navigator.onLine) return;
-    try {
-        const res = await callAPI('getCheckInStats');
-        if (res.success) {
-            els.stats.checkedIn.textContent = res.stats.checkedIn;
-            els.stats.expected.textContent  = res.stats.notArrived;
-            els.stats.keysOut.textContent   = res.stats.keysOut;
-        }
-    } catch (e) { console.warn('Stats update failed'); }
-}
-
-// Search by first + last name
 async function doSearchByName() {
     const firstName = (els.searchFirst.value || '').trim();
-    const lastName  = (els.searchLast.value  || '').trim();
+    const lastName = (els.searchLast.value || '').trim();
     if (!firstName && !lastName) return;
 
     showResultsLoading();
+
     try {
-        const params = {};
-        if (firstName) params.firstName = firstName;
-        if (lastName)  params.lastName  = lastName;
-        const res = await callAPI('searchRegistrations', params);
-        renderResults(res.results);
-    } catch (e) {
-        showResultsError('Search failed. Offline?');
+        const params = new URLSearchParams();
+        if (firstName) params.set('firstName', firstName);
+        if (lastName) params.set('lastName', lastName);
+        const payload = await apiRequest(`/search?${params.toString()}`);
+        renderResults(payload.results);
+    } catch (error) {
+        if (error.message !== 'UNAUTHORIZED') {
+            showResultsError('Search failed.');
+        }
     }
 }
 
-// Search by Registration ID
 async function doSearchById() {
     const regId = (els.searchRegId.value || '').trim().toUpperCase();
     if (!regId) return;
 
-    // If a full CM26- ID is entered, go directly to guest detail
     if (regId.startsWith('CM26-') && regId.length >= 9) {
         loadGuest(regId);
         return;
     }
 
     showResultsLoading();
+
     try {
-        const res = await callAPI('searchRegistrations', { regId: regId.toLowerCase() });
-        renderResults(res.results);
-    } catch (e) {
-        showResultsError('Search failed. Offline?');
+        const payload = await apiRequest(`/search?regId=${encodeURIComponent(regId.toLowerCase())}`);
+        renderResults(payload.results);
+    } catch (error) {
+        if (error.message !== 'UNAUTHORIZED') {
+            showResultsError('Search failed.');
+        }
     }
 }
 
 function renderResults(results) {
     els.resultsList.innerHTML = '';
+    els.resultsList.style.display = 'block';
+    els.guestDetail.style.display = 'none';
+
     if (!results || results.length === 0) {
         els.resultsList.innerHTML = '<div class="info-msg">No results found.</div>';
         return;
     }
 
-    results.forEach(r => {
+    results.forEach((result) => {
         const div = document.createElement('div');
         div.className = 'card result-item';
         div.innerHTML = `
             <div class="result-header">
-                <strong>${r.name}</strong>
-                <span class="badge">${r.regId}</span>
+                <strong>${result.name}</strong>
+                <span class="badge">${result.regId}</span>
             </div>
             <div class="result-meta">
-                ${r.housingOption}${r.roomAssignment ? ' &mdash; Room ' + r.roomAssignment : ''}
-                &nbsp;&bull;&nbsp; Guests: ${r.totalGuests}
-                &nbsp;&bull;&nbsp; Balance: $${r.balanceDue}
+                ${result.housingOption}${result.roomAssignment ? ' &mdash; Room ' + result.roomAssignment : ''}
+                &nbsp;&bull;&nbsp; Guests: ${result.totalGuests}
+                &nbsp;&bull;&nbsp; Balance: $${result.balanceDue}
             </div>
             <div class="result-action">
-                ${r.checkedIn === 'yes'
-                    ? `<button class="btn btn-secondary btn-sm" onclick="loadGuest('${r.regId}')">Manage Check-Out</button>`
-                    : `<button class="btn btn-primary btn-sm" onclick="loadGuest('${r.regId}')">Check In &rarr;</button>`
+                ${result.checkedIn === 'yes'
+                    ? `<button class="btn btn-secondary btn-sm" onclick="loadGuest('${result.regId}')">Manage Check-Out</button>`
+                    : `<button class="btn btn-primary btn-sm" onclick="loadGuest('${result.regId}')">Check In &rarr;</button>`
                 }
             </div>
         `;
@@ -215,42 +349,41 @@ async function loadArrivals() {
     showResultsLoading(`Loading arrivals for ${date}…`);
 
     try {
-        const res = await callAPI('getArrivals', { date });
-        renderResults(res.arrivals);
-    } catch (e) {
-        showResultsError('Failed to load arrivals.');
+        const payload = await apiRequest(`/arrivals?date=${encodeURIComponent(date)}`);
+        renderResults(payload.arrivals);
+    } catch (error) {
+        if (error.message !== 'UNAUTHORIZED') {
+            showResultsError('Failed to load arrivals.');
+        }
     }
 }
 
 async function loadGuest(regId) {
     els.resultsList.style.display = 'none';
-    els.guestDetail.innerHTML = `<div class="loading-state"><div class="spinner-ring"></div><p>Loading guest…</p></div>`;
+    els.guestDetail.innerHTML = '<div class="loading-state"><div class="spinner-ring"></div><p>Loading guest…</p></div>';
     els.guestDetail.style.display = 'block';
 
     try {
-        const res = await callAPI('getCheckInData', { id: regId });
-        if (res.success) {
-            currentReg = res.registration;
-            renderGuestDetail(res.registration);
-        } else {
-            els.guestDetail.innerHTML = '<div class="error-msg">Guest not found</div>';
-        }
-    } catch (e) {
-        els.guestDetail.innerHTML = '<div class="error-msg">Connection error</div>';
+        const payload = await apiRequest(`/registration/${encodeURIComponent(regId)}`);
+        currentReg = payload.registration;
+        renderGuestDetail(payload.registration);
+    } catch (error) {
+        if (error.message === 'UNAUTHORIZED') return;
+        els.guestDetail.innerHTML = '<div class="error-msg">Guest not found</div>';
     }
 }
 
 function renderGuestDetail(reg) {
-    const isCheckedIn  = reg.checkedIn  === 'yes';
+    const isCheckedIn = reg.checkedIn === 'yes';
     const isCheckedOut = reg.checkedOut === 'yes';
 
     let actionBtn = '';
     if (!isCheckedIn) {
-        actionBtn = `<button class="btn btn-primary full-width" onclick="openCheckIn()">Start Check-In</button>`;
+        actionBtn = '<button class="btn btn-primary full-width" onclick="openCheckIn()">Start Check-In</button>';
     } else if (!isCheckedOut) {
-        actionBtn = `<button class="btn btn-danger full-width" onclick="openCheckOut()">Check Out</button>`;
+        actionBtn = '<button class="btn btn-danger full-width" onclick="openCheckOut()">Check Out</button>';
     } else {
-        actionBtn = `<div class="info-msg">Already Checked Out</div>`;
+        actionBtn = '<div class="info-msg">Already Checked Out</div>';
     }
 
     const statusBadge = isCheckedOut
@@ -283,102 +416,88 @@ function renderGuestDetail(reg) {
     `;
 }
 
-// --- Check-In Logic ---
-
 function openCheckIn() {
     if (!currentReg) return;
 
-    document.getElementById('ci-balance').textContent        = currentReg.balanceDue;
-    document.getElementById('ci-payment-amount').value       = currentReg.balanceDue > 0 ? currentReg.balanceDue : '';
-    document.getElementById('ci-key1').value                 = currentReg.key1Number || '';
-    document.getElementById('ci-key2').value                 = currentReg.key2Number || '';
+    document.getElementById('ci-balance').textContent = currentReg.balanceDue;
+    document.getElementById('ci-payment-amount').value = currentReg.balanceDue > 0 ? currentReg.balanceDue : '';
+    document.getElementById('ci-key1').value = currentReg.key1Number || '';
+    document.getElementById('ci-key2').value = currentReg.key2Number || '';
 
     els.modals.overlay.style.display = 'block';
     els.modals.checkin.style.display = 'block';
 }
 
-document.getElementById('checkin-form').addEventListener('submit', (e) => {
-    e.preventDefault();
+function submitCheckInForm(event) {
+    event.preventDefault();
     const data = {
-        action:           'checkIn',
-        regId:            currentReg.regId,
-        volunteer:        'CheckInApp',
-        amount:           document.getElementById('ci-payment-amount').value,
+        regId: currentReg.regId,
+        volunteer: currentUser ? currentUser.username : 'CheckInApp',
+        amount: document.getElementById('ci-payment-amount').value,
         keyDepositAmount: 10,
-        key1:             document.getElementById('ci-key1').value,
-        key2:             document.getElementById('ci-key2').value,
-        welcomePacket:    document.getElementById('ci-packet-given').checked
+        key1: document.getElementById('ci-key1').value,
+        key2: document.getElementById('ci-key2').value,
+        welcomePacket: document.getElementById('ci-packet-given').checked
     };
 
-    submitAction(data, 'Check-In');
+    submitAction('/check-in', data, 'Check-In');
     closeModal('checkin-modal');
-});
-
-// --- Check-Out Logic ---
+}
 
 function openCheckOut() {
     if (!currentReg) return;
 
-    document.getElementById('co-key1-val').textContent      = currentReg.key1Number || 'None';
-    document.getElementById('co-key2-val').textContent      = currentReg.key2Number || 'None';
-    document.getElementById('co-deposit-paid').textContent  = currentReg.keyDepositAmount || '0';
+    document.getElementById('co-key1-val').textContent = currentReg.key1Number || 'None';
+    document.getElementById('co-key2-val').textContent = currentReg.key2Number || 'None';
+    document.getElementById('co-deposit-paid').textContent = currentReg.keyDepositAmount || '0';
 
-    els.modals.overlay.style.display  = 'block';
+    els.modals.overlay.style.display = 'block';
     els.modals.checkout.style.display = 'block';
 }
 
-document.getElementById('checkout-form').addEventListener('submit', (e) => {
-    e.preventDefault();
+function submitCheckOutForm(event) {
+    event.preventDefault();
     const data = {
-        action:       'checkOut',
-        regId:        currentReg.regId,
-        volunteer:    'CheckInApp',
+        regId: currentReg.regId,
+        volunteer: currentUser ? currentUser.username : 'CheckInApp',
         key1Returned: document.getElementById('co-key1-returned').checked,
         key2Returned: document.getElementById('co-key2-returned').checked,
         refundAmount: document.getElementById('co-refund-amount').value
     };
 
-    submitAction(data, 'Check-Out');
+    submitAction('/check-out', data, 'Check-Out');
     closeModal('checkout-modal');
-});
+}
 
-// --- Submission & Offline ---
-
-function submitAction(data, type) {
+async function submitAction(path, data, type) {
     if (navigator.onLine) {
-        fetch(GOOGLE_SCRIPT_URL, {
-            method:   'POST',
-            mode:     'cors',
-            redirect: 'follow',
-            headers:  { 'Content-Type': 'text/plain;charset=utf-8' },
-            body:     JSON.stringify(data)
-        })
-        .then(res => res.json())
-        .then(() => {
+        try {
+            await apiRequest(path, { method: 'POST', body: data });
             logActivity(`${type} Success: ${currentReg.name}`, true);
-            loadGuest(currentReg.regId);
-            updateStats();
-        })
-        .catch(err => {
-            console.error(err);
+            await loadGuest(currentReg.regId);
+            await refreshStats();
+            return;
+        } catch (error) {
+            if (error.message === 'UNAUTHORIZED') return;
             queueOffline(data, type);
-        });
-    } else {
-        queueOffline(data, type);
+            return;
+        }
     }
+
+    queueOffline(data, type);
 }
 
 function queueOffline(data, type) {
     offlineQueue.push({
-        data:      data,
-        desc:      `${type}: ${currentReg.name}`,
+        path: type === 'Check-In' ? '/check-in' : '/check-out',
+        data,
+        desc: `${type}: ${currentReg.name}`,
         timestamp: Date.now()
     });
     localStorage.setItem('cm26_checkin_queue', JSON.stringify(offlineQueue));
     updateQueueUI();
     logActivity(`Queued (Offline): ${type} for ${currentReg.name}`, false);
 
-    // Optimistic UI update
     if (type === 'Check-In') {
         currentReg.checkedIn = 'yes';
     } else {
@@ -387,8 +506,8 @@ function queueOffline(data, type) {
     renderGuestDetail(currentReg);
 }
 
-function processOfflineQueue() {
-    if (!navigator.onLine || offlineQueue.length === 0) return;
+async function processOfflineQueue() {
+    if (!navigator.onLine || offlineQueue.length === 0 || !currentUser) return;
 
     els.syncBtn.textContent = 'Syncing…';
     const queue = [...offlineQueue];
@@ -396,69 +515,75 @@ function processOfflineQueue() {
     localStorage.setItem('cm26_checkin_queue', JSON.stringify(offlineQueue));
     updateQueueUI();
 
-    queue.forEach(item => {
-        fetch(GOOGLE_SCRIPT_URL, {
-            method:   'POST',
-            mode:     'cors',
-            redirect: 'follow',
-            headers:  { 'Content-Type': 'text/plain;charset=utf-8' },
-            body:     JSON.stringify(item.data)
-        })
-        .then(res => res.json())
-        .then(() => logActivity(`Synced: ${item.desc}`, true))
-        .catch(() => {
+    for (const item of queue) {
+        try {
+            await apiRequest(item.path, { method: 'POST', body: item.data });
+            logActivity(`Synced: ${item.desc}`, true);
+        } catch (error) {
             offlineQueue.push(item);
             localStorage.setItem('cm26_checkin_queue', JSON.stringify(offlineQueue));
             updateQueueUI();
-        });
-    });
+            if (error.message === 'UNAUTHORIZED') break;
+        }
+    }
 
     els.syncBtn.textContent = 'Sync Now';
+    refreshStats().catch(() => {});
 }
 
-// --- Helpers ---
+async function refreshStats() {
+    if (!navigator.onLine || !currentUser) return;
+
+    try {
+        const payload = await apiRequest('/stats');
+        renderStats(payload.stats);
+    } catch (_error) {}
+}
 
 function todayDateString() {
     return new Date().toISOString().split('T')[0];
 }
 
-function showResultsLoading(msg) {
-    els.resultsList.innerHTML = `<div class="loading-state"><div class="spinner-ring"></div><p>${msg || 'Loading…'}</p></div>`;
+function showResultsLoading(message) {
+    els.resultsList.innerHTML = `<div class="loading-state"><div class="spinner-ring"></div><p>${message || 'Loading…'}</p></div>`;
     els.resultsList.style.display = 'block';
     els.guestDetail.style.display = 'none';
 }
 
-function showResultsError(msg) {
-    els.resultsList.innerHTML = `<div class="error-msg">${msg}</div>`;
+function showResultsError(message) {
+    els.resultsList.innerHTML = `<div class="error-msg">${message}</div>`;
+    els.resultsList.style.display = 'block';
+    els.guestDetail.style.display = 'none';
 }
 
 function updateOnlineStatus() {
-    const status = document.getElementById('connection-status');
     if (navigator.onLine) {
-        status.textContent = 'Online';
-        status.className   = 'status-indicator online';
-        if (offlineQueue.length > 0) processOfflineQueue();
+        els.connectionStatus.textContent = 'Online';
+        els.connectionStatus.className = 'status-indicator online';
+        if (currentUser && offlineQueue.length > 0) {
+            processOfflineQueue();
+        }
     } else {
-        status.textContent = 'Offline';
-        status.className   = 'status-indicator offline';
+        els.connectionStatus.textContent = 'Offline';
+        els.connectionStatus.className = 'status-indicator offline';
     }
 }
 
 function updateQueueUI() {
-    els.queueCount.textContent  = offlineQueue.length;
-    els.queueBar.style.display  = offlineQueue.length > 0 ? 'flex' : 'none';
+    els.queueCount.textContent = offlineQueue.length;
+    els.queueBar.style.display = offlineQueue.length > 0 ? 'flex' : 'none';
 }
 
-function logActivity(msg, success) {
-    const li = document.createElement('li');
-    li.textContent = `${new Date().toLocaleTimeString()} — ${msg}`;
-    if (success) li.style.color = '#2f855a';
-    document.getElementById('activity-list').prepend(li);
+function logActivity(message, success) {
+    const item = document.createElement('li');
+    item.textContent = `${new Date().toLocaleTimeString()} — ${message}`;
+    if (success) item.style.color = '#2f855a';
+    els.activityList.prepend(item);
 }
 
 function closeModal(id) {
     document.getElementById(id).style.display = 'none';
-    els.modals.overlay.style.display          = 'none';
+    els.modals.overlay.style.display = 'none';
 }
 
 function closeGuest() {
@@ -466,33 +591,31 @@ function closeGuest() {
     els.resultsList.style.display = 'block';
 }
 
-// --- Scanner ---
-
 function toggleScanner() {
     if (html5QrCode) {
         html5QrCode.stop().then(() => {
             html5QrCode = null;
-            els.reader.style.display  = 'none';
-            els.scanBtn.textContent   = '📷 Scan QR';
+            els.reader.style.display = 'none';
+            els.scanBtn.textContent = '📷 Scan QR';
         });
-    } else {
-        els.reader.style.display = 'block';
-        html5QrCode = new Html5Qrcode('reader');
-        html5QrCode.start(
-            { facingMode: 'environment' },
-            { fps: 10, qrbox: 250 },
-            (text) => {
-                toggleScanner(); // Stop after successful scan
-                if (text.startsWith('CM26')) {
-                    loadGuest(text);
-                } else {
-                    // Treat as a generic ID fragment and search
-                    els.searchRegId.value = text;
-                    switchTab('id');
-                    doSearchById();
-                }
-            }
-        );
-        els.scanBtn.textContent = 'Stop Scan';
+        return;
     }
+
+    els.reader.style.display = 'block';
+    html5QrCode = new Html5Qrcode('reader');
+    html5QrCode.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: 250 },
+        (text) => {
+            toggleScanner();
+            if (text.startsWith('CM26')) {
+                loadGuest(text);
+            } else {
+                els.searchRegId.value = text;
+                switchTab('id');
+                doSearchById();
+            }
+        }
+    );
+    els.scanBtn.textContent = 'Stop Scan';
 }
