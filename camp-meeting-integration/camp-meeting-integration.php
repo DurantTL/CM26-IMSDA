@@ -2,9 +2,17 @@
 /**
  * Plugin Name: Camp Meeting 2026 Integration
  * Description: Connects Fluent Forms to Google Apps Script with field mapping debug.
- * Version: 6.0
+ * Version: 6.1
  * Author: IMC
- * 
+ *
+ * CHANGELOG v6.1:
+ * - cm26_build_and_send: added $blocking parameter; blocking=true uses timeout=30, waits for GAS response, returns bool
+ * - cm26_fire_to_gas: passes blocking=true to cm26_build_and_send; propagates failure as WP_Error
+ * - cm26_options_page_html: added empty cm26_gas_token warning notice
+ * - cm26_handle_admin_actions: added resubmit_entry action with nonce check, DB lookup, re-send, and GAS verification
+ * - cm26_options_page_html: added resubmit result notices and Manual Resubmit UI box
+ * - Failed submissions table: added Action column with per-row resubmit link button
+ *
  * CHANGELOG v6.0:
  * - Added dispatch queue architecture for background GAS delivery
  * - Added queue processor cron hook (cm26_dispatch_queue_process)
@@ -364,9 +372,82 @@ function cm26_handle_admin_actions() {
         wp_redirect(add_query_arg(['page' => 'cm26-settings', 'queue_ran' => '1'], admin_url('admin.php')));
         exit;
     }
+
+    // Handle resubmit_entry action
+    if (isset($_GET['action']) && $_GET['action'] === 'resubmit_entry') {
+        if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'cm26_resubmit_entry')) {
+            wp_die('Security check failed');
+        }
+
+        $entryId = intval($_GET['entry_id'] ?? 0);
+        if ($entryId <= 0) {
+            wp_redirect(add_query_arg(['page' => 'cm26-settings', 'resubmit_result' => 'bad_id'], admin_url('admin.php')));
+            exit;
+        }
+
+        $submission = wpFluent()->table('fluentform_submissions')->where('id', $entryId)->first();
+        if (!$submission) {
+            wp_redirect(add_query_arg(['page' => 'cm26-settings', 'resubmit_result' => 'not_found', 'resubmit_id' => $entryId], admin_url('admin.php')));
+            exit;
+        }
+
+        $formData = is_string($submission->response)
+            ? json_decode($submission->response, true)
+            : (array) $submission->response;
+        if (!is_array($formData)) {
+            wp_redirect(add_query_arg(['page' => 'cm26-settings', 'resubmit_result' => 'not_found', 'resubmit_id' => $entryId], admin_url('admin.php')));
+            exit;
+        }
+
+        $paymentStatus = cm26_is_offline_payment($formData) ? 'pending' : 'paid';
+
+        // Clear dispatched record so the send is not blocked
+        $dispatched = get_option('cm26_dispatched_entries', []);
+        update_option('cm26_dispatched_entries', array_values(array_filter($dispatched, function($id) use ($entryId) {
+            return intval($id) !== $entryId;
+        })));
+
+        // Clear failed record so the entry can be cleanly re-queued on failure
+        $failedList = get_option('cm26_failed_submissions', []);
+        update_option('cm26_failed_submissions', array_values(array_filter($failedList, function($item) use ($entryId) {
+            return intval($item['entry_id'] ?? 0) !== $entryId;
+        })));
+
+        $scriptUrl = trim(get_option('cm26_google_script_url'));
+        $debugMode  = get_option('cm26_debug_mode');
+
+        cm26_build_and_send($entryId, $formData, $paymentStatus, $scriptUrl, $debugMode, true);
+
+        sleep(2);
+
+        // Verify GAS received it
+        $resubmitResult = 'fired';
+        $resubmitReg    = '';
+
+        $verifyUrl = add_query_arg(['action' => 'getRegistration', 'id' => 'FF-' . $entryId], $scriptUrl);
+        $verifyResponse = wp_remote_get($verifyUrl, ['timeout' => 15, 'redirection' => 5]);
+        if (!is_wp_error($verifyResponse)) {
+            $verifyBody = json_decode(wp_remote_retrieve_body($verifyResponse), true);
+            if ($verifyBody && !empty($verifyBody['success']) && !empty($verifyBody['registration'])) {
+                $resubmitResult = 'success';
+                $resubmitReg    = $verifyBody['registration']['regId'] ?? '';
+            }
+        }
+
+        wp_redirect(add_query_arg([
+            'page'            => 'cm26-settings',
+            'resubmit_result' => $resubmitResult,
+            'resubmit_id'     => $entryId,
+            'resubmit_reg'    => $resubmitReg,
+        ], admin_url('admin.php')));
+        exit;
+    }
 }
 
 function cm26_options_page_html() {
+    if (empty(trim(get_option('cm26_gas_token')))) {
+        echo '<div class="notice notice-warning"><p><strong>CM26:</strong> The GAS security token (<code>cm26_gas_token</code>) is not configured. Requests to Google Apps Script may be rejected.</p></div>';
+    }
     $failed = get_option('cm26_failed_submissions', []);
     $failedCount = count($failed);
     $dispatchQueue = get_option('cm26_dispatch_queue', []);
@@ -378,7 +459,24 @@ function cm26_options_page_html() {
     <div class="wrap">
         <h1>Camp Meeting 2026 Settings</h1>
         
-        <?php 
+        <?php
+        // Resubmit result notices
+        if (isset($_GET['resubmit_result'])) {
+            $rResult = sanitize_text_field($_GET['resubmit_result']);
+            $rId     = intval($_GET['resubmit_id'] ?? 0);
+            $rReg    = sanitize_text_field($_GET['resubmit_reg'] ?? '');
+            if ($rResult === 'success') {
+                echo '<div class="notice notice-success"><p><strong>Resubmit succeeded.</strong> Entry ' . $rId . ' was accepted by GAS'
+                    . ($rReg ? ' — Registration ID: <strong>' . esc_html($rReg) . '</strong>' : '') . '.</p></div>';
+            } elseif ($rResult === 'fired') {
+                echo '<div class="notice notice-warning"><p><strong>Resubmit fired</strong> for entry ' . $rId . ', but GAS verification did not confirm receipt. The entry may still process — check GAS logs.</p></div>';
+            } elseif ($rResult === 'not_found') {
+                echo '<div class="notice notice-error"><p><strong>Resubmit failed:</strong> Entry ' . $rId . ' was not found in Fluent Forms submissions.</p></div>';
+            } elseif ($rResult === 'bad_id') {
+                echo '<div class="notice notice-error"><p><strong>Resubmit failed:</strong> Invalid entry ID supplied.</p></div>';
+            }
+        }
+
         // Show messages
         if (isset($_GET['retry_result'])) {
             $processed = intval($_GET['retry_processed'] ?? 0);
@@ -458,13 +556,27 @@ function cm26_options_page_html() {
             </p>
         </div>
         
+        <!-- Manual Resubmit -->
+        <div class="notice notice-info" style="padding: 15px;">
+            <h3 style="margin-top: 0;">🔁 Manual Resubmit</h3>
+            <p>Force a Fluent Forms entry to be resent to Google Apps Script immediately. The entry is looked up directly from the database, any prior dispatch or failure record is cleared, and the submission is sent blocking. A GAS verification check runs 2 seconds after the send.</p>
+            <form method="get" action="<?php echo esc_url(admin_url('admin.php')); ?>">
+                <input type="hidden" name="page" value="cm26-settings">
+                <input type="hidden" name="action" value="resubmit_entry">
+                <input type="hidden" name="_wpnonce" value="<?php echo esc_attr(wp_create_nonce('cm26_resubmit_entry')); ?>">
+                <label for="cm26-resubmit-entry-id"><strong>Fluent Forms Entry ID:</strong></label>
+                <input type="number" id="cm26-resubmit-entry-id" name="entry_id" min="1" style="width:120px; margin: 0 8px;" required>
+                <button type="submit" class="button button-secondary">Resubmit Entry</button>
+            </form>
+        </div>
+
         <!-- Failed Submissions -->
         <?php if ($failedCount > 0): ?>
         <div class="notice notice-warning" style="padding: 15px;">
             <h3 style="margin-top: 0;">⚠️ <?php echo $failedCount; ?> Pending Submission(s)</h3>
             <table class="widefat" style="margin: 10px 0;">
                 <thead>
-                    <tr><th>Entry ID</th><th>Name</th><th>Email</th><th>Attempts</th><th>Last Error</th></tr>
+                    <tr><th>Entry ID</th><th>Name</th><th>Email</th><th>Attempts</th><th>Last Error</th><th>Action</th></tr>
                 </thead>
                 <tbody>
                     <?php foreach ($failed as $item): ?>
@@ -474,6 +586,7 @@ function cm26_options_page_html() {
                         <td><?php echo esc_html($item['payload']['email'] ?? 'Unknown'); ?></td>
                         <td><?php echo esc_html($item['attempts']); ?></td>
                         <td style="color:#d63638;"><?php echo esc_html($item['last_error'] ?? 'Unknown'); ?></td>
+                        <td><a href="<?php echo esc_url(wp_nonce_url(admin_url('admin.php?page=cm26-settings&action=resubmit_entry&entry_id=' . intval($item['entry_id'])), 'cm26_resubmit_entry')); ?>" class="button button-small">Resubmit</a></td>
                     </tr>
                     <?php endforeach; ?>
                 </tbody>
@@ -670,8 +783,10 @@ function cm26_fire_to_gas( $entryId ) {
 
     $paymentStatus = cm26_is_offline_payment($formData) ? 'pending' : 'paid';
 
-    cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $debugMode );
-    return true;
+    $result = cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $debugMode, true );
+    return ($result === false)
+        ? new WP_Error('cm26_send_failed', 'GAS rejected submission for entry ' . $entryId)
+        : true;
 }
 
 function cm26_queue_entry($entryId) {
@@ -768,7 +883,7 @@ function cm26_process_dispatch_queue() {
     }
 }
 
-function cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $debugMode ) {
+function cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $debugMode, $blocking = false ) {
 
     // =============================================
     // 1. GET PAYMENT INFO
@@ -1171,17 +1286,35 @@ function cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $
         return;
     }
 
-    // Non-blocking POST: fire and forget so the Fluent Forms confirmation
-    // page shows immediately without waiting for GAS to finish.
+    // POST: blocking mode waits for GAS response; non-blocking fires and forgets.
     $response = wp_remote_post($scriptUrl, [
         'method'      => 'POST',
         'body'        => $jsonBody,
         'data_format' => 'body',
-        'timeout'     => 5,
-        'redirection' => 0,
+        'timeout'     => $blocking ? 30 : 5,
+        'redirection' => $blocking ? 5 : 0,
         'headers'     => ['Content-Type' => 'application/json'],
-        'blocking'    => false
+        'blocking'    => $blocking
     ]);
+
+    if ($blocking) {
+        if (is_wp_error($response)) {
+            $errorMsg = $response->get_error_message();
+            error_log('CM26 Error [Entry ' . $entryId . ']: ' . $errorMsg);
+            cm26_queue_failed_submission($payload, $entryId, $errorMsg);
+            return false;
+        }
+        $rawBody = wp_remote_retrieve_body($response);
+        $json = json_decode($rawBody, true);
+        if ($json && (!empty($json['success']) || (isset($json['result']) && $json['result'] === 'success'))) {
+            error_log('CM26 Blocking send success [Entry ' . $entryId . '].');
+            return true;
+        }
+        $errorMsg = $json['error'] ?? ('GAS returned non-success: ' . substr($rawBody, 0, 200));
+        error_log('CM26 Error [Entry ' . $entryId . ']: ' . $errorMsg);
+        cm26_queue_failed_submission($payload, $entryId, $errorMsg);
+        return false;
+    }
 
     if (is_wp_error($response)) {
         // Network-level failure before the request could even be sent
@@ -1194,6 +1327,7 @@ function cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $
     // Schedule a verification check 30 seconds later to confirm GAS received it
     wp_schedule_single_event(time() + 30, 'cm26_verify_submission', [$entryId, $payload]);
     error_log('CM26: Submission fired for entry ' . $entryId . '. Verification scheduled in 30s.');
+    return true;
 }
 
 /**
