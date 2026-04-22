@@ -2,8 +2,11 @@
 /**
  * Plugin Name: Camp Meeting 2026 Integration
  * Description: Connects Fluent Forms to Google Apps Script with field mapping debug.
- * Version: 6.1
+ * Version: 6.2
  * Author: IMC
+ *
+ * CHANGELOG v6.2:
+ * - Added ACCESS_TOKEN authentication via cm26_gas_token WP option
  *
  * CHANGELOG v6.1:
  * - cm26_build_and_send: added $blocking parameter; blocking=true uses timeout=30, waits for GAS response, returns bool
@@ -113,6 +116,15 @@ function cm26_is_allowed_gas_url($url) {
     return true;
 }
 
+function cm26_get_gas_url($params = []) {
+    $scriptUrl = trim(get_option('cm26_google_script_url'));
+    $token = trim(get_option('cm26_gas_token'));
+    if (!empty($token)) {
+        $params['token'] = $token;
+    }
+    return add_query_arg($params, $scriptUrl);
+}
+
 /**
  * ==================================================
  * 1. ADMIN SETTINGS PAGE
@@ -136,11 +148,13 @@ function cm26_settings_init() {
     register_setting('cm26_plugin_options', 'cm26_google_script_url');
     register_setting('cm26_plugin_options', 'cm26_form_id');
     register_setting('cm26_plugin_options', 'cm26_debug_mode');
-    
+    register_setting('cm26_plugin_options', 'cm26_gas_token');
+
     add_settings_section('cm26_plugin_main', 'Connection Settings', 'cm26_section_text', 'cm26-settings');
     add_settings_field('cm26_google_script_url', 'Google Apps Script Web App URL', 'cm26_setting_url_render', 'cm26-settings', 'cm26_plugin_main');
     add_settings_field('cm26_form_id', 'Fluent Form ID', 'cm26_setting_id_render', 'cm26-settings', 'cm26_plugin_main');
     add_settings_field('cm26_debug_mode', 'Debug Mode', 'cm26_setting_debug_render', 'cm26-settings', 'cm26_plugin_main');
+    add_settings_field('cm26_gas_token', 'Google Apps Script Access Token', 'cm26_setting_token_render', 'cm26-settings', 'cm26_plugin_main');
 }
 
 add_filter('cron_schedules', 'cm26_add_cron_schedules');
@@ -179,11 +193,17 @@ function cm26_setting_id_render() {
     echo "<p class='description'>Find this in Fluent Forms → Your Form → Settings</p>";
 }
 
-function cm26_setting_debug_render() { 
-    $val = get_option('cm26_debug_mode'); 
+function cm26_setting_debug_render() {
+    $val = get_option('cm26_debug_mode');
     echo "<label><input name='cm26_debug_mode' type='checkbox' value='1' " . checked(1, $val, false) . " /> ";
     echo "Enable debug mode (saves raw form data for inspection)</label>";
     echo "<p class='description'>Turn this ON, submit a test form, then check 'Last Submission Data' below.</p>";
+}
+
+function cm26_setting_token_render() {
+    $val = get_option('cm26_gas_token');
+    echo "<input name='cm26_gas_token' size='80' type='text' value='" . esc_attr($val) . "' />";
+    echo "<p class='description'>Must match ACCESS_TOKEN in Google Apps Script Script Properties.</p>";
 }
 
 /**
@@ -284,6 +304,7 @@ function cm26_handle_admin_actions() {
             'transactionId' => 'TEST-' . uniqid(),
             'submittedAt' => current_time('c')
         ];
+        $payload['token'] = trim(get_option('cm26_gas_token'));
 
         $allowed = cm26_is_allowed_gas_url($scriptUrl);
         if (is_wp_error($allowed)) {
@@ -295,7 +316,7 @@ function cm26_handle_admin_actions() {
             exit;
         }
 
-        $response = wp_remote_post($scriptUrl, [
+        $response = wp_remote_post(cm26_get_gas_url(), [
             'method'    => 'POST',
             'body'      => json_encode($payload),
             'timeout'   => 45,
@@ -1267,6 +1288,7 @@ function cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $
         
         'submittedAt' => current_time('c')
     ];
+    $payload['token'] = trim(get_option('cm26_gas_token'));
 
     // Save mapped payload for debugging
     if ($debugMode) {
@@ -1287,7 +1309,7 @@ function cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $
     }
 
     // POST: blocking mode waits for GAS response; non-blocking fires and forgets.
-    $response = wp_remote_post($scriptUrl, [
+    $response = wp_remote_post(cm26_get_gas_url(), [
         'method'      => 'POST',
         'body'        => $jsonBody,
         'data_format' => 'body',
@@ -1348,10 +1370,7 @@ function cm26_handle_verify_submission($entryId, $payload) {
         return;
     }
 
-    $verifyUrl = add_query_arg([
-        'action' => 'getRegistration',
-        'id'     => 'FF-' . $entryId
-    ], $scriptUrl);
+    $verifyUrl = cm26_get_gas_url(['action' => 'getRegistration', 'id' => 'FF-' . $entryId]);
 
     $response = wp_remote_get($verifyUrl, [
         'timeout'     => 15,
@@ -1448,8 +1467,9 @@ function cm26_process_failed_submissions_manual($force = false) {
         $result['processed']++;
         
         $cleanPayload = cm26_recursive_utf8_clean($item['payload']);
-        
-        $response = wp_remote_post($scriptUrl, [
+        $cleanPayload['token'] = trim(get_option('cm26_gas_token'));
+
+        $response = wp_remote_post(cm26_get_gas_url(), [
             'method'    => 'POST',
             'body'      => json_encode($cleanPayload, JSON_INVALID_UTF8_SUBSTITUTE ?? 0),
             'data_format' => 'body',
@@ -1548,7 +1568,7 @@ function cm26_ajax_get_availability() {
         wp_send_json_error(['message' => 'Google Script URL not configured'], 500);
     }
 
-    $response = wp_remote_get(add_query_arg('action', 'getAvailability', $scriptUrl), [
+    $response = wp_remote_get(cm26_get_gas_url(['action' => 'getAvailability']), [
         'timeout'     => 20,
         'redirection' => 3,
     ]);
