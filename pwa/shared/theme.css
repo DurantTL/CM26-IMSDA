@@ -1,9 +1,17 @@
 :root {
-  --bg: #f4f7fb;
-  --surface: rgba(255, 255, 255, 0.78);
-  --panel: rgba(249, 251, 255, 0.92);
-  --border: #d7e1ee;
-  --border-strong: #c6d4e5;
+  --bg: #edf3fa;
+  --bg-gradient: linear-gradient(165deg, #f3f8ff 0%, #eaf1fb 45%, #e5edf8 100%);
+  --bg-atmosphere:
+    radial-gradient(circle at 8% 6%, rgba(122, 168, 224, 0.24), transparent 42%),
+    radial-gradient(circle at 86% 8%, rgba(175, 201, 235, 0.18), transparent 38%),
+    radial-gradient(circle at 50% 100%, rgba(187, 208, 235, 0.12), transparent 44%);
+  --surface: rgba(241, 247, 255, 0.78);
+  --surface-strong: rgba(248, 252, 255, 0.9);
+  --surface-elevated: linear-gradient(178deg, rgba(249, 253, 255, 0.94), rgba(232, 242, 253, 0.82));
+  --panel: rgba(235, 244, 253, 0.9);
+  --panel-soft: linear-gradient(180deg, rgba(240, 248, 255, 0.85), rgba(231, 241, 252, 0.76));
+  --border: #cfdceb;
+  --border-strong: #b9cde3;
   --text: #193046;
   --muted: #5d738a;
   --primary: #2c6fb6;
@@ -17,10 +25,10 @@
   --danger-light: #fff3f0;
   --warn-light: #fff6e8;
   --muted-surface: #f1f5fb;
-  --shadow-sm: 0 8px 20px rgba(26, 50, 80, 0.08);
-  --shadow-md: 0 18px 40px rgba(26, 50, 80, 0.12);
-  --shadow-lg: 0 28px 60px rgba(23, 45, 75, 0.16);
-  --surface-glow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  --shadow-sm: 0 10px 24px rgba(24, 48, 82, 0.11);
+  --shadow-md: 0 18px 42px rgba(21, 45, 78, 0.16);
+  --shadow-lg: 0 30px 68px rgba(18, 38, 68, 0.2);
+  --surface-glow: inset 0 1px 0 rgba(255, 255, 255, 0.72), inset 0 -1px 0 rgba(158, 184, 214, 0.2);
   --radius-sm: 10px;
   --radius-md: 14px;
   --radius-lg: 18px;

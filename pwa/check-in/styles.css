@@ -9,10 +9,8 @@ body {
   margin: 0;
   padding: 0;
   padding-bottom: 70px;
-  background:
-    radial-gradient(circle at top left, rgba(116, 167, 224, 0.2), transparent 30%),
-    radial-gradient(circle at top right, rgba(164, 201, 175, 0.16), transparent 26%),
-    linear-gradient(180deg, #f7fafe 0%, var(--bg) 100%);
+  background: var(--bg-atmosphere), var(--bg-gradient);
+  background-attachment: fixed;
   color: var(--text);
   font-size: 16px;
 }
@@ -101,7 +99,7 @@ main {
 .auth-card {
   width: 100%;
   max-width: 380px;
-  background: white;
+  background: var(--surface-elevated);
   border-radius: 14px;
   padding: 22px;
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.28);
@@ -135,7 +133,7 @@ main {
 }
 
 .stat-card {
-  background: white;
+  background: var(--surface-elevated);
   padding: 12px 8px;
   border-radius: 10px;
   text-align: center;
@@ -159,7 +157,7 @@ main {
 
 /* ── Search section ──────────────────────── */
 .search-section {
-  background: white;
+  background: var(--surface-elevated);
   border-radius: 10px;
   padding: 14px;
   margin-bottom: 16px;
@@ -333,7 +331,7 @@ input[type="date"]:focus {
 
 /* ── Cards ───────────────────────────────── */
 .card {
-  background: white;
+  background: var(--surface-elevated);
   border-radius: 10px;
   padding: 16px;
   margin-bottom: 14px;
@@ -444,7 +442,7 @@ input[type="date"]:focus {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  background: white;
+  background: var(--surface-strong);
   padding: 20px;
   border-radius: 12px;
   z-index: 1000;
@@ -469,7 +467,7 @@ input[type="date"]:focus {
 .form-group {
   margin-bottom: 14px;
   padding: 12px;
-  background: #f7fafc;
+  background: var(--panel-soft);
   border-radius: 8px;
 }
 
@@ -558,7 +556,7 @@ input[type="date"]:focus {
 .guest-list-section {
   margin: 12px 0;
   padding: 12px;
-  background: #f7fafc;
+  background: var(--panel-soft);
   border-radius: 8px;
   border: 1px solid var(--border);
 }
@@ -634,7 +632,7 @@ input[type="date"]:focus {
 
 /* ── Housing-inspired visual refresh overrides ───────────────────── */
 header {
-  background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,249,255,0.82));
+  background: linear-gradient(180deg, rgba(245, 251, 255, 0.9), rgba(231, 242, 253, 0.8));
   color: var(--text);
   box-shadow: var(--shadow-sm), var(--surface-glow);
   backdrop-filter: blur(16px);
@@ -654,8 +652,8 @@ header {
 .auth-card,
 .search-section,
 .stat-card {
-  background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(237,244,253,0.78));
-  border: 1px solid rgba(255,255,255,0.75);
+  background: var(--surface-elevated);
+  border: 1px solid rgba(255,255,255,0.58);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md), var(--surface-glow);
   backdrop-filter: blur(16px);
@@ -664,8 +662,8 @@ header {
 }
 
 .card {
-  background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(237,244,253,0.78));
-  border: 1px solid rgba(255,255,255,0.75);
+  background: var(--surface-elevated);
+  border: 1px solid rgba(255,255,255,0.58);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm), var(--surface-glow);
   backdrop-filter: blur(16px);
@@ -674,16 +672,19 @@ header {
 }
 
 .modal {
+  background: var(--surface-strong);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg), var(--surface-glow);
   border: 1px solid var(--border-strong);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
 .search-tabs {
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
   padding: 4px;
-  background: rgba(255,255,255,0.72);
+  background: rgba(238, 247, 255, 0.78);
 }
 
 .tab-btn {
@@ -705,7 +706,8 @@ input[type="date"],
 .arrivals-group input[type="date"] {
   border-radius: var(--radius-md);
   border: 1px solid var(--border-strong);
-  background: rgba(255,255,255,0.82);
+  background: linear-gradient(180deg, rgba(248, 252, 255, 0.94), rgba(234, 243, 253, 0.86));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
   transition: var(--transition);
 }
 
@@ -723,7 +725,13 @@ input[type="date"],
 
 .btn-secondary,
 .btn-white {
-  background: rgba(255,255,255,0.84);
+  background: linear-gradient(180deg, rgba(249, 253, 255, 0.92), rgba(231, 241, 252, 0.85));
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+}
+
+.btn-outline {
+  background: rgba(241, 248, 255, 0.68);
   border: 1px solid var(--border-strong);
   color: var(--text);
 }
@@ -756,6 +764,19 @@ input[type="date"],
   border: 1px solid #f1c778;
   color: #9b6420;
   border-radius: var(--radius-sm);
+}
+
+.queue-bar {
+  border-top: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 -14px 28px rgba(24, 49, 84, 0.25);
+}
+
+#activity-list li,
+.deposit-box {
+  background: rgba(236, 245, 255, 0.56);
+  border-radius: var(--radius-sm);
+  padding-left: 10px;
+  padding-right: 10px;
 }
 
 .form-group,

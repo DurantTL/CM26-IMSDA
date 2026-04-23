@@ -9,7 +9,8 @@
 body {
     font-family: Inter, "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
     margin: 0;
-    background: var(--bg);
+    background: var(--bg-atmosphere), var(--bg-gradient);
+    background-attachment: fixed;
     color: var(--text);
     padding-bottom: 80px;
 }
@@ -63,7 +64,7 @@ h1 { margin: 0; font-size: 1.2rem; }
     display: flex;
     gap: 8px;
     align-items: center;
-    background: rgba(255,255,255,0.1);
+    background: rgba(240, 249, 255, 0.24);
     padding: 6px 8px;
     border-radius: var(--radius-sm);
     flex-wrap: wrap;
@@ -311,7 +312,7 @@ main {
 }
 
 .name-result-btn .badge {
-    background: #d1d5db;
+    background: #dbe7f5;
     padding: 2px 8px;
     border-radius: 4px;
     font-size: 0.8rem;
@@ -343,7 +344,7 @@ main {
 .card-header h2 { margin: 0 0 4px; font-size: 1.15rem; }
 
 .badge {
-    background: #e5e7eb;
+    background: #dbe7f5;
     padding: 3px 8px;
     border-radius: 4px;
     font-size: 0.8rem;
@@ -500,16 +501,18 @@ main {
 
 /* ── Housing-inspired visual refresh overrides ───────────────────── */
 header {
-    background: var(--surface);
+    background: linear-gradient(180deg, rgba(245, 251, 255, 0.9), rgba(231, 242, 253, 0.8));
     color: var(--text);
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-sm), var(--surface-glow);
     border-bottom: 1px solid var(--border-strong);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
 }
 
 .header-subtitle { color: var(--muted); }
 
 .meal-selector {
-    background: var(--surface);
+    background: rgba(238, 247, 255, 0.74);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-md);
 }
@@ -518,7 +521,8 @@ header {
 .meal-selector input[type="date"] {
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-md);
-    background: var(--surface);
+    background: linear-gradient(180deg, rgba(248, 252, 255, 0.94), rgba(234, 243, 253, 0.86));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
     transition: var(--transition);
 }
 
@@ -533,18 +537,22 @@ header {
 .lookup-section,
 .stat-box,
 .guest-select-row {
-    background: var(--surface);
-    border: 1px solid var(--border);
+    background: var(--surface-elevated);
+    border: 1px solid rgba(255,255,255,0.58);
     border-radius: var(--radius-md);
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-md), var(--surface-glow);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     transition: var(--transition);
 }
 
 .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
+    background: var(--surface-elevated);
+    border: 1px solid rgba(255,255,255,0.58);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-md), var(--surface-glow);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     transition: var(--transition);
 }
 
@@ -552,7 +560,7 @@ header {
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-md);
     padding: 4px;
-    background: var(--surface);
+    background: rgba(238, 247, 255, 0.78);
 }
 
 .tab-btn {
@@ -573,7 +581,8 @@ header {
 .auth-card input {
     border-radius: var(--radius-md);
     border: 1px solid var(--border-strong);
-    background: var(--panel);
+    background: linear-gradient(180deg, rgba(248, 252, 255, 0.94), rgba(234, 243, 253, 0.86));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.72);
     transition: var(--transition);
 }
 
@@ -593,7 +602,7 @@ header {
 .btn-secondary,
 .btn-white,
 .btn-outline {
-    background: var(--surface);
+    background: linear-gradient(180deg, rgba(249, 253, 255, 0.92), rgba(231, 241, 252, 0.85));
     border: 1px solid var(--border-strong);
     color: var(--text);
 }
@@ -656,10 +665,23 @@ button {
 }
 
 .active-meal-badge {
-    background: var(--status-neutral-bg);
+    background: rgba(239, 247, 255, 0.86);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-md);
     padding: 4px 10px;
+}
+
+.queue-bar {
+    border-top: 1px solid rgba(255, 255, 255, 0.35);
+    box-shadow: 0 -14px 28px rgba(24, 49, 84, 0.25);
+}
+
+#activity-list li {
+    background: rgba(236, 245, 255, 0.56);
+    border-radius: var(--radius-sm);
+    padding-left: 10px;
+    padding-right: 10px;
+    margin-bottom: 6px;
 }
 
 @media (max-width: 480px) {
