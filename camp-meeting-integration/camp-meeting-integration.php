@@ -2,8 +2,11 @@
 /**
  * Plugin Name: Camp Meeting 2026 Integration
  * Description: Connects Fluent Forms to Google Apps Script with field mapping debug.
- * Version: 6.2
+ * Version: 6.3
  * Author: IMC
+ *
+ * CHANGELOG v6.3:
+ * - Fixed blocking POST false-failure caused by following GAS 302 redirect to googleusercontent which returns 400 HTML.
  *
  * CHANGELOG v6.2:
  * - Added ACCESS_TOKEN authentication via cm26_gas_token WP option
@@ -1314,25 +1317,41 @@ function cm26_build_and_send( $entryId, $formData, $paymentStatus, $scriptUrl, $
         'body'        => $jsonBody,
         'data_format' => 'body',
         'timeout'     => $blocking ? 30 : 5,
-        'redirection' => $blocking ? 5 : 0,
+        'redirection' => 0,
         'headers'     => ['Content-Type' => 'application/json'],
         'blocking'    => $blocking
     ]);
 
     if ($blocking) {
+        // 1. Network-level failure.
         if (is_wp_error($response)) {
             $errorMsg = $response->get_error_message();
             error_log('CM26 Error [Entry ' . $entryId . ']: ' . $errorMsg);
             cm26_queue_failed_submission($payload, $entryId, $errorMsg);
             return false;
         }
+        $httpCode = wp_remote_retrieve_response_code($response);
+        // 2. GAS always returns 302 after executing doPost(); treat as success.
+        if ($httpCode === 302) {
+            error_log('CM26 Blocking send success [Entry ' . $entryId . ']: GAS returned 302 (redirect after doPost).');
+            return true;
+        }
         $rawBody = wp_remote_retrieve_body($response);
         $json = json_decode($rawBody, true);
+        // 3. HTTP 200 with valid JSON success.
         if ($json && (!empty($json['success']) || (isset($json['result']) && $json['result'] === 'success'))) {
             error_log('CM26 Blocking send success [Entry ' . $entryId . '].');
             return true;
         }
-        $errorMsg = $json['error'] ?? ('GAS returned non-success: ' . substr($rawBody, 0, 200));
+        // 4. HTTP 200 with JSON error body.
+        if ($json && !empty($json['error'])) {
+            $errorMsg = $json['error'];
+            error_log('CM26 Error [Entry ' . $entryId . ']: ' . $errorMsg);
+            cm26_queue_failed_submission($payload, $entryId, $errorMsg);
+            return false;
+        }
+        // 5. HTTP 200 with HTML or unrecognised body.
+        $errorMsg = 'GAS returned non-success (HTTP ' . $httpCode . '): ' . substr($rawBody, 0, 200);
         error_log('CM26 Error [Entry ' . $entryId . ']: ' . $errorMsg);
         cm26_queue_failed_submission($payload, $entryId, $errorMsg);
         return false;
