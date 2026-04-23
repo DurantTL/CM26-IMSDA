@@ -17,6 +17,12 @@
   --primary: #2c6fb6;
   --primary-dark: #1e5b9c;
   --primary-light: #3277c1;
+  --btn-primary-bg: linear-gradient(180deg, #3a82cb 0%, #2c6fb6 56%, #245f9d 100%);
+  --btn-primary-shadow: 0 12px 28px rgba(35, 87, 143, 0.3);
+  --btn-surface-bg: linear-gradient(180deg, rgba(244, 250, 255, 0.96), rgba(226, 238, 251, 0.88));
+  --btn-surface-border: #b8cee5;
+  --btn-surface-shadow: 0 8px 20px rgba(25, 54, 90, 0.15);
+  --btn-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.78);
   --secondary: #e9f1fb;
   --success: #2f8a57;
   --warning: #bf7a18;
