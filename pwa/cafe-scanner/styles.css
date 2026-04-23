@@ -1,6 +1,6 @@
 :root {
-    --accent: #5f87b5;
-    --card: rgba(255, 255, 255, 0.84);
+    --accent: var(--primary);
+    --card: var(--surface);
     --queue-bg: linear-gradient(180deg, #3d6898, #2a4e77);
 }
 
@@ -9,10 +9,7 @@
 body {
     font-family: Inter, "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
     margin: 0;
-    background:
-      radial-gradient(circle at top left, rgba(116, 167, 224, 0.2), transparent 30%),
-      radial-gradient(circle at top right, rgba(164, 201, 175, 0.16), transparent 26%),
-      linear-gradient(180deg, #f7fafe 0%, var(--bg) 100%);
+    background: var(--bg);
     color: var(--text);
     padding-bottom: 80px;
 }
@@ -20,12 +17,12 @@ body {
 /* ── Header ─────────────────────────────── */
 header {
     background: var(--primary);
-    color: white;
+    color: #fff;
     padding: 14px 16px;
     position: sticky;
     top: 0;
     z-index: 100;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    box-shadow: var(--shadow-sm);
 }
 
 .header-content {
@@ -68,15 +65,15 @@ h1 { margin: 0; font-size: 1.2rem; }
     align-items: center;
     background: rgba(255,255,255,0.1);
     padding: 6px 8px;
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     flex-wrap: wrap;
 }
 
 .meal-selector select {
-    background: white;
-    border: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
     padding: 5px 8px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     flex: 1;
     min-width: 120px;
     font-size: 0.9rem;
@@ -85,10 +82,10 @@ h1 { margin: 0; font-size: 1.2rem; }
 
 /* Date override input inside header */
 .meal-selector input[type="date"] {
-    background: white;
-    border: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
     padding: 5px 8px;
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     font-size: 0.85rem;
     color: var(--text);
     flex: 1;
@@ -223,10 +220,11 @@ main {
 /* ── Lookup section ──────────────────────── */
 .lookup-section {
     background: var(--card);
-    border-radius: 12px;
+    border-radius: var(--radius-md);
     padding: 14px;
     margin-bottom: 18px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
 }
 
 /* Lookup tabs */
@@ -324,9 +322,10 @@ main {
 /* ── Cards ───────────────────────────────── */
 .card {
     background: var(--card);
-    border-radius: 12px;
+    border-radius: var(--radius-md);
     padding: 18px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.08);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
     margin-bottom: 18px;
     animation: slideUp 0.25s ease;
 }
@@ -373,9 +372,10 @@ main {
 
 .stat-box {
     flex: 1;
-    background: #f9fafb;
+    background: var(--panel);
     padding: 10px;
-    border-radius: 8px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
     text-align: center;
 }
 
@@ -480,9 +480,9 @@ main {
     align-items: center;
     gap: 10px;
     padding: 10px 12px;
-    background: #f7fafc;
+    background: var(--panel);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: var(--radius-sm);
     font-size: 1rem;
     cursor: pointer;
 }
@@ -500,18 +500,16 @@ main {
 
 /* ── Housing-inspired visual refresh overrides ───────────────────── */
 header {
-    background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(245,249,255,0.82));
+    background: var(--surface);
     color: var(--text);
-    box-shadow: var(--shadow-sm), var(--surface-glow);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    box-shadow: var(--shadow-sm);
     border-bottom: 1px solid var(--border-strong);
 }
 
 .header-subtitle { color: var(--muted); }
 
 .meal-selector {
-    background: rgba(255,255,255,0.7);
+    background: var(--surface);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-md);
 }
@@ -520,7 +518,7 @@ header {
 .meal-selector input[type="date"] {
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-md);
-    background: rgba(255,255,255,0.85);
+    background: var(--surface);
     transition: var(--transition);
 }
 
@@ -535,22 +533,18 @@ header {
 .lookup-section,
 .stat-box,
 .guest-select-row {
-    background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(237,244,253,0.78));
-    border: 1px solid rgba(255,255,255,0.75);
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    box-shadow: var(--shadow-md), var(--surface-glow);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    box-shadow: var(--shadow-sm);
     transition: var(--transition);
 }
 
 .card {
-    background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(237,244,253,0.78));
-    border: 1px solid rgba(255,255,255,0.75);
+    background: var(--surface);
+    border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm), var(--surface-glow);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
+    box-shadow: var(--shadow-sm);
     transition: var(--transition);
 }
 
@@ -558,7 +552,7 @@ header {
     border: 1px solid var(--border-strong);
     border-radius: var(--radius-md);
     padding: 4px;
-    background: rgba(255,255,255,0.72);
+    background: var(--surface);
 }
 
 .tab-btn {
@@ -571,7 +565,7 @@ header {
     color: #fff;
     border-bottom-color: transparent;
     background: linear-gradient(180deg, var(--primary-light), var(--primary));
-    box-shadow: 0 8px 18px rgba(44, 111, 182, 0.28);
+    box-shadow: var(--shadow-sm);
 }
 
 .lookup-row input,
@@ -579,7 +573,7 @@ header {
 .auth-card input {
     border-radius: var(--radius-md);
     border: 1px solid var(--border-strong);
-    background: rgba(255,255,255,0.82);
+    background: var(--panel);
     transition: var(--transition);
 }
 
@@ -593,13 +587,13 @@ header {
 .btn-primary,
 .btn-redeem {
     background: linear-gradient(180deg, var(--primary-light), var(--primary));
-    box-shadow: 0 10px 24px rgba(44, 111, 182, 0.28);
+    box-shadow: var(--shadow-sm);
 }
 
 .btn-secondary,
 .btn-white,
 .btn-outline {
-    background: rgba(255,255,255,0.84);
+    background: var(--surface);
     border: 1px solid var(--border-strong);
     color: var(--text);
 }
@@ -607,11 +601,11 @@ header {
 .name-result-btn .badge,
 .badge {
     border-radius: 999px;
-    background: #e9f1fb;
+    background: var(--secondary);
 }
 
 .warning-box {
-    background: #fff3f0;
+    background: var(--danger-light);
     border: 1px solid var(--border-strong);
     color: var(--danger);
     border-radius: var(--radius-sm);
@@ -625,7 +619,7 @@ header {
 .card:active,
 .stat-box:active,
 .guest-select-row:active {
-    box-shadow: 0 6px 16px rgba(26, 50, 80, 0.12), var(--surface-glow);
+    box-shadow: var(--shadow-sm);
 }
 
 input[type="text"],
@@ -678,18 +672,18 @@ button {
 @media (hover: hover) {
     .btn:hover {
         transform: translateY(-1px);
-        box-shadow: var(--shadow-md), var(--surface-glow);
+        box-shadow: var(--shadow-md);
     }
 
     .tab-btn:hover {
-        background: rgba(233, 241, 251, 0.86);
+        background: var(--secondary);
     }
 
     .card:hover,
     .lookup-section:hover,
     .auth-card:hover,
     .stat-box:hover {
-        box-shadow: var(--shadow-md), var(--surface-glow);
+        box-shadow: var(--shadow-md);
     }
 
     .lookup-row input:hover,
