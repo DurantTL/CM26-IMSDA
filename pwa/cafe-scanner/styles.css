@@ -38,6 +38,11 @@ header {
     align-items: center;
     margin-bottom: 10px;
 }
+.header-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
 
 .header-actions {
     display: flex;
@@ -196,6 +201,11 @@ main {
 .btn-large     { padding: 14px; font-size: 1.05rem; }
 .btn-sm        { padding: 5px 10px; font-size: 0.9rem; width: auto; }
 .btn-white     { background: white; color: var(--accent); }
+.back-btn {
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+}
 
 /* ── Scanner ─────────────────────────────── */
 #reader {

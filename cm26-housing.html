@@ -156,6 +156,11 @@ button, input, textarea { font: inherit; }
   font-weight: 650;
   transition: transform .16s ease, box-shadow .16s ease, background .16s ease, border-color .16s ease;
 }
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
 .btn-primary {
   background: linear-gradient(180deg, #3277c1, var(--blue-strong));
   color: #fff;
@@ -3203,6 +3208,7 @@ function render(){
           </div>
         </div>
         <div class="hdr-btns">
+          <a href="/" class="btn btn-secondary back-btn">← Back</a>
           ${hasData?`<button class="btn btn-secondary" onclick="exportCSV()">Export CSV</button>
           <button class="btn btn-danger" onclick="S.confirmClear=true;render()">Clear Data</button>`:""}
           <button class="btn btn-primary" onclick="S.showImport=true;render()">Import CSV</button>
