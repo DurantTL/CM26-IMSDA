@@ -729,9 +729,11 @@ function htmlHeaders(res) {
 app.use('/cafe', express.static(path.join(__dirname, 'pwa/cafe-scanner'), { setHeaders: htmlHeaders }));
 app.use('/checkin', express.static(path.join(__dirname, 'pwa/check-in'), { setHeaders: htmlHeaders }));
 
-app.get('/health', (_req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString(), sync: getSyncMeta() });
+app.get('/housing', noStore, (_req, res) => {
+  res.sendFile(path.join(__dirname, 'cm26-housing.html'));
 });
+
+app.get('/health', (_req, res) => {
 
 app.get('/', noStore, (_req, res) => {
   res.send(
@@ -740,8 +742,9 @@ app.get('/', noStore, (_req, res) => {
     'a{display:block;padding:16px;margin:10px 0;background:#2f855a;color:#fff;text-decoration:none;border-radius:8px;text-align:center;font-size:18px}' +
     'a:hover{opacity:0.9}a.cafe{background:#1a365d}.meta{margin-top:20px;padding:14px;background:#fff;border-radius:10px;box-shadow:0 1px 3px rgba(0,0,0,.08)}</style></head><body>' +
     '<h1>Camp Meeting 2026</h1><p>Open a volunteer app and sign in with a server-configured account.</p>' +
-    '<a href="/checkin">Check-In System</a>' +
-    '<a href="/cafe" class="cafe">Cafe Scanner</a>' +
+'<a href="/checkin">Check-In System</a>' +
+'<a href="/cafe" class="cafe">Cafe Scanner</a>' +
+'<a href="/housing">Housing</a>' +
     `<div class="meta"><strong>Sync:</strong> ${syncState.lastSyncAt || 'Not synced yet'}<br><strong>Cached registrations:</strong> ${syncState.registrations.length}<br><strong>Cached tickets:</strong> ${syncState.ticketById.size}</div>` +
     '</body></html>'
   );
