@@ -1,0 +1,3347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CM26 Housing · Camp Meeting 2026</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f4f7fb;
+  --bg-accent: #e8eff8;
+  --surface: rgba(255,255,255,.78);
+  --surface-strong: #ffffff;
+  --surface-soft: #eef4fb;
+  --panel: rgba(249,251,255,.94);
+  --border: #d7e1ee;
+  --border-strong: #c6d4e5;
+  --text: #193046;
+  --text-soft: #5d738a;
+  --text-faint: #8da0b3;
+  --shadow-sm: 0 8px 20px rgba(26, 50, 80, .08);
+  --shadow-md: 0 18px 40px rgba(26, 50, 80, .12);
+  --shadow-lg: 0 28px 60px rgba(23, 45, 75, .16);
+  --blue: #2c6fb6;
+  --blue-strong: #1e5b9c;
+  --blue-soft: #e4f0ff;
+  --empty-bg: #f9fbfd;
+  --empty-br: #d6e0eb;
+  --partial-bg: #fff6e8;
+  --partial-br: #f1c778;
+  --full-bg: #edf9f0;
+  --full-br: #7ec592;
+  --over-bg: #fff0ee;
+  --over-br: #dd877e;
+  --sel-bg: #e8f1ff;
+  --sel-br: #4d88da;
+  --danger: #c95a49;
+  --danger-soft: #fff3f0;
+  --success: #2f8a57;
+  --warning: #bf7a18;
+  --family-ink: #24425f;
+  --radius-xl: 24px;
+  --radius-lg: 18px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+  --font: Inter, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+}
+html, body { height: 100%; }
+body {
+  background:
+    radial-gradient(circle at top left, rgba(116, 167, 224, .18), transparent 28%),
+    radial-gradient(circle at top right, rgba(164, 201, 175, .18), transparent 24%),
+    linear-gradient(180deg, #f7fafe 0%, var(--bg) 100%);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+#app {
+  height: 100vh;
+  height: 100dvh;
+  padding: 18px;
+}
+button, input, textarea { font: inherit; }
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: rgba(255,255,255,.46);
+  border: 1px solid rgba(255,255,255,.7);
+  border-radius: 28px;
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(18px);
+  overflow: hidden;
+}
+
+.hdr {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,255,255,.88), rgba(245,249,255,.76));
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.hdr-copy { display: flex; flex-direction: column; gap: 6px; min-width: 220px; }
+.hdr-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--blue);
+}
+.hdr-title {
+  font-size: 30px;
+  line-height: 1.05;
+  font-weight: 750;
+  letter-spacing: -.03em;
+}
+.hdr-sub {
+  color: var(--text-soft);
+  font-size: 14px;
+  line-height: 1.45;
+  max-width: 560px;
+}
+.hdr-stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-self: stretch;
+}
+.stat-pill {
+  min-width: 126px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255,255,255,.82);
+  box-shadow: var(--shadow-sm);
+}
+.stat-label {
+  display: block;
+  font-size: 11px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  margin-bottom: 6px;
+  font-weight: 700;
+}
+.stat-value {
+  display: block;
+  font-size: 22px;
+  font-weight: 760;
+  letter-spacing: -.03em;
+}
+.stat-note { font-size: 12px; color: var(--text-soft); margin-top: 3px; }
+.stat-pill.is-assigned .stat-value { color: var(--success); }
+.stat-pill.is-open .stat-value { color: var(--warning); }
+
+.hdr-btns {
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-self: center;
+}
+.btn {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 11px 16px;
+  cursor: pointer;
+  font-weight: 650;
+  transition: transform .16s ease, box-shadow .16s ease, background .16s ease, border-color .16s ease;
+}
+.btn-primary {
+  background: linear-gradient(180deg, #3277c1, var(--blue-strong));
+  color: #fff;
+}
+.btn-secondary {
+  background: rgba(255,255,255,.84);
+  color: var(--text);
+  border-color: var(--border);
+}
+.btn-secondary.warn {
+  background: #fff6ea;
+  color: #9b6420;
+  border-color: #efcf96;
+}
+.btn-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+  border-color: #efc7bf;
+}
+.btn-confirm {
+  background: linear-gradient(180deg, #df6f60, #c95445);
+  color: #fff;
+  padding-inline: 18px;
+}
+
+.main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.room-area {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(248, 251, 255, .66);
+  flex-wrap: wrap;
+}
+.toolbar-left {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.tabs-group { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.bld-tabs, .flr-tabs {
+  display: inline-flex;
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255,255,255,.74);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.75);
+  flex-wrap: wrap;
+}
+.bld-btn, .flr-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-soft);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background .16s ease, color .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.bld-btn.active, .flr-btn.active {
+  color: var(--blue-strong);
+  background: linear-gradient(180deg, #fefefe, #edf5ff);
+  border-color: #bfd5f2;
+  box-shadow: 0 6px 14px rgba(51, 110, 179, .14);
+}
+.view-toggle {
+  display: inline-flex;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255,255,255,.74);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.75);
+}
+.view-btn {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-soft);
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background .16s ease, color .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.view-btn.active {
+  color: var(--blue-strong);
+  background: linear-gradient(180deg, #fefefe, #edf5ff);
+  border-color: #bfd5f2;
+  box-shadow: 0 6px 14px rgba(51, 110, 179, .14);
+}
+
+.legend {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.leg-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255,255,255,.7);
+  color: var(--text-soft);
+  font-size: 12px;
+  font-weight: 600;
+}
+.leg-sw {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.grid-wrap {
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 22px 20px 24px;
+}
+.layout-surface {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.layout-card {
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  background: rgba(255,255,255,.68);
+  box-shadow: var(--shadow-sm);
+  padding: 22px;
+}
+.layout-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 14px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+.layout-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--blue);
+  margin-bottom: 5px;
+}
+.layout-title {
+  font-size: 24px;
+  line-height: 1.1;
+  font-weight: 760;
+  letter-spacing: -.03em;
+}
+.layout-copy {
+  color: var(--text-soft);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.hall-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 8px 0;
+}
+.hall-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  align-items: stretch;
+  width: 100%;
+}
+.hall-board {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  gap: 12px;
+}
+.hall-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+.hall-side {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+}
+.hall-side.left { justify-content: flex-end; }
+.hall-side.right { justify-content: flex-start; }
+.hall-side.left .room-card { margin-right: 4px; }
+.hall-side.right .room-card { margin-left: 4px; }
+.hall-gap {
+  min-height: 118px;
+  border-radius: 22px;
+  background: rgba(237, 243, 250, .58);
+  border: 1px dashed rgba(181, 198, 220, .7);
+}
+.hallway {
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+}
+.hallway-track {
+  width: 100%;
+  background:
+    linear-gradient(90deg, rgba(219,229,241,.38) 0 16%, rgba(239,245,251,.96) 16% 84%, rgba(219,229,241,.38) 84% 100%);
+  border-radius: 22px;
+  border: 1px solid #d5e0ed;
+  box-shadow: inset 0 2px 10px rgba(70, 96, 125, .05);
+  position: relative;
+}
+.hallway-track::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 18px;
+  right: 18px;
+  height: 1px;
+  transform: translateY(-50%);
+  background: rgba(159, 179, 203, .32);
+}
+.hallway-track::before {
+  content: "";
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: 50%;
+  width: 4px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(111, 138, 171, .42) 0 10px,
+    rgba(111, 138, 171, 0) 10px 22px
+  );
+}
+.section-tag {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 7px 11px;
+  border-radius: 999px;
+  background: #edf4fc;
+  border: 1px solid #d4e0ef;
+  color: var(--text-soft);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.hall-layout.doubleHall {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(240px, 1fr));
+  gap: 28px;
+  align-items: start;
+}
+
+.rv-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.rv-map {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(92px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.rv-top-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(12, minmax(92px, 1fr));
+  gap: 12px;
+}
+.rv-bottom {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr minmax(180px, 1.4fr) 1fr;
+  gap: 18px;
+  align-items: stretch;
+}
+.rv-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.rv-center {
+  border: 1px dashed var(--border-strong);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(239,245,251,.92), rgba(246,250,255,.95));
+  min-height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 20px;
+}
+.rv-center-copy {
+  max-width: 280px;
+  color: var(--text-soft);
+  line-height: 1.6;
+}
+.rv-center-copy strong {
+  display: block;
+  color: var(--text);
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+
+.tent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.alt-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 1fr;
+}
+.alt-grid > .room-card {
+  width: 100%;
+}
+@media (min-width: 420px) {
+  .alt-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .alt-grid > :nth-child(5) {
+    grid-column: 1 / -1;
+  }
+}
+@media (min-width: 720px) {
+  .alt-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .alt-grid > :nth-child(1) { grid-column: 1 / span 2; }
+  .alt-grid > :nth-child(2) { grid-column: 3 / span 2; }
+  .alt-grid > :nth-child(3) { grid-column: 5 / span 2; }
+  .alt-grid > :nth-child(4) { grid-column: 2 / span 2; }
+  .alt-grid > :nth-child(5) { grid-column: 4 / span 2; }
+}
+@media (min-width: 1200px) {
+  .alt-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .alt-grid > :nth-child(n) {
+    grid-column: auto;
+  }
+}
+.alt-card .rc-num {
+  font-size: 20px;
+  line-height: 1.15;
+}
+.alt-card .rc-cap {
+  min-height: 34px;
+}
+.tent-item {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.92);
+  box-shadow: 0 6px 14px rgba(24, 46, 77, .05);
+}
+.tent-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.tent-meta {
+  margin-top: 5px;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+.room-card {
+  position: relative;
+  border: 1px solid var(--empty-br);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(247,250,253,.98));
+  box-shadow: var(--shadow-sm);
+  padding: 12px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--text);
+  min-height: 118px;
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
+  overflow: hidden;
+  touch-action: manipulation;
+}
+.room-card::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: var(--family-stripe, transparent);
+  opacity: .85;
+  pointer-events: none;
+}
+.hall-layout .room-card,
+.rv-map .room-card {
+  width: 100%;
+}
+.room-card[disabled] {
+  cursor: default;
+  opacity: .7;
+  filter: saturate(.8);
+}
+.room-card.s-empty { background: linear-gradient(180deg, #fff, var(--empty-bg)); border-color: var(--empty-br); }
+.room-card.s-partial { background: linear-gradient(180deg, #fffdf9, var(--partial-bg)); border-color: var(--partial-br); }
+.room-card.s-full { background: linear-gradient(180deg, #fefefc, var(--full-bg)); border-color: var(--full-br); }
+.room-card.s-over { background: linear-gradient(180deg, #fffdfc, var(--over-bg)); border-color: var(--over-br); }
+.room-card.s-restricted {
+  background: linear-gradient(180deg, #fffcf7, #fff2dc);
+  border-color: #e8be73;
+}
+.room-card.s-selected {
+  background: linear-gradient(180deg, #f9fbff, var(--sel-bg));
+  border-color: var(--sel-br);
+  box-shadow: 0 18px 42px rgba(48, 102, 181, .2);
+}
+.room-card.s-selected::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 2px rgba(77,136,218,.25);
+  pointer-events: none;
+}
+.room-card.drag-over:not([disabled]) {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 38px rgba(48, 102, 181, .22);
+  border-color: #5e95dc;
+}
+.room-card.drag-over:not([disabled])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 2px rgba(77,136,218,.32);
+  background: linear-gradient(180deg, rgba(103, 159, 227, .08), rgba(103, 159, 227, .14));
+  pointer-events: none;
+}
+.room-card.s-unavail {
+  background: linear-gradient(180deg, #f7f8fa, #eef2f6);
+  border-color: #d6dde7;
+}
+
+.rc-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.rc-num {
+  font-size: 24px;
+  line-height: 1;
+  font-weight: 780;
+  letter-spacing: -.05em;
+}
+.rc-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.rc-family-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--family-color, #d5e0ee);
+  box-shadow: 0 0 0 3px rgba(255,255,255,.72);
+  flex-shrink: 0;
+}
+.rc-status {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.rc-cap {
+  font-size: 13px;
+  color: var(--text-soft);
+  margin-bottom: 8px;
+}
+.rc-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.rc-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.72);
+  border: 1px solid rgba(138, 159, 182, .3);
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--text-soft);
+}
+.rc-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.rc-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(138, 159, 182, .32);
+  background: rgba(255,255,255,.76);
+  color: var(--family-ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+.rc-pill::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--family-color, #d5e0ee);
+}
+.rc-names {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rc-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255,255,255,.7);
+  border: 1px solid rgba(210, 222, 235, .9);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  --family-color: rgba(73, 131, 207, .72);
+}
+.rc-name::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--family-color);
+  flex-shrink: 0;
+}
+.rc-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rc-more {
+  font-size: 12px;
+  color: var(--text-soft);
+  font-weight: 650;
+  padding-left: 2px;
+}
+.compact .grid-wrap {
+  padding: 16px 18px 18px;
+}
+.compact .layout-surface {
+  gap: 14px;
+}
+.compact .layout-card {
+  padding: 18px;
+}
+.compact .layout-head {
+  margin-bottom: 14px;
+}
+.compact .hall-layout {
+  gap: 16px;
+  padding: 4px 0;
+}
+.compact .hall-section {
+  gap: 10px;
+}
+.compact .hall-board {
+  gap: 8px;
+}
+.compact .hall-row {
+  grid-template-columns: minmax(0, 1fr) 72px minmax(0, 1fr);
+  gap: 10px;
+}
+.compact .hall-side.left .room-card { margin-right: 2px; }
+.compact .hall-side.right .room-card { margin-left: 2px; }
+.compact .hall-gap {
+  min-height: 110px;
+}
+.compact .hallway-track {
+  border-radius: 18px;
+}
+.compact .hallway-track::after {
+  left: 14px;
+  right: 14px;
+}
+.compact .hallway-track::before {
+  top: 12px;
+  bottom: 12px;
+}
+.compact .room-card {
+  min-height: 110px;
+  padding: 10px 11px;
+  border-radius: 18px;
+}
+.compact .rc-top {
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.compact .rc-num {
+  font-size: 22px;
+}
+.compact .rc-status {
+  font-size: 10px;
+}
+.compact .rc-cap {
+  font-size: 12px;
+  margin-bottom: 7px;
+}
+.compact .rc-badges {
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.compact .rc-badge,
+.compact .rc-pill {
+  font-size: 11px;
+}
+
+.empty {
+  max-width: 520px;
+  margin: 48px auto;
+  padding: 36px 34px;
+  border-radius: 28px;
+  background: rgba(255,255,255,.82);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  text-align: center;
+}
+.empty .ico {
+  font-size: 44px;
+  margin-bottom: 14px;
+}
+.empty h2 {
+  font-size: 28px;
+  font-weight: 760;
+  letter-spacing: -.03em;
+  margin-bottom: 10px;
+}
+.empty p {
+  color: var(--text-soft);
+  line-height: 1.65;
+  margin-bottom: 18px;
+}
+
+.r-panel {
+  width: 360px;
+  border-left: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(251,253,255,.96), rgba(243,248,253,.92));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+  min-height: 0;
+}
+.panel-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 20px;
+}
+.sidebar {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.inspector-shell {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.inspector-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.panel-hero {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(242,247,254,.96));
+  box-shadow: var(--shadow-sm);
+}
+.panel-kicker {
+  display: inline-block;
+  margin-bottom: 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .14em;
+  color: var(--blue);
+  font-weight: 700;
+}
+.panel-hero h3 {
+  font-size: 24px;
+  font-weight: 760;
+  letter-spacing: -.03em;
+  margin-bottom: 8px;
+}
+.panel-hero p {
+  color: var(--text-soft);
+  line-height: 1.55;
+}
+.sec-card {
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.78);
+  box-shadow: var(--shadow-sm);
+}
+.sec-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.sec-lbl {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .14em;
+}
+.sec-count {
+  font-size: 12px;
+  color: var(--text-soft);
+  font-weight: 650;
+}
+.mini-tabs {
+  display: flex;
+  gap: 8px;
+}
+.mtab {
+  flex: 1;
+  padding: 11px 12px;
+  background: var(--surface-soft);
+  color: var(--text-soft);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 650;
+  transition: all .16s ease;
+}
+.mtab.active {
+  background: linear-gradient(180deg, #3277c1, var(--blue-strong));
+  color: #fff;
+  border-color: transparent;
+}
+
+.srch {
+  width: 100%;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.96);
+  padding: 12px 14px;
+  color: var(--text);
+  outline: none;
+  box-shadow: inset 0 1px 2px rgba(30, 57, 91, .04);
+}
+.srch:focus {
+  border-color: #97bbe7;
+  box-shadow: 0 0 0 4px rgba(69, 129, 201, .12);
+}
+
+.g-list, .cand-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.g-item, .occ-item, .cand-item {
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 6px 14px rgba(24, 46, 77, .05);
+}
+.g-item {
+  padding: 12px 13px;
+  position: relative;
+}
+.g-item[draggable="true"],
+.cand-item[draggable="true"] {
+  cursor: grab;
+}
+.g-item.is-dragging,
+.cand-item.is-dragging {
+  opacity: .72;
+  transform: scale(.985);
+  box-shadow: 0 12px 28px rgba(24, 46, 77, .12);
+}
+.g-item.is-selected,
+.cand-item.is-selected {
+  border-color: var(--sel-br);
+  background: linear-gradient(180deg, #fbfdff, var(--sel-bg));
+  box-shadow: 0 14px 32px rgba(48, 102, 181, .14);
+}
+.g-item::before,
+.occ-item::before,
+.cand-item::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 4px;
+  border-radius: 999px;
+}
+.g-item.asgn::before, .occ-item::before { background: #4ca571; }
+.g-item.free::before { background: #d89a3c; }
+.family-accent::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 12px;
+  bottom: 12px;
+  width: 4px;
+  border-radius: 999px;
+  background: var(--family-color, transparent);
+  opacity: .92;
+}
+.family-accent.g-item::after {
+  top: 14px;
+  bottom: 14px;
+}
+.family-accent.g-item,
+.family-accent.occ-item,
+.family-accent.cand-item {
+  padding-left: 20px;
+}
+.family-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--family-ink);
+}
+.family-meta::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--family-color, #d5e0ee);
+}
+.g-name, .occ-name, .cand-name {
+  font-size: 14px;
+  font-weight: 680;
+  color: var(--text);
+}
+.g-meta, .occ-meta, .cand-meta {
+  font-size: 12px;
+  color: var(--text-soft);
+  margin-top: 4px;
+}
+.g-meta.warn, .cand-meta.mv { color: var(--warning); }
+.cand-meta.fr { color: var(--text-soft); }
+
+.hint {
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.55;
+  text-align: center;
+}
+.no-res {
+  padding: 16px 12px;
+  border-radius: 16px;
+  background: rgba(243,247,252,.92);
+  border: 1px dashed var(--border-strong);
+  color: var(--text-soft);
+  text-align: center;
+  line-height: 1.55;
+}
+
+.ph {
+  padding: 22px 20px 18px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(244,248,253,.95));
+}
+.ph-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.ph-title {
+  font-size: 30px;
+  line-height: 1.05;
+  font-weight: 780;
+  letter-spacing: -.04em;
+}
+.ph-sub {
+  margin-top: 6px;
+  color: var(--text-soft);
+  font-size: 13px;
+}
+.close-x {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.85);
+  color: var(--text-soft);
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+}
+.ph-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ph-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+.meta-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.82);
+  border: 1px solid var(--border);
+  color: var(--text-soft);
+  font-size: 12px;
+  font-weight: 650;
+}
+.panel-warning {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid #efcf96;
+  background: #fff8ea;
+  color: #946217;
+  font-size: 13px;
+  line-height: 1.55;
+  font-weight: 600;
+}
+
+.family-sec {
+  padding: 18px 20px 20px;
+  border-bottom: 1px solid var(--border);
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.family-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  max-height: min(24vh, 220px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+.family-sec.is-secondary .family-list {
+  max-height: min(14vh, 130px);
+}
+.family-card {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 6px 14px rgba(24, 46, 77, .05);
+  overflow: hidden;
+}
+.family-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px 10px;
+}
+.family-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 730;
+}
+.family-card-title::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--family-color, #d5e0ee);
+}
+.family-card-note {
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.family-split {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #fff6ea;
+  border: 1px solid #efcf96;
+  color: #946217;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.family-members {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 12px 12px;
+}
+.family-member {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--surface-soft);
+  border: 1px solid rgba(210, 222, 235, .92);
+}
+.family-member.is-unassigned {
+  background: #f7fbf4;
+  border-color: #d7eadb;
+}
+.family-member.is-elsewhere {
+  background: #fff9ef;
+  border-color: #efd7aa;
+}
+.family-member.is-here {
+  background: #eef5ff;
+  border-color: #d3e2f5;
+}
+.family-member-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+}
+.family-member-name {
+  font-size: 13px;
+  font-weight: 680;
+}
+.family-member-loc {
+  font-size: 12px;
+  color: var(--text-soft);
+  margin-top: 4px;
+}
+.family-member-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+.family-act-btn {
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.94);
+  color: var(--blue-strong);
+  border-radius: 10px;
+  padding: 7px 10px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+.family-act-btn.is-disabled,
+.family-act-btn[disabled] {
+  cursor: default;
+  color: var(--text-faint);
+  background: rgba(255,255,255,.78);
+  border-color: rgba(187, 202, 219, .88);
+}
+.family-batch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid #bfd5f2;
+  background: linear-gradient(180deg, #fefefe, #edf5ff);
+  color: var(--blue-strong);
+  border-radius: 12px;
+  padding: 9px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+.family-member-tag {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.92);
+  border: 1px solid rgba(187, 202, 219, .88);
+  color: var(--family-ink);
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.occ-sec, .add-sec {
+  padding: 18px 20px 20px;
+}
+.occ-sec {
+  border-bottom: 1px solid var(--border);
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+.add-sec {
+  flex: 1;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow: hidden;
+}
+.inspector-body.alt-priority .add-sec {
+  flex: 1 1 340px;
+}
+.inspector-body.alt-priority .family-sec {
+  flex: 0 0 auto;
+}
+.occ-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: min(20vh, 160px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+.occ-item, .cand-item {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 14px 13px 16px;
+}
+.cand-main {
+  min-width: 0;
+  overflow: hidden;
+}
+.occ-main {
+  min-width: 0;
+  width: 100%;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: #f0ebff;
+  color: #6d54b0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.badge-expected {
+  background: #e8f1ff;
+  color: #24538e;
+}
+.expected-note {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-faint);
+  line-height: 1.45;
+}
+.guest-row,
+.occ-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.guest-copy {
+  min-width: 0;
+  flex: 1;
+}
+.guest-actions,
+.occ-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.mini-action {
+  border: 1px solid var(--border);
+  background: rgba(245, 248, 252, .98);
+  color: var(--text-soft);
+  border-radius: 11px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-weight: 700;
+}
+.mini-action.danger {
+  border-color: #efcdc5;
+  background: #fff6f3;
+  color: var(--danger);
+}
+.rc-mini-badge {
+  margin-left: 6px;
+  padding: 2px 6px;
+  font-size: 9px;
+}
+.expected-sec {
+  padding: 0 20px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.expected-wrap {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(255,255,255,.84);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.expected-wrap summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  font-size: 13px;
+  font-weight: 750;
+  color: var(--text);
+}
+.expected-wrap summary::-webkit-details-marker {
+  display: none;
+}
+.expected-wrap summary::after {
+  content: "+";
+  font-size: 18px;
+  color: var(--blue);
+  line-height: 1;
+}
+.expected-wrap[open] summary::after {
+  content: "-";
+}
+.expected-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 16px 16px;
+  border-top: 1px solid rgba(214, 223, 232, .8);
+}
+.expected-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.expected-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.expected-field.is-wide {
+  grid-column: 1 / -1;
+}
+.expected-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.expected-input {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.98);
+  padding: 11px 12px;
+  color: var(--text);
+  outline: none;
+}
+.expected-input:focus {
+  border-color: #97bbe7;
+  box-shadow: 0 0 0 4px rgba(69, 129, 201, .12);
+}
+.expected-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-soft);
+  font-weight: 650;
+}
+.expected-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.expected-help {
+  font-size: 12px;
+  color: var(--text-soft);
+  line-height: 1.45;
+}
+.rm-btn {
+  border: 1px solid #efcdc5;
+  background: #fff6f3;
+  color: var(--danger);
+  border-radius: 11px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.rm-btn.secondary {
+  border-color: var(--border);
+  background: rgba(245, 248, 252, .98);
+  color: var(--text-soft);
+}
+.cand-item {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+.cand-item::before { background: #6b9fe0; }
+.cand-add {
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border-radius: 11px;
+  background: #e8f4ec;
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 700;
+}
+.cand-list {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+.cand-list.is-alt-cand-list {
+  gap: 8px;
+}
+.add-sec.is-alt-add-sec .cand-item {
+  padding: 11px 12px 11px 14px;
+}
+.add-sec.is-alt-add-sec .cand-meta {
+  margin-top: 2px;
+}
+.cand-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.cand-note {
+  font-size: 12px;
+  color: var(--text-soft);
+  line-height: 1.45;
+}
+.selected-guest-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid #bfd5f2;
+  background: linear-gradient(180deg, #fafdff, #ebf3ff);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.8);
+}
+.selected-guest-chip-copy {
+  min-width: 0;
+}
+.selected-guest-chip strong {
+  display: block;
+  font-size: 13px;
+  color: var(--blue-strong);
+}
+.selected-guest-chip span {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--text-soft);
+}
+.selected-guest-clear {
+  border: 1px solid #c8d8ee;
+  background: rgba(255,255,255,.86);
+  color: var(--text);
+  border-radius: 11px;
+  padding: 7px 10px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+@media (hover: hover) {
+  .btn:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+  .bld-btn:hover, .flr-btn:hover {
+    color: var(--text);
+    background: rgba(230,239,249,.8);
+  }
+  .view-btn:hover {
+    color: var(--text);
+    background: rgba(230,239,249,.8);
+  }
+  .room-card:hover:not([disabled]) {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-md);
+  }
+  .mtab:hover { background: #eef5ff; color: var(--text); }
+  .close-x:hover { color: var(--text); background: #fff; }
+  .family-act-btn:hover {
+    background: #fff;
+    border-color: #bad0eb;
+  }
+  .family-batch:hover {
+    background: #f5faff;
+  }
+  .mini-action:hover {
+    background: #edf4fb;
+    color: var(--text);
+  }
+  .mini-action.danger:hover {
+    background: #fff0eb;
+  }
+  .rm-btn:hover { background: #fff0eb; }
+  .rm-btn.secondary:hover {
+    background: #edf4fb;
+    color: var(--text);
+  }
+  .cand-item:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
+    border-color: #bad0eb;
+  }
+  .selected-guest-clear:hover {
+    background: #fff;
+  }
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 34, 50, .42);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 100;
+}
+.modal {
+  width: 640px;
+  max-width: 96vw;
+  background: #fff;
+  border: 1px solid rgba(216, 226, 238, .95);
+  border-radius: 24px;
+  box-shadow: var(--shadow-lg);
+  padding: 24px;
+}
+.modal-danger {
+  max-width: 420px;
+  border-color: #e8beb8;
+}
+.modal h2 {
+  font-size: 26px;
+  font-weight: 760;
+  letter-spacing: -.03em;
+  margin-bottom: 10px;
+}
+.modal p {
+  color: var(--text-soft);
+  line-height: 1.65;
+  margin-bottom: 16px;
+}
+.modal-act {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+#import-ta {
+  width: 100%;
+  min-height: 220px;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: #fbfdff;
+  padding: 14px 16px;
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  line-height: 1.5;
+  outline: none;
+  resize: vertical;
+}
+#import-ta:focus {
+  border-color: #97bbe7;
+  box-shadow: 0 0 0 4px rgba(69, 129, 201, .12);
+}
+code {
+  background: #eef4fb;
+  color: var(--blue-strong);
+  border-radius: 8px;
+  padding: 2px 6px;
+  font-size: 12px;
+}
+.file-row {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #f6f9fd;
+  border: 1px dashed var(--border-strong);
+}
+.file-row input[type=file] { width: 100%; color: var(--text-soft); }
+
+@media (max-width: 1100px) {
+  body { overflow: auto; }
+  #app {
+    height: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: 12px;
+  }
+  .shell {
+    min-height: 100vh;
+    min-height: 100dvh;
+    border-radius: 22px;
+    backdrop-filter: none;
+    background: rgba(255,255,255,.82);
+  }
+  .main { flex-direction: column; }
+  .expected-grid { grid-template-columns: 1fr; }
+  input[type="text"],
+  input[type="search"],
+  input[type="number"],
+  textarea,
+  select {
+    font-size: 16px;
+  }
+  .r-panel {
+    width: 100%;
+    min-height: 330px;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+}
+@media (min-width: 1101px) and (hover: hover) {
+  #import-ta {
+    font-size: 12px;
+  }
+}
+@media (max-width: 720px) {
+  .hdr { padding: 18px; }
+  .hdr-title { font-size: 25px; }
+  .toolbar, .grid-wrap, .ph, .occ-sec, .add-sec, .panel-scroll { padding-left: 16px; padding-right: 16px; }
+  .toolbar-right { justify-content: flex-start; }
+  .bld-btn, .flr-btn, .view-btn { min-height: 44px; padding: 12px 16px; }
+  .legend { display: none; }
+  .rv-bottom { grid-template-columns: 1fr; }
+  .hall-row { grid-template-columns: 1fr; gap: 12px; }
+  .hall-gap { display: none; }
+  .hall-layout.doubleHall { grid-template-columns: 1fr; }
+  .hallway { width: 100%; height: 40px; }
+  .hallway-track::before {
+    top: 50%;
+    bottom: auto;
+    left: 14px;
+    right: 14px;
+    width: auto;
+    height: 4px;
+    transform: translateY(-50%);
+    background: repeating-linear-gradient(
+      90deg,
+      rgba(111, 138, 171, .42) 0 10px,
+      rgba(111, 138, 171, 0) 10px 22px
+    );
+  }
+  .hallway-track::after {
+    top: 50%;
+    left: 14px;
+    right: 14px;
+    height: 1px;
+    transform: translateY(-50%);
+  }
+  .rv-map, .rv-top-row { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+  .rv-center { min-height: 160px; }
+  .room-card { min-height: 138px; padding: 14px; }
+  .rc-num { font-size: 24px; }
+  .ph-title { font-size: 26px; }
+  .hdr-btns { margin-left: 0; justify-content: flex-start; }
+  #import-ta { min-height: 160px; }
+  .family-card-head,
+  .family-member-top {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+@media (min-width: 721px) and (max-width: 1100px) {
+  .hdr-btns {
+    margin-left: 0;
+    justify-content: flex-start;
+  }
+}
+@media (hover: none) and (pointer: coarse) {
+  .g-item[draggable="false"],
+  .cand-item[draggable="false"] {
+    cursor: pointer;
+  }
+  .g-item.is-dragging,
+  .cand-item.is-dragging {
+    opacity: 1;
+    transform: none;
+    box-shadow: 0 6px 14px rgba(24, 46, 77, .05);
+  }
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const FAMILY_PALETTE = [
+  "#5b8def",
+  "#e0875f",
+  "#56a67a",
+  "#b86adf",
+  "#d1a63d",
+  "#4ea8b8",
+  "#de6c94",
+  "#7c92d8",
+  "#8db255",
+  "#c77f62"
+];
+function standardRoom(id,num,extra={}) {
+  return {id,num,cap:2,bedType:"twin",roomType:"standard",...extra};
+}
+function restrictedRoom(id,num,extra={}) {
+  return {id,num,cap:extra.cap ?? 2,bedType:extra.bedType ?? "twin",roomType:extra.roomType ?? "special",restricted:true,...extra};
+}
+function nonAssignableRoom(id,num,extra={}) {
+  const roomType = extra.roomType ?? "storage";
+  return {id,num,cap:0,roomType,assignable:false,restricted:true,type:extra.type ?? roomType,...extra};
+}
+
+const BUILDINGS = {
+  Boys: { label:"Boys Dorm", floors:{
+    1:[
+      standardRoom("B-101","101"), standardRoom("B-102","102"), standardRoom("B-103","103"),
+      standardRoom("B-104","104"), standardRoom("B-105","105"),
+      nonAssignableRoom("B-106","106",{note:"Storage"}), nonAssignableRoom("B-107","107",{note:"Storage"}),
+      standardRoom("B-120","120"), restrictedRoom("B-121","121",{cap:4,unavail:true,note:"Unavailable by default"}),
+      standardRoom("B-122","122"), standardRoom("B-123","123"),
+    ],
+    2:[
+      standardRoom("B-201","201"), standardRoom("B-202","202"), standardRoom("B-203","203"),
+      standardRoom("B-204","204"), standardRoom("B-205","205"), standardRoom("B-207","207"),
+      standardRoom("B-209","209"), restrictedRoom("B-210","210",{unavail:true,note:"Unavailable by default"}),
+      standardRoom("B-211","211"), restrictedRoom("B-212","212",{unavail:true,note:"Unavailable by default"}),
+      standardRoom("B-213","213"), standardRoom("B-214","214"),
+      standardRoom("B-215","215"), standardRoom("B-216","216"),
+    ],
+    3:[
+      standardRoom("B-301","301"), standardRoom("B-302","302",{hasBath:true}), standardRoom("B-303","303"),
+      standardRoom("B-305","305"),
+      standardRoom("B-307","307"), standardRoom("B-308","308"), standardRoom("B-309","309"),
+      standardRoom("B-310","310"), standardRoom("B-311","311"), standardRoom("B-312","312"),
+      standardRoom("B-313","313"), restrictedRoom("B-314","314",{cap:8,group:"U-Crew",note:"Special-use room"}),
+      restrictedRoom("B-315","315",{cap:8,group:"U-Crew",note:"Special-use room"}), restrictedRoom("B-316","316",{cap:8,group:"U-Crew",note:"Special-use room"}),
+    ],
+  }},
+  Girls:{ label:"Girls Dorm", floors:{
+    1:[
+      standardRoom("G-101","101"), standardRoom("G-102","102"),
+      standardRoom("G-103","103"), standardRoom("G-104","104"),
+      standardRoom("G-105","105"), standardRoom("G-106","106"),
+      standardRoom("G-107","107"), standardRoom("G-108","108"),
+    ],
+    2:[
+      standardRoom("G-201","201"), standardRoom("G-202","202"), standardRoom("G-203","203"),
+      standardRoom("G-204","204"), standardRoom("G-205","205"), standardRoom("G-207","207"),
+      standardRoom("G-211","211"), standardRoom("G-213","213"), standardRoom("G-214","214"),
+      standardRoom("G-215","215"), standardRoom("G-216","216"), standardRoom("G-217","217"),
+      standardRoom("G-218","218"), standardRoom("G-219","219"), standardRoom("G-220","220"),
+      standardRoom("G-221","221"), standardRoom("G-222","222"), standardRoom("G-223","223"),
+      standardRoom("G-224","224"), standardRoom("G-225","225"), standardRoom("G-226","226"),
+      standardRoom("G-227","227"), standardRoom("G-228","228"),
+    ],
+    3:[
+      standardRoom("G-301","301"), standardRoom("G-302","302"), standardRoom("G-303","303"),
+      standardRoom("G-304","304"), standardRoom("G-305","305"), standardRoom("G-307","307"),
+      standardRoom("G-311","311"), standardRoom("G-312","312"), standardRoom("G-313","313"),
+      standardRoom("G-314","314"), standardRoom("G-315","315"), standardRoom("G-316","316"),
+      standardRoom("G-317","317"), standardRoom("G-318","318"),
+    ],
+  }},
+  ConferenceCenter:{ label:"Conference Center", floors:{
+    1:[
+      standardRoom("CC-1","CC-1",{cap:1,bedType:"queen"}),
+      standardRoom("CC-2","CC-2",{cap:2,bedType:"standard"}),
+      standardRoom("CC-3","CC-3",{cap:1,bedType:"twin"}),
+      standardRoom("CC-4","CC-4",{cap:1,bedType:"twin"}),
+    ],
+  }},
+};
+const RV_SPOTS = Array.from({length:16},(_,i)=>({id:`RV-${i+1}`,num:String(i+1),cap:null,roomType:"rv"}));
+const ALTERNATE_HOUSING = [
+  {id:"ALT-HOTEL", label:"Hotel"},
+  {id:"ALT-AIRBNB", label:"Airbnb"},
+  {id:"ALT-HOME", label:"Home"},
+  {id:"ALT-OFFSITE", label:"Offsite"},
+  {id:"ALT-OTHER", label:"Other"},
+];
+const HALL_LAYOUTS = {
+  Boys: {
+    1: {
+      sections: [
+        {
+          label: "Main Hall",
+          left: ["B-101", "B-103", "B-105", "B-106", "B-120"],
+          right: ["B-102", "B-104", "B-107", "B-121", "B-122", "B-123"],
+        }
+      ]
+    },
+    2: {
+      sections: [
+        {
+          label: "Main Hall",
+          left: ["B-201", "B-203", "B-205", "B-207", "B-209", "B-211", "B-213"],
+          right: ["B-202", "B-204", "B-210", "B-212", "B-214", "B-215", "B-216"],
+        }
+      ]
+    },
+    3: {
+      sections: [
+        {
+          label: "Main Hall",
+          left: ["B-302", "B-307", "B-309", "B-311", "B-313", "B-315"],
+          right: ["B-303", "B-308", "B-310", "B-312", "B-314", "B-316"],
+        }
+      ]
+    }
+  },
+  Girls: {
+    1: {
+      sections: [
+        {
+          label: "Main Hall",
+          left: ["G-101", "G-103", "G-105", "G-107"],
+          right: ["G-102", "G-104", "G-106", "G-108"],
+        }
+      ]
+    },
+    2: {
+      sections: [
+        {
+          label: "Hall A",
+          left: ["G-201", "G-203", "G-205", "G-211", "G-214"],
+          right: ["G-202", "G-204", "G-207", "G-213", "G-215"],
+        },
+        {
+          label: "Hall B",
+          left: ["G-217", "G-219", "G-221", "G-223", "G-225", "G-227"],
+          right: ["G-216", "G-218", "G-220", "G-222", "G-224", "G-226", "G-228"],
+        }
+      ]
+    },
+    3: {
+      sections: [
+        {
+          label: "Hall A",
+          left: ["G-301", "G-303", "G-305", "G-307", "G-311"],
+          right: ["G-302", "G-304", "G-312"],
+        },
+        {
+          label: "Hall B",
+          left: ["G-313", "G-315", "G-317"],
+          right: ["G-314", "G-316", "G-318"],
+        }
+      ]
+    }
+  },
+  ConferenceCenter: {
+    1: {
+      sections: [
+        {
+          label: "Conference Center Rooms",
+          left: ["CC-1", "CC-3"],
+          right: ["CC-2", "CC-4"],
+        }
+      ]
+    }
+  }
+};
+
+const S = {
+  guests:[], assignments:{},
+  roomOverrides:{},
+  alternateLabels:{},
+  building:"Boys", floor:1, selectedRoom:null,
+  selectedGuest:null,
+  panelSearch:"", sideSearch:"", tab:"unassigned",
+  showImport:false, confirmClear:false,
+  compact:false,
+  dragGuestId:null, dropRoomId:null,
+};
+let inspectorUiState={selectedRoomId:null,candScrollTop:0,focusPanelSearch:false};
+const TOUCH_POINTER_MEDIA="(hover: none) and (pointer: coarse)";
+
+function normalizeGuest(raw={}){
+  return {
+    id:String(raw.id || ""),
+    regId:String(raw.regId || ""),
+    name:String(raw.name || "?"),
+    age:Number.isFinite(Number(raw.age)) ? Number(raw.age) : 0,
+    isChild:!!raw.isChild,
+    note:String(raw.note || ""),
+    expected:!!raw.expected,
+    room:raw.room || null,
+  };
+}
+function isExpectedGuest(guest){
+  return !!guest?.expected;
+}
+function getGuestBadgesHtml(guest){
+  return `${guest.isChild?'<span class="badge">child</span>':""}${isExpectedGuest(guest)?'<span class="badge badge-expected">Expected</span>':""}`;
+}
+function getGuestCardBadgeHtml(guest){
+  return isExpectedGuest(guest) ? '<span class="badge badge-expected rc-mini-badge">Expected</span>' : "";
+}
+function getGuestRegLabel(guest){
+  const regId=String(guest?.regId || "").trim();
+  return regId || (isExpectedGuest(guest) ? "No reg/family ID yet" : "No reg ID");
+}
+function getGuestExpectedMetaHtml(guest){
+  if(!isExpectedGuest(guest)) return "";
+  const note=String(guest.note || "").trim();
+  return `<div class="expected-note">Not registered yet${note?` · ${esc(note)}`:""}</div>`;
+}
+function makeExpectedGuestId(){
+  return `expected-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+}
+function csvCell(value){
+  const text=String(value ?? "");
+  return `"${text.replace(/"/g,'""')}"`;
+}
+
+function cloneRoom(room){
+  return {...room};
+}
+function mergeRoomOverrides(room){
+  const override=S.roomOverrides[room.id];
+  return override ? {...room, ...override} : room;
+}
+function getAllRooms(){
+  const all=[];
+  for(const b of Object.values(BUILDINGS)) {
+    for(const f of Object.values(b.floors)) all.push(...f.map(cloneRoom));
+  }
+  all.push(...RV_SPOTS.map(cloneRoom));
+  return all.map(mergeRoomOverrides);
+}
+function getAlternateHousingDestinations(){
+  return ALTERNATE_HOUSING.map(dest=>({
+    ...dest,
+    type:"alternate",
+    roomType:"alternate",
+    assignable:true,
+    cap:null,
+    num:S.alternateLabels[dest.id] || dest.label,
+    defaultLabel:dest.label,
+  }));
+}
+function refreshSelectedRoom(){
+  if(!S.selectedRoom) return;
+  S.selectedRoom=findDestination(S.selectedRoom.id);
+}
+
+function load() {
+  try {
+    const g=localStorage.getItem("cm26-guests"), a=localStorage.getItem("cm26-assignments"), ro=localStorage.getItem("cm26-room-overrides"), al=localStorage.getItem("cm26-alternate-labels");
+    if(g) S.guests=JSON.parse(g).map(normalizeGuest);
+    if(a) S.assignments=JSON.parse(a);
+    if(ro) S.roomOverrides=JSON.parse(ro);
+    if(al) S.alternateLabels=JSON.parse(al);
+  } catch(_){}
+  refreshSelectedRoom();
+}
+function save() {
+  try {
+    localStorage.setItem("cm26-guests",JSON.stringify(S.guests));
+    localStorage.setItem("cm26-assignments",JSON.stringify(S.assignments));
+    localStorage.setItem("cm26-room-overrides",JSON.stringify(S.roomOverrides));
+    localStorage.setItem("cm26-alternate-labels",JSON.stringify(S.alternateLabels));
+  } catch(_){}
+}
+
+let roomCardClickTimer=null;
+
+function isTouchAssignmentMode(){
+  return typeof window !== "undefined" && !!window.matchMedia?.(TOUCH_POINTER_MEDIA).matches;
+}
+function esc(v){ return String(v||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function jsq(v){ return JSON.stringify(String(v||"")).replace(/"/g,"&quot;"); }
+function getDraggableAttr(){
+  return `draggable="${isTouchAssignmentMode() ? "false" : "true"}"`;
+}
+function getSelectedGuest(){
+  return S.guests.find(g=>g.id===S.selectedGuest) || null;
+}
+function refreshPanelPreservingState(){
+  captureInspectorUiState();
+  renderPanel_();
+  restoreInspectorUiState();
+}
+function clearSelectedGuest({refreshPanel=true}={}){
+  if(!S.selectedGuest) return;
+  S.selectedGuest=null;
+  if(refreshPanel) refreshPanelPreservingState();
+}
+function setSelectedGuest(gid){
+  const guest=S.guests.find(g=>g.id===gid);
+  if(!guest) return;
+  S.selectedGuest = S.selectedGuest===gid ? null : gid;
+  refreshPanelPreservingState();
+}
+function getOcc(rid){ return (S.assignments[rid]||[]).map(id=>S.guests.find(g=>g.id===id)).filter(Boolean); }
+function getRegIdKey(regId){
+  return String(regId || "").trim();
+}
+function hashString(str){
+  let hash = 0;
+  for(let i=0;i<str.length;i++) hash = ((hash << 5) - hash + str.charCodeAt(i)) | 0;
+  return Math.abs(hash);
+}
+function getFamilyColor(regId){
+  const key = getRegIdKey(regId);
+  if(!key) return "#d5e0ee";
+  return FAMILY_PALETTE[hashString(key) % FAMILY_PALETTE.length];
+}
+function getFamilyStyle(regId){
+  return ` style="--family-color:${getFamilyColor(regId)}"`;
+}
+function getFamilyStripeStyle(regIds){
+  const unique = Array.from(new Set((regIds || []).filter(Boolean)));
+  if(!unique.length) return "";
+  const colors = unique.map(getFamilyColor);
+  const stripe = colors.length === 1
+    ? colors[0]
+    : `linear-gradient(180deg, ${colors.map((color, idx)=>{
+        const start = Math.round((idx / colors.length) * 100);
+        const end = Math.round(((idx + 1) / colors.length) * 100);
+        return `${color} ${start}% ${end}%`;
+      }).join(", ")})`;
+  return ` style="--family-stripe:${stripe}"`;
+}
+function getFamilyGuests(regId){
+  const key = getRegIdKey(regId);
+  return key ? S.guests.filter(g=>getRegIdKey(g.regId)===key) : [];
+}
+function getFamilyRooms(regId){
+  return Array.from(new Set(getFamilyGuests(regId).map(g=>g.room).filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+}
+function isFamilySplit(regId){
+  return getFamilyRooms(regId).length > 1;
+}
+function getRoomFamilyGroups(roomId){
+  const groups = new Map();
+  getOcc(roomId).forEach(guest=>{
+    const key = getRegIdKey(guest.regId);
+    if(!key) return;
+    if(!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(guest);
+  });
+  return Array.from(groups.entries())
+    .map(([regId, guests])=>({
+      regId,
+      guests: guests.sort((a,b)=>a.name.localeCompare(b.name)),
+      split: isFamilySplit(regId),
+      rooms: getFamilyRooms(regId),
+    }))
+    .sort((a,b)=>(b.guests.length-a.guests.length) || a.regId.localeCompare(b.regId));
+}
+function curRooms(){
+  return S.building==="RV"
+    ? RV_SPOTS.map(cloneRoom).map(mergeRoomOverrides)
+    : (BUILDINGS[S.building]?.floors[S.floor]||[]).map(cloneRoom).map(mergeRoomOverrides);
+}
+function allRoomsFlat(){
+  return getAllRooms();
+}
+function findRoom(id){ return allRoomsFlat().find(r=>r.id===id)||null; }
+function findDestination(id){ return findRoom(id) || getAlternateHousingDestinations().find(dest=>dest.id===id) || null; }
+function isAlternateHousing(room){
+  return !!room && room.roomType==="alternate";
+}
+function isNonAssignableRoom(room){
+  return !!room && (room.assignable===false || ["storage","maintenance","bathroom","non-room"].includes(room.roomType) || room.type==="storage");
+}
+function isRestrictedRoom(room){
+  return !!room && !isNonAssignableRoom(room) && (room.restricted || room.unavail || ["special","staff"].includes(room.roomType));
+}
+function getRestrictedLabel(room){
+  if(!isRestrictedRoom(room)) return "";
+  if(room.roomType==="staff") return "Staff room";
+  if(room.unavail) return "Unavailable by default";
+  if(room.roomType==="special") return "Special-use room";
+  return "Restricted room";
+}
+function getRestrictionWarning(room){
+  if(!isRestrictedRoom(room)) return "";
+  if(room.roomType==="staff") return "Staff room — manual placement only.";
+  if(room.unavail) return "Unavailable by default — manual placement only.";
+  if(room.roomType==="special") return "Special-use room — manual placement only.";
+  return "Restricted room — manual placement only.";
+}
+function setRoomUnavailable(rid, nextUnavail){
+  const room=findRoom(rid);
+  if(!room) return;
+  const next={...(S.roomOverrides[rid]||{}), unavail:!!nextUnavail};
+  if(room.note==="Unavailable by default" || (next.unavail && !next.note)) next.note="Unavailable by default";
+  if(!next.unavail && next.note==="Unavailable by default") delete next.note;
+  S.roomOverrides[rid]=next;
+  save();
+  refreshSelectedRoom();
+  render();
+}
+function getDragGuestIdFromEvent(e){
+  return e.dataTransfer?.getData("text/plain") || e.dataTransfer?.getData("application/x-cm26-guest-id") || S.dragGuestId || "";
+}
+function clearDragState(){
+  S.dragGuestId=null;
+  S.dropRoomId=null;
+  document.querySelectorAll(".g-item.is-dragging, .cand-item.is-dragging").forEach(el=>el.classList.remove("is-dragging"));
+  document.querySelectorAll(".room-card.drag-over").forEach(el=>el.classList.remove("drag-over"));
+}
+function canDropGuestOnRoom(gid, rid){
+  const room=findDestination(rid);
+  const guest=S.guests.find(g=>g.id===gid);
+  return !!room && !!guest && !isNonAssignableRoom(room) && guest.room!==rid;
+}
+function getGridWrapEl(){
+  return document.querySelector(".grid-wrap");
+}
+function captureInspectorUiState(){
+  inspectorUiState={
+    selectedRoomId:S.selectedRoom?.id || null,
+    gridScrollTop:getGridWrapEl()?.scrollTop || 0,
+    candScrollTop:document.getElementById("cand-list")?.scrollTop || 0,
+    occScrollTop:document.getElementById("occ-list-el")?.scrollTop || 0,
+    focusPanelSearch:document.activeElement?.id==="panel-srch",
+  };
+}
+function restoreInspectorUiState(){
+  const gridWrap=getGridWrapEl();
+  if(gridWrap) gridWrap.scrollTop=inspectorUiState.gridScrollTop || 0;
+  if(!S.selectedRoom || inspectorUiState.selectedRoomId!==S.selectedRoom.id) return;
+  const list=document.getElementById("cand-list");
+  if(list) list.scrollTop=inspectorUiState.candScrollTop || 0;
+  const occList=document.querySelector(".occ-list");
+  if(occList) occList.scrollTop=inspectorUiState.occScrollTop || 0;
+  const input=document.getElementById("panel-srch");
+  if(input && inspectorUiState.focusPanelSearch){
+    input.focus();
+    const len=input.value.length;
+    if(input.setSelectionRange) input.setSelectionRange(len, len);
+  }
+}
+function setDropRoom(rid){
+  if(S.dropRoomId===rid) return;
+  S.dropRoomId=rid;
+  document.querySelectorAll(".room-card.drag-over").forEach(el=>{
+    if(el.dataset.rid!==rid) el.classList.remove("drag-over");
+  });
+  if(!rid) return;
+  const card=Array.from(document.querySelectorAll(".room-card[data-rid]")).find(el=>el.dataset.rid===rid);
+  if(card) card.classList.add("drag-over");
+}
+function handleGuestDrop(gid, rid){
+  if(!canDropGuestOnRoom(gid, rid)) return false;
+  captureInspectorUiState();
+  const assigned=assignGuest(gid, rid, {renderAfter:false});
+  if(!assigned) return false;
+  S.selectedRoom=findDestination(rid);
+  S.selectedGuest=null;
+  save();
+  render();
+  return true;
+}
+function resetUnavailableRooms(){
+  let changed=false;
+  Object.keys(S.roomOverrides).forEach(rid=>{
+    if("unavail" in S.roomOverrides[rid]){
+      const next={...S.roomOverrides[rid]};
+      delete next.unavail;
+      if(next.note==="Unavailable by default") delete next.note;
+      if(Object.keys(next).length) S.roomOverrides[rid]=next;
+      else delete S.roomOverrides[rid];
+      changed=true;
+    }
+  });
+  if(changed){
+    captureInspectorUiState();
+    save();
+    refreshSelectedRoom();
+    render();
+  }
+}
+
+function roomStatus(room){
+  if(S.selectedRoom&&S.selectedRoom.id===room.id) return "selected";
+  if(isNonAssignableRoom(room)) return "unavail";
+  if(isRestrictedRoom(room)) return "restricted";
+  if(isAlternateHousing(room)) return getOcc(room.id).length ? "partial" : "empty";
+  const n=getOcc(room.id).length, c=room.cap;
+  if(n===0) return "empty";
+  if(Number.isFinite(c) && c>0 && n>c) return "over";
+  if(Number.isFinite(c) && c>0 && n===c) return "full";
+  return "partial";
+}
+function stats(){
+  const t=S.guests.length, a=S.guests.filter(g=>g.room).length;
+  return {total:t,assigned:a,unassigned:t-a};
+}
+function roomStatusLabel(st){
+  return ({empty:"Empty", partial:"Partial", full:"Full", over:"Over Capacity", selected:"Selected", restricted:"Restricted", unavail:"Unavailable"})[st] || "Room";
+}
+function getPlacementLabel(rid){
+  if(!rid) return "Unassigned";
+  const dest=findDestination(rid);
+  if(!dest) return rid;
+  if(isAlternateHousing(dest)) return dest.num;
+  return dest.id.startsWith("RV-") ? `Site ${dest.num}` : `Room ${dest.num}`;
+}
+function roomCapacityLabel(room){
+  if(isNonAssignableRoom(room)) return room.roomType==="storage" ? "Storage" : "Non-room space";
+  if(isAlternateHousing(room)) return "Alternate housing";
+  if(room.roomType==="rv") return "RV site";
+  if(!Number.isFinite(room.cap) || room.cap<=0) return "No beds";
+  return `${room.cap} ${room.cap===1?"bed":"beds"}`;
+}
+function roomBedLabel(room){
+  if(isNonAssignableRoom(room)) return room.roomType==="storage" ? "Storage" : "Not assignable";
+  if(isAlternateHousing(room)) return "Manual placement bucket";
+  if(room.roomType==="rv") return "Unlimited occupancy";
+  if(room.bedType==="queen" && room.cap>0) {
+    return `${room.cap} queen ${room.cap===1?"bed":"beds"}`;
+  }
+  if(room.bedType==="standard" && room.cap>0) {
+    return `${room.cap} standard ${room.cap===1?"bed":"beds"}`;
+  }
+  if(room.bedType==="mixed" && room.cap>0) {
+    return `${room.cap} mixed ${room.cap===1?"bed":"beds"}`;
+  }
+  if((room.bedType==="twin" || (room.note && room.note.toLowerCase()==="twin")) && room.cap>0) {
+    return `${room.cap} twin ${room.cap===1?"bed":"beds"}`;
+  }
+  return roomCapacityLabel(room);
+}
+function getLayoutMode(){
+  if(S.building==="RV") return "rvDoubleL";
+  return "hallBoard";
+}
+function getRoomTitle(room){
+  if(isAlternateHousing(room)) return "Alternate Housing";
+  return room.id.startsWith("RV-") ? `Site ${room.num}` : `Room ${room.num}`;
+}
+function buildFallbackHallSections(rooms){
+  const left = [], right = [];
+  rooms.forEach((room, idx)=>{
+    (idx % 2 === 0 ? left : right).push(room.id);
+  });
+  return [{ label: "Main Hall", left, right }];
+}
+function getHallSections(){
+  const rooms = curRooms();
+  const configured = HALL_LAYOUTS[S.building]?.[S.floor]?.sections || [];
+  const configuredIds = new Set(
+    configured.flatMap(section=>[...(section.left || []), ...(section.right || [])])
+  );
+  const hasCompleteCoverage =
+    configured.length > 0 &&
+    rooms.length > 0 &&
+    rooms.every(room=>configuredIds.has(room.id));
+
+  return hasCompleteCoverage ? configured : buildFallbackHallSections(rooms);
+}
+function getOtherHousingGroups(){
+  const groups = new Map();
+  S.guests.filter(g=>g.room && !findDestination(g.room)).forEach(g=>{
+    if(!groups.has(g.room)) groups.set(g.room, []);
+    groups.get(g.room).push(g);
+  });
+  return Array.from(groups.entries())
+    .map(([label, guests])=>({
+      label,
+      guests: guests.sort((a,b)=>a.name.localeCompare(b.name)),
+      count: guests.length,
+    }))
+    .sort((a,b)=>a.label.localeCompare(b.label));
+}
+function getNextUnassignedGuest(){
+  return S.guests.find(g=>!g.room) || null;
+}
+function canQuickAssignToRoom(room, allowRestricted=false, allowOverfill=false){
+  if(!room || isNonAssignableRoom(room)) return false;
+  if(isRestrictedRoom(room) && !allowRestricted) return false;
+  if(allowOverfill) return true;
+  if(room.roomType==="rv") return true;
+  if(!Number.isFinite(room.cap) || room.cap<=0) return false;
+  return getOcc(room.id).length < room.cap;
+}
+function refreshRoomCards(){
+  document.querySelectorAll(".room-card").forEach(c=>{
+    const r=findDestination(c.dataset.rid);
+    if(!r) return;
+    c.className="room-card s-"+roomStatus(r);
+    if(isAlternateHousing(r)) c.classList.add("alt-card");
+    if(isNonAssignableRoom(r)) c.setAttribute("disabled","");
+    else c.removeAttribute("disabled");
+  });
+}
+function selectRoom(rid){
+  S.selectedRoom=findDestination(rid);
+  S.panelSearch="";
+  document.getElementById("r-panel").innerHTML=renderPanel();
+  refreshRoomCards();
+  requestAnimationFrame(() => {
+    if(window.innerWidth <= 1100){
+      const panel=document.getElementById("r-panel");
+      if(panel) panel.scrollIntoView({behavior:"auto", block:"start"});
+      return;
+    }
+    const selected=document.querySelector(".room-card.s-selected");
+    if(selected) selected.scrollIntoView({behavior:"smooth", block:"nearest"});
+  });
+}
+function quickAssignToRoom(rid, allowRestricted=false, allowOverfill=false){
+  const room=findDestination(rid);
+  const guest=getNextUnassignedGuest();
+  if(!guest || !canQuickAssignToRoom(room, allowRestricted, allowOverfill)) return false;
+  assignGuest(guest.id, rid);
+  return true;
+}
+function fillRoom(rid, allowRestricted=false, allowOverfill=false){
+  const room=findDestination(rid);
+  if(!canQuickAssignToRoom(room, allowRestricted, allowOverfill)) return 0;
+  captureInspectorUiState();
+  let added=0;
+  while(canQuickAssignToRoom(room, allowRestricted, allowOverfill)){
+    const guest=getNextUnassignedGuest();
+    if(!guest) break;
+    if(!assignGuest(guest.id, rid, {renderAfter:false})) break;
+    added++;
+  }
+  if(added){
+    save();
+    render();
+  }
+  return added;
+}
+function getFamilyMemberPlacementStatus(member, rid){
+  if(member.room===rid) return "here";
+  if(member.room) return "elsewhere";
+  return "unassigned";
+}
+function getFamilyMemberSortRank(member, rid){
+  const status=getFamilyMemberPlacementStatus(member, rid);
+  return ({unassigned:0, elsewhere:1, here:2})[status] ?? 3;
+}
+function getSortedFamilyMembers(regId, rid){
+  return getFamilyGuests(regId).slice().sort((a,b)=>
+    getFamilyMemberSortRank(a, rid)-getFamilyMemberSortRank(b, rid) ||
+    a.name.localeCompare(b.name)
+  );
+}
+function getRelatedFamilyCandidatesForRoom(rid){
+  const room=findDestination(rid);
+  if(!room) return [];
+  const families=getRoomFamilyGroups(rid);
+  return families.map(group=>{
+    const members=getSortedFamilyMembers(group.regId, rid);
+    const pending=members.filter(member=>member.room!==rid);
+    const unassignedCount=pending.filter(member=>!member.room).length;
+    const elsewhereCount=pending.filter(member=>member.room && member.room!==rid).length;
+    return {...group, members, pending, unassignedCount, elsewhereCount};
+  });
+}
+function getPanelSearchNeedle(){
+  return S.panelSearch.trim().toLowerCase();
+}
+function sortCandidateGuests(a,b){
+  return Number(!!a.room) - Number(!!b.room)
+    || Number(isExpectedGuest(a)) - Number(isExpectedGuest(b))
+    || Number(!!getRegIdKey(a.regId)) - Number(!!getRegIdKey(b.regId))
+    || a.name.localeCompare(b.name);
+}
+function getCandidateGuestsForRoom(rid){
+  const searchNeedle=getPanelSearchNeedle();
+  return S.guests
+    .filter(g=>g.room!==rid)
+    .filter(g=>{
+      if(!searchNeedle) return true;
+      return [
+        g.name,
+        g.regId,
+        g.note,
+        getPlacementLabel(g.room),
+      ].some(value=>String(value || "").toLowerCase().includes(searchNeedle));
+    })
+    .sort(sortCandidateGuests);
+}
+function renderCandidateItems(cands, rid){
+  return cands.length ? cands.map(g=>`
+    <button class="cand-item family-accent ${S.selectedGuest===g.id?"is-selected":""}" data-guest-id="${esc(g.id)}" ${getDraggableAttr()} onclick="assignGuest('${esc(g.id)}','${esc(rid)}')"${getFamilyStyle(g.regId)}>
+      <div class="cand-main">
+        <div class="cand-name">${esc(g.name)}${getGuestBadgesHtml(g)}</div>
+        <div class="cand-meta ${g.room?"mv":"fr"}">${esc(getGuestRegLabel(g))} · ${g.room?`Move from ${esc(getPlacementLabel(g.room))}`:"Currently unassigned"}</div>
+        ${getGuestExpectedMetaHtml(g)}
+        ${g.regId?`<div class="family-meta">Family ${esc(g.regId)}</div>`:""}
+      </div>
+      <span class="cand-add">${g.room?"Move":"Add"}</span>
+    </button>`).join("") : `<div class="no-res">${S.panelSearch?"No guests match this search.":"Everyone already in this destination is excluded from the add/move list."}</div>`;
+}
+function renderStandardRoomInspector({
+  room,
+  occItems,
+  occupancyCountLabel,
+  expectedSection,
+  familySection,
+  candidateSection,
+}){
+  return `
+      <div class="inspector-body">
+        <div class="occ-sec">
+          <div class="sec-head">
+            <div class="sec-lbl">Assigned Occupants</div>
+            <div class="sec-count">${occupancyCountLabel}</div>
+          </div>
+          <div class="occ-list">${occItems}</div>
+        </div>
+        ${expectedSection}
+        ${familySection}
+        ${candidateSection}
+      </div>`;
+}
+function renderAlternateInspector({
+  room,
+  occItems,
+  occupancyCountLabel,
+  expectedSection,
+  familySection,
+  candidateSection,
+}){
+  return `
+      <div class="inspector-body alt-priority">
+        <div class="occ-sec">
+          <div class="sec-head">
+            <div class="sec-lbl">Current Occupants</div>
+            <div class="sec-count">${occupancyCountLabel}</div>
+          </div>
+          <div class="occ-list">${occItems}</div>
+        </div>
+        ${expectedSection}
+        ${candidateSection}
+        ${familySection}
+      </div>`;
+}
+function moveFamilyMemberToRoom(gid, rid){
+  return assignGuest(gid, rid);
+}
+function addExpectedGuest(rid){
+  const room=findDestination(rid);
+  if(!room) return false;
+  const nameInput=document.getElementById("expected-name");
+  const noteInput=document.getElementById("expected-note");
+  const regInput=document.getElementById("expected-regid");
+  const childInput=document.getElementById("expected-child");
+  const name=String(nameInput?.value || "").trim();
+  if(!name){
+    window.alert("Expected guest name is required.");
+    nameInput?.focus();
+    return false;
+  }
+  const guest=normalizeGuest({
+    id:makeExpectedGuestId(),
+    regId:String(regInput?.value || "").trim(),
+    name,
+    isChild:!!childInput?.checked,
+    note:String(noteInput?.value || "").trim(),
+    expected:true,
+    room:null,
+  });
+  S.guests=[...S.guests, guest];
+  if(!assignGuest(guest.id, rid)){
+    S.guests=S.guests.filter(x=>x.id!==guest.id);
+    return false;
+  }
+  return true;
+}
+function removeExpectedGuest(gid){
+  const guest=S.guests.find(x=>x.id===gid);
+  if(!guest || !isExpectedGuest(guest)) return;
+  const confirmed=window.confirm(`Remove expected guest ${guest.name}? This deletes the placeholder record.`);
+  if(!confirmed) return;
+  captureInspectorUiState();
+  if(guest.room) S.assignments[guest.room]=(S.assignments[guest.room]||[]).filter(id=>id!==gid);
+  S.guests=S.guests.filter(x=>x.id!==gid);
+  save();
+  render();
+}
+function moveUnassignedFamilyToRoom(regId, rid){
+  const members=getFamilyGuests(regId).filter(member=>!member.room);
+  if(!members.length) return 0;
+  captureInspectorUiState();
+  let moved=0;
+  members.forEach(member=>{
+    if(assignGuest(member.id, rid, {renderAfter:false})) moved++;
+  });
+  if(moved){
+    save();
+    render();
+  }
+  return moved;
+}
+function placeWholeFamilyInRoom(regId, rid){
+  const members=getFamilyGuests(regId).filter(member=>member.room!==rid);
+  if(!members.length) return 0;
+  const hasAssignedElsewhere=members.some(member=>member.room && member.room!==rid);
+  if(hasAssignedElsewhere){
+    const confirmed=window.confirm(`Move every remaining member of family ${regId} into ${getPlacementLabel(rid)}? Guests already assigned elsewhere will be moved.`);
+    if(!confirmed) return 0;
+  }
+  captureInspectorUiState();
+  let moved=0;
+  members.forEach(member=>{
+    if(assignGuest(member.id, rid, {renderAfter:false})) moved++;
+  });
+  if(moved){
+    save();
+    render();
+  }
+  return moved;
+}
+function getRoomsByIds(ids, roomLookup){
+  return ids.map(id=>roomLookup.get(id)).filter(Boolean);
+}
+function zipHallRows(leftRooms, rightRooms){
+  const rows = [];
+  const len = Math.max(leftRooms.length, rightRooms.length);
+  for(let i=0;i<len;i++) rows.push({ left:leftRooms[i]||null, right:rightRooms[i]||null });
+  return rows;
+}
+function renderHallLayout(rooms){
+  const sections = getHallSections();
+  const roomLookup = new Map(rooms.map(room=>[room.id, room]));
+  const isMultiSection = sections.length > 1;
+  const title = isMultiSection ? "Dorm Corridor Sections" : "Dorm Corridor";
+  const copy = isMultiSection
+    ? "Each section now renders as real left-side rooms, a center corridor, and right-side rooms."
+    : "Rooms now render across a central hallway so the floor reads like a true dorm corridor.";
+  return `<div class="layout-surface">
+    <div class="layout-card">
+      <div class="layout-head">
+        <div>
+          <div class="layout-kicker">${esc(BUILDINGS[S.building].label)} · Floor ${esc(S.floor)}</div>
+          <div class="layout-title">${esc(title)}</div>
+        </div>
+        <div class="layout-copy">${esc(copy)}</div>
+      </div>
+      <div class="hall-layout">
+        ${sections.map(section=>`
+          <div class="hall-section">
+            <span class="section-tag">${esc(section.label)}</span>
+            <div class="hall-board">${zipHallRows(
+              getRoomsByIds(section.left, roomLookup),
+              getRoomsByIds(section.right, roomLookup)
+            ).map(row=>`
+              <div class="hall-row">
+                <div class="hall-side left">${row.left ? renderCard(row.left) : '<div class="hall-gap"></div>'}</div>
+                <div class="hallway"><div class="hallway-track"></div></div>
+                <div class="hall-side right">${row.right ? renderCard(row.right) : '<div class="hall-gap"></div>'}</div>
+              </div>
+            `).join("")}</div>
+          </div>`).join("")}
+      </div>
+    </div>
+  </div>`;
+}
+function renderRVLayout(){
+  const top = RV_SPOTS.slice(0, 12).reverse();
+  const left = RV_SPOTS.slice(12, 14);
+  const right = RV_SPOTS.slice(14, 16);
+  const tents = getOtherHousingGroups();
+  return `<div class="layout-surface">
+    <div class="layout-card">
+      <div class="layout-head">
+        <div>
+          <div class="layout-kicker">RV / Other Housing</div>
+          <div class="layout-title">RV Site Map</div>
+        </div>
+        <div class="layout-copy">Sixteen RV sites are arranged to match the double-L reference: sites 1 through 12 across the top, with 13 and 14 on the left and 15 and 16 on the right.</div>
+      </div>
+      <div class="rv-layout">
+        <div class="rv-map">
+          <div class="rv-top-row">${top.map(renderCard).join("")}</div>
+          <div class="rv-bottom">
+            <div class="rv-side">${left.map(renderCard).join("")}</div>
+            <div class="rv-center">
+              <div class="rv-center-copy">
+                <strong>RV Area</strong>
+                Click any site card to manage assignments while keeping the map easy to scan like a campground layout.
+              </div>
+            </div>
+            <div class="rv-side">${right.map(renderCard).join("")}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    ${renderAlternateHousingSection()}
+    <div class="layout-card">
+      <div class="layout-head">
+        <div>
+          <div class="layout-kicker">Tents / Other Housing</div>
+          <div class="layout-title">Non-Room Assignments</div>
+        </div>
+        <div class="layout-copy">Tent placements stay out of the room card workflow and appear here as a simple list.</div>
+      </div>
+      <div class="tent-list">
+        ${tents.length ? tents.map(t=>`<div class="tent-item">
+          <div class="tent-name">${esc(t.label)} <span class="section-tag" style="margin-left:8px">${t.count} assigned</span></div>
+          <div class="tent-meta">${t.guests.map(g=>`${esc(g.name)} (${esc(g.regId)})`).join(" · ")}</div>
+        </div>`).join("") : `<div class="no-res">No tents or other non-room housing assignments are currently in the data.</div>`}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderAlternateHousingSection(){
+  const buckets=getAlternateHousingDestinations();
+  const copy=isTouchAssignmentMode()
+    ? "Tap a guest in the sidebar, then tap Hotel, Airbnb, Home, Offsite, or Other, or open a bucket to use the inspector Add buttons."
+    : "Drag an unassigned guest onto Hotel, Airbnb, Home, Offsite, or Other, or open a bucket to assign by click from the inspector.";
+  return `<div class="layout-card">
+    <div class="layout-head">
+      <div>
+        <div class="layout-kicker">Alternate Housing</div>
+        <div class="layout-title">Manual Placement Buckets</div>
+      </div>
+      <div class="layout-copy">${esc(copy)}</div>
+    </div>
+    <div class="alt-grid">
+      ${buckets.map(renderCard).join("")}
+    </div>
+  </div>`;
+}
+
+function assignGuest(gid,rid,{renderAfter=true}={}){
+  const room=findDestination(rid);
+  if(room && isNonAssignableRoom(room)) return false;
+  const g=S.guests.find(x=>x.id===gid); if(!g||g.room===rid) return false;
+  if(renderAfter) captureInspectorUiState();
+  if(g.room) S.assignments[g.room]=(S.assignments[g.room]||[]).filter(id=>id!==gid);
+  if(!S.assignments[rid]) S.assignments[rid]=[];
+  S.assignments[rid].push(gid);
+  S.guests=S.guests.map(x=>x.id===gid?{...x,room:rid}:x);
+  if(S.selectedGuest===gid) S.selectedGuest=null;
+  if(renderAfter){
+    refreshSelectedRoom();
+    save();
+    render();
+  }
+  return true;
+}
+function unassignGuest(gid){
+  const g=S.guests.find(x=>x.id===gid); if(!g||!g.room) return;
+  captureInspectorUiState();
+  S.assignments[g.room]=(S.assignments[g.room]||[]).filter(id=>id!==gid);
+  S.guests=S.guests.map(x=>x.id===gid?{...x,room:null}:x);
+  save(); render();
+}
+function clearData(){
+  S.guests=[]; S.assignments={}; S.selectedRoom=null; S.selectedGuest=null;
+  localStorage.removeItem("cm26-guests"); localStorage.removeItem("cm26-assignments");
+  S.confirmClear=false; render();
+}
+function exportCSV(){
+  const headers = ["guest_id","reg_id","guest_name","age","is_child","is_expected","note","Room"];
+  const rows = [headers.join(",")];
+  S.guests.forEach(g=>{
+    const dest=g.room ? findDestination(g.room) : null;
+    const roomVal=dest
+      ? (isAlternateHousing(dest) ? dest.id : g.room)
+      : "Unassigned";
+    rows.push([
+      g.id,
+      g.regId || "",
+      g.name,
+      g.age || 0,
+      g.isChild ? "yes" : "no",
+      isExpectedGuest(g) ? "yes" : "no",
+      g.note || "",
+      roomVal,
+    ].map(csvCell).join(","));
+  });
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([rows.join("\n")],{type:"text/csv"}));
+  a.download="cm26-assignments.csv"; a.click();
+}
+function parseCSVLine(line){
+  const result=[];
+  let current="", inQuotes=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(ch==='"'){
+      if(inQuotes && line[i+1]==='"'){ current+='"'; i++; }
+      else { inQuotes=!inQuotes; }
+    } else if(ch===',' && !inQuotes){
+      result.push(current.trim()); current="";
+    } else { current+=ch; }
+  }
+  result.push(current.trim());
+  return result;
+}
+function doImport(){
+  const ta=document.getElementById("import-ta");
+  const text=ta?ta.value:""; if(!text.trim()) return;
+  const lines=text.trim().split(/\r?\n/); if(lines.length<2) return;
+  const headers=parseCSVLine(lines[0]);
+  const guests=[], assignments={};
+  for(let i=1;i<lines.length;i++){
+    const cols=parseCSVLine(lines[i]); if(cols.length<3) continue;
+    const obj={}; headers.forEach((h,idx)=>obj[h]=cols[idx]||"");
+    const guestId   = obj.guest_id   || obj["Guest ID"]  || `g-${i}`;
+    const regId     = obj.reg_id     || obj["Reg ID"]     || "";
+    const guestName = obj.guest_name || obj["Name"]       || "?";
+    const age       = parseInt(obj.age || obj["Age"])     || 0;
+    const isChild   = (obj.is_child  || obj["Child"]      || "").toLowerCase()==="yes";
+    const isExpect  = (obj.is_expected || obj["Expected"] || "").toLowerCase()==="yes";
+    const note      = obj.note       || obj["Note"]       || "";
+    const roomRaw   = obj.Room       || obj["Room"]       || "";
+    const room = roomRaw && roomRaw!=="None" && roomRaw!=="Unassigned" ? roomRaw : null;
+    const g=normalizeGuest({id:guestId,regId,name:guestName,age,isChild,expected:isExpect,note,room});
+    guests.push(g);
+    if(room){if(!assignments[room])assignments[room]=[];assignments[room].push(g.id);}
+  }
+  S.guests=guests; S.assignments=assignments; S.selectedGuest=null; S.showImport=false;
+  save(); render();
+}
+function handleFile(e){
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=ev=>{ const ta=document.getElementById("import-ta"); if(ta) ta.value=ev.target.result; };
+  r.readAsText(f);
+}
+
+function renameAlternateHousing(rid){
+  const dest=findDestination(rid);
+  if(!isAlternateHousing(dest)) return;
+  const next=window.prompt("Rename alternate housing bucket", dest.num || dest.defaultLabel);
+  if(next===null) return;
+  const trimmed=next.trim();
+  if(!trimmed || trimmed===dest.defaultLabel) delete S.alternateLabels[rid];
+  else S.alternateLabels[rid]=trimmed;
+  refreshSelectedRoom();
+  save();
+  render();
+}
+
+function renderCard(room){
+  const occ=getOcc(room.id), st=roomStatus(room);
+  const disabled=isNonAssignableRoom(room);
+  const isAlt=isAlternateHousing(room);
+  const warning=getRestrictionWarning(room);
+  const roomFamilies=getRoomFamilyGroups(room.id);
+  const familyIds=roomFamilies.map(group=>group.regId);
+  const familyDot=familyIds.length===1 ? `<span class="rc-family-dot"${getFamilyStyle(familyIds[0])}></span>` : "";
+  const familyGroupLabel=roomFamilies.length
+    ? `<div class="rc-group">${roomFamilies.slice(0,2).map(group=>`<span class="rc-pill"${getFamilyStyle(group.regId)}>Group ${esc(group.regId)}</span>`).join("")}${roomFamilies.length>2?`<span class="rc-more">+${roomFamilies.length-2} families</span>`:""}</div>`
+    : "";
+  const occText=disabled
+    ? roomCapacityLabel(room)
+    : isAlt
+      ? `${occ.length} assigned`
+      : (Number.isFinite(room.cap) && room.cap>0 ? `${occ.length} of ${room.cap} occupied` : `${occ.length} occupied`);
+  const badges=[
+    isAlt ? "Counts as assigned" : null,
+    room.unavail ? "Unavailable" : null,
+    getRestrictedLabel(room) || null,
+    room.hasBath ? "Private bath" : null,
+    room.note && room.note!=="Unavailable by default" ? room.note : null,
+    room.group ? room.group : null
+  ].filter(Boolean);
+  const names=occ.slice(0,2).map(g=>`<div class="rc-name"${getFamilyStyle(g.regId)}><span>${esc(g.name)}</span>${getGuestCardBadgeHtml(g)}</div>`).join("");
+  const more=occ.length>2?`<div class="rc-more">+${occ.length-2} more assigned</div>`:"";
+  const statusLabel=isAlt && st==="partial" ? "Assigned" : roomStatusLabel(st);
+  return `<button class="room-card ${isAlt?"alt-card ":""}s-${st}${S.dropRoomId===room.id?" drag-over":""}" data-rid="${esc(room.id)}"${getFamilyStripeStyle(familyIds)} ${disabled?"disabled":""}>
+    <div class="rc-top">
+      <div class="rc-heading">${familyDot}<div class="rc-num">${esc(room.num)}</div></div>
+      <div class="rc-status">${esc(statusLabel)}</div>
+    </div>
+    <div class="rc-cap">${esc(getRoomTitle(room))} · ${esc(roomBedLabel(room))} · ${esc(occText)}</div>
+    ${familyGroupLabel}
+    ${badges.length?`<div class="rc-badges">${badges.map(b=>`<span class="rc-badge">${esc(b)}</span>`).join("")}</div>`:""}
+    <div class="rc-names">${names || `<div class="rc-more">${disabled?"Not assignable":warning || "No guests assigned"}</div>`}${more}</div>
+  </button>`;
+}
+
+function renderPanel(){
+  const touchMode=isTouchAssignmentMode();
+  const selectedGuest=getSelectedGuest();
+  const selectedGuestChip=touchMode && selectedGuest ? `
+        <div class="selected-guest-chip"${getFamilyStyle(selectedGuest.regId)}>
+          <div class="selected-guest-chip-copy">
+            <strong>${esc(selectedGuest.name)} selected</strong>
+            <span>Tap a room, RV site, or alternate housing card to assign this guest.</span>
+          </div>
+          <button class="selected-guest-clear" onclick="clearSelectedGuest()" type="button">Clear</button>
+        </div>` : "";
+  if(!S.selectedRoom){
+    const st=stats();
+    const filtered=S.guests.filter(g=>{
+      const m=g.name.toLowerCase().includes(S.sideSearch.toLowerCase());
+      return S.tab==="unassigned"?(!g.room&&m):m;
+    }).sort((a,b)=>(!!a.room-!!b.room)||a.name.localeCompare(b.name));
+    const items=filtered.length?filtered.map(g=>`
+      <div class="g-item ${g.room?"asgn":"free"} family-accent ${S.selectedGuest===g.id?"is-selected":""}" data-guest-id="${esc(g.id)}" ${getDraggableAttr()}${getFamilyStyle(g.regId)}>
+        <div class="guest-row">
+          <div class="guest-copy">
+            <div class="g-name">${esc(g.name)}${getGuestBadgesHtml(g)}</div>
+            <div class="g-meta ${g.room?"":"warn"}">${esc(getGuestRegLabel(g))} · ${esc(getPlacementLabel(g.room))}</div>
+            ${getGuestExpectedMetaHtml(g)}
+            ${g.regId?`<div class="family-meta">Family ${esc(g.regId)}</div>`:""}
+          </div>
+          ${isExpectedGuest(g)?`<div class="guest-actions"><button class="mini-action danger" onclick="removeExpectedGuest('${esc(g.id)}')">Delete</button></div>`:""}
+        </div>
+      </div>`).join(""):`<div class="no-res">No guests match this search.</div>`;
+    return `<div class="panel-scroll">
+      <div class="sidebar">
+        <div class="panel-hero">
+          <span class="panel-kicker">Guest Directory</span>
+          <h3>${st.total ? `${st.unassigned} guests still need rooms` : "Ready to import housing data"}</h3>
+          <p>${st.total ? "Choose a room, RV site, or alternate housing card to assign or move guests. The sidebar keeps the same workflow, just with cleaner scanning and spacing." : "Import your guest CSV to start assigning rooms by building and floor."}</p>
+        </div>
+        <div class="sec-card">
+          <div class="sec-head">
+            <div class="sec-lbl">Guests</div>
+            <div class="sec-count">${st.total} total</div>
+          </div>
+          <div class="mini-tabs">
+            <button class="mtab ${S.tab==="unassigned"?"active":""}" onclick="captureInspectorUiState();S.tab='unassigned';render()">Unassigned (${st.unassigned})</button>
+            <button class="mtab ${S.tab==="all"?"active":""}" onclick="captureInspectorUiState();S.tab='all';render()">All Guests (${st.total})</button>
+          </div>
+        </div>
+        <div class="sec-card" style="display:flex;flex-direction:column;gap:12px;flex:1;min-height:0">
+          <input id="side-srch" class="srch" type="text" placeholder="Search guests by name" value="${esc(S.sideSearch)}" oninput="S.sideSearch=this.value;renderPanel_();updateGuestList()">
+          ${selectedGuestChip}
+          ${S.guests.length===0
+            ?`<div class="no-res">No guest data loaded yet.<br><button class="btn btn-primary" style="margin-top:12px" onclick="S.showImport=true;render()">Import CSV</button></div>`
+            :`<div class="g-list" id="g-list">${items}</div>`}
+        </div>
+        ${S.guests.length>0?`<div class="hint">Tip: ${touchMode?"On phones and tablets, tap a guest here, then tap a room, RV site, or alternate housing card to assign them. You can also use the Add buttons inside the inspector.":"Click any room, RV site, or alternate housing card to open the assignment inspector. Drag guests from this sidebar onto a destination, or double-click a room card to quick-assign the next guest."}</div>`:""}
+      </div>
+    </div>`;
+  }
+
+  const room=S.selectedRoom, occ=getOcc(room.id);
+  const isAlt=isAlternateHousing(room);
+  const warning=getRestrictionWarning(room);
+  const roomFamilies=getRelatedFamilyCandidatesForRoom(room.id);
+  const splitFamilies=roomFamilies.filter(group=>group.split);
+  const bedLabel=roomBedLabel(room);
+  const meta=[roomCapacityLabel(room), !isAlt && bedLabel!==roomCapacityLabel(room) ? bedLabel : null, isAlt ? "Manual assignment" : null, room.unavail ? "Unavailable" : null, getRestrictedLabel(room) || null, room.hasBath?"Private bath":null, room.group?room.group:null, room.note&&room.note!=="Unavailable by default"?room.note:null].filter(Boolean);
+  const bldLabel=isAlt ? "Alternate Housing" : (S.building==="RV" ? "RV / Other" : (BUILDINGS[S.building]?.label || S.building));
+  const inspectorLabel = isAlt ? room.num : (room.id.startsWith("RV-") ? `Site ${room.num}` : `Room ${room.num}`);
+  const toggleLabel=room.unavail ? "Mark Available" : "Mark Unavailable";
+  const canQuickAssign=canQuickAssignToRoom(room);
+  const occItems=occ.length?occ.map(g=>`
+    <div class="occ-item family-accent"${getFamilyStyle(g.regId)}>
+      <div class="occ-main">
+        <div class="guest-copy">
+          <div class="occ-name">${esc(g.name)}${getGuestBadgesHtml(g)}</div>
+          <div class="occ-meta">${esc(getGuestRegLabel(g))}${isAlt?` · ${esc(room.id)}`:""}</div>
+          ${getGuestExpectedMetaHtml(g)}
+          ${g.regId?`<div class="family-meta">Family ${esc(g.regId)}</div>`:""}
+        </div>
+        <div class="occ-actions">
+          <button class="rm-btn secondary" onclick="unassignGuest('${esc(g.id)}')" title="Unassign">Unassign</button>
+          ${isExpectedGuest(g)?`<button class="rm-btn" onclick="removeExpectedGuest('${esc(g.id)}')" title="Delete">Delete</button>`:""}
+        </div>
+      </div>
+    </div>`).join(""):`<div class="no-res">No one is assigned to this room yet.</div>`;
+
+  const cands=getCandidateGuestsForRoom(room.id);
+  const candItems=renderCandidateItems(cands, room.id);
+  const occupancyCountLabel=isAlt ? `${occ.length} assigned` : (Number.isFinite(room.cap) && room.cap>0 ? `${occ.length} / ${room.cap}` : `${occ.length} assigned`);
+  const expectedSection=`
+        <div class="expected-sec">
+          <details class="expected-wrap">
+            <summary>Add Expected Guest</summary>
+            <form class="expected-form" onsubmit="addExpectedGuest('${esc(room.id)}'); return false;">
+              <div class="expected-grid">
+                <label class="expected-field is-wide">
+                  <span class="expected-label">Name</span>
+                  <input id="expected-name" class="expected-input" type="text" placeholder="Guest name" required>
+                </label>
+                <label class="expected-field">
+                  <span class="expected-label">Reg / Family ID</span>
+                  <input id="expected-regid" class="expected-input" type="text" placeholder="Optional">
+                </label>
+                <label class="expected-field">
+                  <span class="expected-label">Note</span>
+                  <input id="expected-note" class="expected-input" type="text" placeholder="Optional note">
+                </label>
+              </div>
+              <label class="expected-check">
+                <input id="expected-child" type="checkbox">
+                Child
+              </label>
+              <div class="expected-actions">
+                <div class="expected-help">Creates a placeholder guest, marks them as expected, and assigns them here immediately.</div>
+                <button class="btn btn-primary" type="submit">Add Expected Guest</button>
+              </div>
+            </form>
+          </details>
+        </div>`;
+  const candidateSection=`
+        <div class="add-sec ${isAlt?"is-alt-add-sec":""}">
+          <div class="sec-head">
+            <div class="sec-lbl">${isAlt?"Add Or Move Into This Bucket":"Add Or Move Guest"}</div>
+            <div class="sec-count">${cands.length} available</div>
+          </div>
+          <div class="cand-tools">
+            <input id="panel-srch" class="srch" type="text" placeholder="Search all guests" value="${esc(S.panelSearch)}" oninput="S.panelSearch=this.value;updateCandList()">
+            <div class="cand-note">This list always shows every guest not already in ${esc(inspectorLabel)}, including unassigned guests and guests assigned elsewhere who can be moved.</div>
+          </div>
+          <div class="cand-list ${isAlt?"is-alt-cand-list":""}" id="cand-list">${candItems}</div>
+        </div>`;
+  const familyItems=roomFamilies.length?roomFamilies.map(group=>`
+    <div class="family-card"${getFamilyStyle(group.regId)}>
+      <div class="family-card-head">
+        <div>
+          <div class="family-card-title">Family ${esc(group.regId)}</div>
+          <div class="family-card-note">${group.guests.length} member${group.guests.length===1?"":"s"} ${isAlt?"connected to this bucket":"connected to this room"}${group.split?` · Also assigned in ${esc(group.rooms.filter(r=>r!==room.id).map(getPlacementLabel).join(", "))}`:" · Everyone already assigned is together here"}</div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end">
+          ${group.split?`<div class="family-split">Split Across ${group.rooms.length} Rooms</div>`:""}
+          ${group.pending.length>1 && group.elsewhereCount===0 ? `<button class="family-batch" onclick="moveUnassignedFamilyToRoom(${jsq(group.regId)},${jsq(room.id)})">Move unassigned family here</button>` : ""}
+          ${group.pending.length>0 && group.elsewhereCount>0 ? `<button class="family-batch" onclick="placeWholeFamilyInRoom(${jsq(group.regId)},${jsq(room.id)})">Place whole family here</button>` : ""}
+        </div>
+      </div>
+      <div class="family-members">${group.members.map(member=>{
+        const status=getFamilyMemberPlacementStatus(member, room.id);
+        const actionLabel=status==="unassigned"?"Add here":(status==="elsewhere"?"Move here":"Already here");
+        const actionDisabled=status==="here";
+        return `
+        <div class="family-member is-${esc(status)}">
+          <div class="family-member-top">
+            <div class="family-member-name">${esc(member.name)}${getGuestBadgesHtml(member)}</div>
+            <div class="family-member-tag">${member.room===room.id?(isAlt?"In this bucket":"In this room"):member.room?`In ${esc(getPlacementLabel(member.room))}`:"Unassigned"}</div>
+          </div>
+          <div class="family-member-loc">${member.room===room.id ? `${esc(inspectorLabel)} occupant` : member.room ? `Assigned to ${esc(getPlacementLabel(member.room))}` : "Not assigned yet"}</div>
+          ${getGuestExpectedMetaHtml(member)}
+          <div class="family-member-actions">
+            <button class="family-act-btn ${actionDisabled?"is-disabled":""}" ${actionDisabled?"disabled":`onclick="moveFamilyMemberToRoom(${jsq(member.id)},${jsq(room.id)})"`}>${actionLabel}</button>
+          </div>
+        </div>
+      `;}).join("")}</div>
+    </div>
+  `).join(""):`<div class="no-res">Assign someone with a shared registration ID to see family members here.</div>`;
+  const familySection=`
+        <div class="family-sec ${isAlt?"is-secondary":""}">
+          <details class="expected-wrap" ${roomFamilies.length <= 2 ? "open" : ""}>
+            <summary>${isAlt?"Related Family Members":"Family Members"} · ${roomFamilies.length} group${roomFamilies.length===1?"":"s"}</summary>
+            <div class="family-list">${familyItems}</div>
+          </details>
+        </div>`;
+
+  return `
+    <div class="inspector-shell">
+      <div class="ph">
+        <div class="ph-top">
+          <div>
+            <div class="sec-lbl">Room Inspector</div>
+            <div class="ph-title">${esc(inspectorLabel)}</div>
+            <div class="ph-sub">${esc(bldLabel)} · ${esc(room.id)}</div>
+          </div>
+          <button class="close-x" onclick="captureInspectorUiState();S.selectedRoom=null;render()">×</button>
+        </div>
+        <div class="ph-meta">${meta.map(item=>`<span class="meta-chip">${esc(item)}</span>`).join("")}</div>
+        <div class="ph-actions">
+          ${isAlt
+            ? `<button class="btn btn-secondary" onclick="renameAlternateHousing('${esc(room.id)}')">Rename Bucket</button>`
+            : `<button class="btn btn-secondary ${room.unavail?"":"warn"}" onclick="setRoomUnavailable('${esc(room.id)}', ${room.unavail?"false":"true"})">${esc(toggleLabel)}</button>`}
+          ${touchMode && !isNonAssignableRoom(room) && !isAlt ? `<button class="btn btn-secondary" onclick="quickAssignToRoom('${esc(room.id)}')" ${canQuickAssign?"":"disabled"}>Quick Add Next Guest</button>` : ""}
+          ${!isNonAssignableRoom(room) && !isAlt && room.roomType!=="rv"?`<button class="btn btn-primary" onclick="fillRoom('${esc(room.id)}', true)">Fill Room</button>`:""}
+        </div>
+        ${selectedGuestChip}
+        ${isAlt?`<div class="panel-warning">Guests placed here count as assigned, but this bucket does not use dorm or RV bed-capacity rules.</div>`:""}
+        ${warning?`<div class="panel-warning">${esc(warning)} Staff can still place guests here manually if needed.</div>`:""}
+        ${splitFamilies.length?`<div class="panel-warning">${splitFamilies.map(group=>`Family ${esc(group.regId)} is split across ${group.rooms.length} rooms`).join(" · ")}</div>`:""}
+      </div>
+      ${isAlt
+        ? renderAlternateInspector({room, occItems, occupancyCountLabel, expectedSection, familySection, candidateSection})
+        : renderStandardRoomInspector({room, occItems, occupancyCountLabel, expectedSection, familySection, candidateSection})}
+    </div>`;
+}
+
+function updateGuestList(){
+  const el=document.getElementById("g-list"); if(!el) return;
+  const filtered=S.guests.filter(g=>{
+    const m=g.name.toLowerCase().includes(S.sideSearch.toLowerCase());
+    return S.tab==="unassigned"?(!g.room&&m):m;
+  }).sort((a,b)=>(!!a.room-!!b.room)||a.name.localeCompare(b.name));
+  el.innerHTML=filtered.length?filtered.map(g=>`
+    <div class="g-item ${g.room?"asgn":"free"} family-accent ${S.selectedGuest===g.id?"is-selected":""}" data-guest-id="${esc(g.id)}" ${getDraggableAttr()}${getFamilyStyle(g.regId)}>
+      <div class="guest-row">
+        <div class="guest-copy">
+          <div class="g-name">${esc(g.name)}${getGuestBadgesHtml(g)}</div>
+          <div class="g-meta ${g.room?"":"warn"}">${esc(getGuestRegLabel(g))} · ${esc(getPlacementLabel(g.room))}</div>
+          ${getGuestExpectedMetaHtml(g)}
+          ${g.regId?`<div class="family-meta">Family ${esc(g.regId)}</div>`:""}
+        </div>
+        ${isExpectedGuest(g)?`<div class="guest-actions"><button class="mini-action danger" onclick="removeExpectedGuest('${esc(g.id)}')">Delete</button></div>`:""}
+      </div>
+    </div>`).join(""):`<div class="no-res">No guests match this search.</div>`;
+}
+function updateCandList(){
+  const el=document.getElementById("cand-list"); if(!el||!S.selectedRoom) return;
+  const rid=S.selectedRoom.id;
+  const cands=getCandidateGuestsForRoom(rid);
+  const countEl=document.querySelector(".add-sec .sec-count");
+  if(countEl) countEl.textContent=`${cands.length} available`;
+  el.innerHTML=renderCandidateItems(cands, rid);
+}
+function renderPanel_(){ document.getElementById("r-panel").innerHTML=renderPanel(); }
+
+function render(){
+  const rooms=curRooms(), st=stats();
+  const layoutMode=getLayoutMode();
+  const floors=S.building!=="RV"?Object.keys(BUILDINGS[S.building]?.floors||{}):[];
+  const hasData=S.guests.length>0;
+
+  const flrHTML=floors.length?`<div class="flr-tabs">${floors.map(f=>`
+    <button class="flr-btn ${S.floor===Number(f)?"active":""}" onclick="inspectorUiState={gridScrollTop:0};S.floor=${f};S.selectedRoom=null;render()">Floor ${f}</button>`).join("")}</div>`:"";
+
+  const gridHTML=!hasData
+    ?`<div class="grid-wrap"><div class="empty"><div class="ico">🏡</div><h2>No guest data loaded</h2><p>Import your Camp Meeting CSV to view room availability, assign guests, and export the finished housing list.</p><button class="btn btn-primary" onclick="S.showImport=true;render()">Import CSV to Get Started</button></div></div>`
+    :`<div class="grid-wrap" id="room-layout">${layoutMode==="rvDoubleL" ? renderRVLayout() : `<div class="layout-surface">${renderHallLayout(rooms)}${renderAlternateHousingSection()}</div>`}</div>`;
+
+  const importModal=S.showImport?`<div class="overlay">
+    <div class="modal">
+      <h2>Import Guest CSV</h2>
+      <p>Paste the contents of <code>Camp_Meeting_2026_GuestDetails.csv</code> or choose the file directly, OR re-import a previously exported <code>cm26-assignments.csv</code>. Required columns are <code>guest_id</code> (or <code>Guest ID</code>), <code>guest_name</code> (or <code>Name</code>), and <code>Room</code>. Importing replaces current guest data.</p>
+      <div class="file-row"><input type="file" accept=".csv" onchange="handleFile(event)"></div>
+      <textarea id="import-ta" placeholder="guest_id,reg_id,guest_name,age,is_child,Room&#10;G-abc,CM26-0001,Jane Doe,35,no,B-201"></textarea>
+      <div class="modal-act">
+        <button class="btn btn-secondary" onclick="S.showImport=false;render()">Cancel</button>
+        <button class="btn btn-primary" onclick="doImport()">Import</button>
+      </div>
+    </div>
+  </div>`:"";
+
+  const clearModal=S.confirmClear?`<div class="overlay">
+    <div class="modal modal-danger">
+      <h2 style="color:var(--danger)">Clear All Data?</h2>
+      <p>This removes every guest record and room assignment stored in the browser for this dashboard. The action cannot be undone.</p>
+      <div class="modal-act">
+        <button class="btn btn-secondary" onclick="S.confirmClear=false;render()">Cancel</button>
+        <button class="btn btn-confirm" onclick="clearData()">Clear Everything</button>
+      </div>
+    </div>
+  </div>`:"";
+
+  document.getElementById("app").innerHTML=`
+    <div class="shell ${S.compact ? "compact" : ""}">
+      <div class="hdr">
+        <div class="hdr-copy">
+          <span class="hdr-eyebrow">Camp Meeting 2026</span>
+          <span class="hdr-title">Housing Assignment Dashboard</span>
+          <span class="hdr-sub">Track occupancy by building, manage room assignments, and keep import/export tasks easy for office staff.</span>
+        </div>
+        <div class="hdr-stats">
+          <div class="stat-pill">
+            <span class="stat-label">Total Guests</span>
+            <span class="stat-value">${st.total}</span>
+            <div class="stat-note">Imported for housing</div>
+          </div>
+          <div class="stat-pill is-assigned">
+            <span class="stat-label">Assigned</span>
+            <span class="stat-value">${st.assigned}</span>
+            <div class="stat-note">Placed in rooms or alternate housing</div>
+          </div>
+          <div class="stat-pill is-open">
+            <span class="stat-label">Unassigned</span>
+            <span class="stat-value">${st.unassigned}</span>
+            <div class="stat-note">Still need placement</div>
+          </div>
+        </div>
+        <div class="hdr-btns">
+          ${hasData?`<button class="btn btn-secondary" onclick="exportCSV()">Export CSV</button>
+          <button class="btn btn-danger" onclick="S.confirmClear=true;render()">Clear Data</button>`:""}
+          <button class="btn btn-primary" onclick="S.showImport=true;render()">Import CSV</button>
+        </div>
+      </div>
+      <div class="main">
+        <div class="room-area">
+          <div class="toolbar">
+            <div class="toolbar-left">
+              <div class="bld-tabs">
+                ${["Boys","Girls","ConferenceCenter","RV"].map(b=>`<button class="bld-btn ${S.building===b?"active":""}" onclick="inspectorUiState={gridScrollTop:0};S.building='${b}';S.floor=1;S.selectedRoom=null;render()">
+                  ${b==="Boys"?"Boys Dorm":b==="Girls"?"Girls Dorm":b==="ConferenceCenter"?"Conference Center":"RV / Other"}
+                </button>`).join("")}
+              </div>
+              ${flrHTML}
+            </div>
+            <div class="toolbar-right">
+              <div class="view-toggle" aria-label="Room density view">
+                <button class="view-btn ${!S.compact?"active":""}" onclick="captureInspectorUiState();S.compact=false;render()">Comfort View</button>
+                <button class="view-btn ${S.compact?"active":""}" onclick="captureInspectorUiState();S.compact=true;render()">Compact View</button>
+              </div>
+              <button class="btn btn-secondary" onclick="resetUnavailableRooms()">Reset All Unavailable Rooms</button>
+              <div class="legend">
+                <span class="leg-item"><span class="leg-sw" style="background:var(--empty-bg); border:1px solid var(--empty-br)"></span>Empty</span>
+                <span class="leg-item"><span class="leg-sw" style="background:var(--partial-bg); border:1px solid var(--partial-br)"></span>Partial</span>
+                <span class="leg-item"><span class="leg-sw" style="background:var(--full-bg); border:1px solid var(--full-br)"></span>Full</span>
+                <span class="leg-item"><span class="leg-sw" style="background:var(--over-bg); border:1px solid var(--over-br)"></span>Over Capacity</span>
+                <span class="leg-item"><span class="leg-sw" style="background:var(--sel-bg); border:1px solid var(--sel-br)"></span>Selected</span>
+              </div>
+            </div>
+          </div>
+          ${gridHTML}
+        </div>
+        <div class="r-panel" id="r-panel">${renderPanel()}</div>
+      </div>
+    </div>
+    ${importModal}${clearModal}`;
+
+  document.getElementById("room-layout")?.addEventListener("click", e=>{
+    const card=e.target.closest(".room-card[data-rid]");
+    if(!card||card.disabled) return;
+    const rid=card.dataset.rid;
+    if(isTouchAssignmentMode()){
+      const selectedGuestId=S.selectedGuest;
+      if(selectedGuestId && canDropGuestOnRoom(selectedGuestId, rid)){
+        handleGuestDrop(selectedGuestId, rid);
+        return;
+      }
+      selectRoom(rid);
+      return;
+    }
+    clearTimeout(roomCardClickTimer);
+    if(e.shiftKey && !isAlternateHousing(findDestination(rid))){
+      quickAssignToRoom(rid);
+      return;
+    }
+    roomCardClickTimer=setTimeout(()=>{
+      selectRoom(rid);
+      roomCardClickTimer=null;
+    },220);
+  });
+  document.getElementById("room-layout")?.addEventListener("dblclick", e=>{
+    if(isTouchAssignmentMode()) return;
+    const card=e.target.closest(".room-card[data-rid]");
+    if(!card||card.disabled) return;
+    if(isAlternateHousing(findDestination(card.dataset.rid))) return;
+    clearTimeout(roomCardClickTimer);
+    roomCardClickTimer=null;
+    quickAssignToRoom(card.dataset.rid);
+  });
+  document.getElementById("r-panel")?.addEventListener("click", e=>{
+    if(!isTouchAssignmentMode()) return;
+    const guestEl=e.target.closest(".g-item[data-guest-id]");
+    if(!guestEl) return;
+    if(e.target.closest("button")) return;
+    setSelectedGuest(guestEl.dataset.guestId);
+  });
+  document.getElementById("r-panel")?.addEventListener("dragstart", e=>{
+    if(isTouchAssignmentMode()) return;
+    const guestEl=e.target.closest(".g-item[data-guest-id], .cand-item[data-guest-id]");
+    if(!guestEl) return;
+    const gid=guestEl.dataset.guestId;
+    S.dragGuestId=gid;
+    guestEl.classList.add("is-dragging");
+    if(e.dataTransfer){
+      e.dataTransfer.effectAllowed="move";
+      e.dataTransfer.setData("text/plain", gid);
+      e.dataTransfer.setData("application/x-cm26-guest-id", gid);
+    }
+  });
+  document.getElementById("r-panel")?.addEventListener("dragend", e=>{
+    if(isTouchAssignmentMode()) return;
+    const guestEl=e.target.closest(".g-item[data-guest-id], .cand-item[data-guest-id]");
+    if(!guestEl) return;
+    clearDragState();
+  });
+  document.getElementById("room-layout")?.addEventListener("dragenter", e=>{
+    if(isTouchAssignmentMode()) return;
+    const card=e.target.closest(".room-card[data-rid]");
+    const gid=getDragGuestIdFromEvent(e);
+    if(!card || !canDropGuestOnRoom(gid, card.dataset.rid)) return;
+    setDropRoom(card.dataset.rid);
+  });
+  document.getElementById("room-layout")?.addEventListener("dragover", e=>{
+    if(isTouchAssignmentMode()) return;
+    const card=e.target.closest(".room-card[data-rid]");
+    const gid=getDragGuestIdFromEvent(e);
+    if(!card || !canDropGuestOnRoom(gid, card.dataset.rid)) return;
+    e.preventDefault();
+    if(e.dataTransfer) e.dataTransfer.dropEffect="move";
+    setDropRoom(card.dataset.rid);
+  });
+  document.getElementById("room-layout")?.addEventListener("dragleave", e=>{
+    if(isTouchAssignmentMode()) return;
+    const card=e.target.closest(".room-card[data-rid]");
+    if(!card || S.dropRoomId!==card.dataset.rid) return;
+    if(card.contains(e.relatedTarget)) return;
+    setDropRoom(null);
+  });
+  document.getElementById("room-layout")?.addEventListener("drop", e=>{
+    if(isTouchAssignmentMode()) return;
+    const card=e.target.closest(".room-card[data-rid]");
+    const gid=getDragGuestIdFromEvent(e);
+    if(!card || !canDropGuestOnRoom(gid, card.dataset.rid)) return;
+    e.preventDefault();
+    handleGuestDrop(gid, card.dataset.rid);
+    clearDragState();
+  });
+  restoreInspectorUiState();
+}
+
+load();
+render();
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && S.selectedRoom) {
+    S.selectedRoom = null;
+    render();
+  }
+});
+</script>
+</body>
+</html>
