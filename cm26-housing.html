@@ -2795,7 +2795,7 @@ function clearData(){
   S.confirmClear=false; render();
 }
 function exportCSV(){
-  const headers = ["guest_id","reg_id","guest_name","age","is_child","is_expected","note","Room"];
+  const headers = ["record_type","guest_id","reg_id","guest_name","age","is_child","is_expected","note","Room","room_id","room_label","is_unavailable"];
   const rows = [headers.join(",")];
   S.guests.forEach(g=>{
     const dest=g.room ? findDestination(g.room) : null;
@@ -2803,6 +2803,7 @@ function exportCSV(){
       ? (isAlternateHousing(dest) ? dest.id : g.room)
       : "Unassigned";
     rows.push([
+      "guest",
       g.id,
       g.regId || "",
       g.name,
@@ -2811,7 +2812,28 @@ function exportCSV(){
       isExpectedGuest(g) ? "yes" : "no",
       g.note || "",
       roomVal,
+      "",
+      "",
+      "",
     ].map(csvCell).join(","));
+  });
+  allRoomsFlat().forEach(room=>{
+    if(S.roomOverrides[room.id]?.unavail===true){
+      rows.push([
+        "room_status",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        room.id,
+        room.num || "",
+        "true",
+      ].map(csvCell).join(","));
+    }
   });
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([rows.join("\n")],{type:"text/csv"}));
@@ -2837,10 +2859,20 @@ function doImport(){
   const text=ta?ta.value:""; if(!text.trim()) return;
   const lines=text.trim().split(/\r?\n/); if(lines.length<2) return;
   const headers=parseCSVLine(lines[0]);
-  const guests=[], assignments={};
+  const guests=[], assignments={}, nextRoomOverrides={...S.roomOverrides};
   for(let i=1;i<lines.length;i++){
     const cols=parseCSVLine(lines[i]); if(cols.length<3) continue;
     const obj={}; headers.forEach((h,idx)=>obj[h]=cols[idx]||"");
+    const recordType=(obj.record_type || obj["Record Type"] || "").toLowerCase();
+    if(recordType==="room_status"){
+      const roomId=obj.room_id || obj["Room ID"] || "";
+      const isUnavailableRaw=obj.is_unavailable || obj["Is Unavailable"] || "";
+      const isUnavailable=String(isUnavailableRaw).toLowerCase()==="true" || String(isUnavailableRaw).toLowerCase()==="yes";
+      if(roomId && isUnavailable){
+        nextRoomOverrides[roomId]={...(nextRoomOverrides[roomId]||{}), unavail:true};
+      }
+      continue;
+    }
     const guestId   = obj.guest_id   || obj["Guest ID"]  || `g-${i}`;
     const regId     = obj.reg_id     || obj["Reg ID"]     || "";
     const guestName = obj.guest_name || obj["Name"]       || "?";
@@ -2854,7 +2886,7 @@ function doImport(){
     guests.push(g);
     if(room){if(!assignments[room])assignments[room]=[];assignments[room].push(g.id);}
   }
-  S.guests=guests; S.assignments=assignments; S.selectedGuest=null; S.showImport=false;
+  S.guests=guests; S.assignments=assignments; S.roomOverrides=nextRoomOverrides; S.selectedGuest=null; S.showImport=false;
   save(); render();
 }
 function handleFile(e){
