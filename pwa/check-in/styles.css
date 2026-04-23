@@ -45,6 +45,11 @@ header {
   align-items: center;
   width: 100%;
 }
+.header-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
 .header-actions {
   display: flex;
@@ -292,6 +297,12 @@ input[type="date"]:focus {
 .btn-sm        { padding: 6px 10px; font-size: 0.9rem; }
 .btn-white     { background: white; color: var(--primary-dark); }
 .full-width    { width: 100%; }
+.back-btn {
+  width: auto;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+}
 
 /* ── Scanner ─────────────────────────────── */
 #reader {
