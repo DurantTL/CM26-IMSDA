@@ -285,7 +285,7 @@ input[type="date"]:focus {
 .btn-danger    { background: var(--danger); color: white; }
 .btn-outline   { background: transparent; border: 1px solid #cbd5e0; color: #4a5568; }
 .btn-sm        { padding: 6px 10px; font-size: 0.9rem; }
-.btn-white     { background: white; color: var(--primary-dark); }
+.btn-white     { background: var(--btn-surface-bg); color: var(--primary-dark); border: 1px solid var(--btn-surface-border); }
 .full-width    { width: 100%; }
 .back-btn {
   width: auto;
@@ -716,24 +716,29 @@ input[type="date"],
   transition: var(--transition);
   min-height: 42px;
   touch-action: manipulation;
+  border: 1px solid transparent;
+  box-shadow: var(--btn-surface-shadow), var(--btn-inset-highlight);
 }
 
 .btn-primary {
-  background: linear-gradient(180deg, #3277c1, var(--primary-dark));
-  box-shadow: 0 10px 24px rgba(44, 111, 182, 0.28);
+  background: var(--btn-primary-bg);
+  border-color: rgba(29, 83, 139, 0.62);
+  box-shadow: var(--btn-primary-shadow), var(--btn-inset-highlight);
+  color: #fff;
 }
 
 .btn-secondary,
 .btn-white {
-  background: linear-gradient(180deg, rgba(249, 253, 255, 0.92), rgba(231, 241, 252, 0.85));
-  border: 1px solid var(--border-strong);
+  background: var(--btn-surface-bg);
+  border: 1px solid var(--btn-surface-border);
   color: var(--text);
 }
 
 .btn-outline {
-  background: rgba(241, 248, 255, 0.68);
-  border: 1px solid var(--border-strong);
+  background: linear-gradient(180deg, rgba(239, 248, 255, 0.84), rgba(226, 239, 252, 0.72));
+  border: 1px solid var(--btn-surface-border);
   color: var(--text);
+  box-shadow: 0 6px 16px rgba(23, 48, 80, 0.12), var(--btn-inset-highlight);
 }
 
 .btn-danger {
@@ -852,7 +857,11 @@ button {
 @media (hover: hover) {
   .btn:hover {
     transform: translateY(-1px);
-    box-shadow: var(--shadow-md), var(--surface-glow);
+    box-shadow: 0 14px 30px rgba(24, 52, 87, 0.2), var(--btn-inset-highlight);
+  }
+
+  .btn-primary:hover {
+    box-shadow: 0 16px 34px rgba(33, 84, 139, 0.34), var(--btn-inset-highlight);
   }
 
   .tab-btn:hover {
