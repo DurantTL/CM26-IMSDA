@@ -2,8 +2,11 @@
 /**
  * Plugin Name: Camp Meeting 2026 Integration
  * Description: Connects Fluent Forms to Google Apps Script with field mapping debug.
- * Version: 6.3
+ * Version: 6.4
  * Author: IMC
+ *
+ * CHANGELOG v6.4:
+ * - Fixed test payload action treating GAS 302 response as failure after v6.3 302=success change.
  *
  * CHANGELOG v6.3:
  * - Fixed blocking POST false-failure caused by following GAS 302 redirect to googleusercontent which returns 400 HTML.
@@ -337,31 +340,15 @@ function cm26_handle_admin_actions() {
             $rawBody = wp_remote_retrieve_body($response);
             $httpCode = wp_remote_retrieve_response_code($response);
             
-            // Follow 302 redirect
             if ($httpCode == 302) {
-                $location = wp_remote_retrieve_header($response, 'location');
-                if (empty($location) && preg_match('/HREF="([^"]+)"/', $rawBody, $matches)) {
-                    $location = $matches[1];
-                }
-                if (!empty($location)) {
-                    $redirectAllowed = cm26_is_allowed_gas_url($location);
-                    if (is_wp_error($redirectAllowed)) {
-                        $resultData['success'] = false;
-                        $resultData['message'] = 'Redirect URL validation failed: ' . $redirectAllowed->get_error_message();
-                        $resultData['http_code'] = $httpCode;
-                        $resultData['raw'] = $rawBody;
-                        set_transient('cm26_test_result', $resultData, 300);
-                        wp_redirect(add_query_arg(['page' => 'cm26-settings', 'test_done' => '1'], admin_url('admin.php')));
-                        exit;
-                    }
-                    $redirectResponse = wp_remote_get($location, ['timeout' => 30, 'redirection' => 5]);
-                    if (!is_wp_error($redirectResponse)) {
-                        $rawBody = wp_remote_retrieve_body($redirectResponse);
-                        $httpCode = wp_remote_retrieve_response_code($redirectResponse);
-                    }
-                }
+                $resultData['success'] = true;
+                $resultData['http_code'] = $httpCode;
+                $resultData['message'] = 'Success! GAS accepted the submission (302 after doPost).';
+                set_transient('cm26_test_result', $resultData, 300);
+                wp_redirect(add_query_arg(['page' => 'cm26-settings', 'test_done' => '1'], admin_url('admin.php')));
+                exit;
             }
-            
+
             $resultData['http_code'] = $httpCode;
             $resultData['raw'] = $rawBody;
             
