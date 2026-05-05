@@ -84,6 +84,7 @@ function onStaffFormSubmit(e) {
       specialRequests: responses['Special Requests (Requires Administration Approval)'] ? responses['Special Requests (Requires Administration Approval)'][0] : '',
 
       // Staff = free
+      skipAvailabilityCheck: true,
       paymentMethod: 'free',
       paymentStatus: 'paid',
       totalCharged: 0,
@@ -930,6 +931,67 @@ function setupVolunteerTrackingSheet() {
   // Bold the header row
   sheet.getRange(1, 1, 1, 9).setFontWeight('bold');
   Logger.log('Volunteer Tracking sheet created.');
+}
+
+/**
+ * One-shot manual registration for a staff member.
+ * Fill in the fields below and run once from the Apps Script editor.
+ */
+function manualStaffRegistration() {
+  var data = {
+    action: 'submitRegistration',
+    regType: 'staff',
+    skipAvailabilityCheck: true,
+
+    // ── FILL THESE IN ──────────────────────────────
+    staffRole: 'Staff',           // their role
+    name: '',                     // full name
+    email: '',                    // email
+    phone: '',                    // phone
+    housingOption: 'dorm',        // dorm | rv | tent | none
+    dietaryNeeds: '',
+    specialNeeds: '',
+    specialRequests: '',
+    spouseVolunteering: false,
+    spouseName: '',
+    spouseDepartments: '',
+    spouseDepartmentOther: '',
+    // ── END FILL IN ────────────────────────────────
+
+    nights: 'tue,wed,thu,fri,sat',
+    numNights: 5,
+    adultsCount: 1,
+    childrenCount: 0,
+    totalGuests: 1,
+    paymentMethod: 'free',
+    paymentStatus: 'paid',
+    totalCharged: 0,
+    subtotal: 0,
+    processingFee: 0,
+    housingSubtotal: 0,
+    mealSubtotal: 0,
+    submittedAt: new Date().toISOString()
+  };
+
+  var guestList = [{
+    name: data.name,
+    age: 30,
+    isChild: false,
+    attendanceType: 'full',
+    attendanceRaw: 'Full Time',
+    attendanceDays: ['tue', 'wed', 'thu', 'fri', 'sat']
+  }];
+
+  data.guests = guestList;
+  data.mealSelections = buildStaffMealSelections(guestList);
+  data.childClassCounts = buildChildClassCounts(guestList);
+
+  var result = processRegistration(data);
+  Logger.log(JSON.stringify(result));
+
+  if (result.success && data.spouseVolunteering && data.spouseName) {
+    writeVolunteerRecord(data, result.registrationId);
+  }
 }
 
 /**
