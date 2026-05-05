@@ -35,15 +35,16 @@ function processRegistration(data) {
     // 1. Validate Housing Availability
     // Defaults to 1 unit if not specified
     // Pass numNights for minNights check (Issue 14)
-    var availCheck = checkAvailability(data.housingOption, 1, data.numNights || 0);
-    
-    if (!availCheck.available) {
-      // Return specific flag so frontend knows to offer waitlist
-      return { 
-        success: false, 
-        error: availCheck.message, 
-        waitlistAvailable: true 
-      };
+    if (!data.skipAvailabilityCheck) {
+      var availCheck = checkAvailability(data.housingOption, 1, data.numNights || 0);
+      if (!availCheck.available) {
+        // Return specific flag so frontend knows to offer waitlist
+        return {
+          success: false,
+          error: availCheck.message,
+          waitlistAvailable: true
+        };
+      }
     }
     
     // 2. Generate IDs
