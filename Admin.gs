@@ -1669,3 +1669,164 @@ function promptSendRVReminders() {
   var result = sendRVReminderEmails();
   ui.alert('Done', 'RV reminders sent: ' + result.sent + '\nErrors: ' + result.errors, ui.ButtonSet.OK);
 }
+
+// ==========================================
+// DEADLINE MANAGEMENT (ADMIN)
+// ==========================================
+
+/**
+ * Return current registration and cancellation deadlines from Config.
+ */
+function adminGetDeadlines() {
+  try {
+    var config = getConfig();
+    return {
+      success: true,
+      registrationDeadline: config.registration_deadline ? String(config.registration_deadline) : '',
+      cancellationDeadline: config.cancellation_deadline ? String(config.cancellation_deadline) : ''
+    };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Write updated deadline dates to the Config sheet and clear the cache.
+ * Creates new Config rows if the keys don't already exist.
+ */
+function adminUpdateDeadlines(payload) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) {
+    return { success: false, error: 'System busy. Please try again.' };
+  }
+  try {
+    var ss = getSS();
+    var configSheet = ss.getSheetByName('Config');
+    if (!configSheet) return { success: false, error: 'Config sheet not found' };
+
+    var regDeadline    = String((payload && payload.registrationDeadline)  || '').trim();
+    var cancelDeadline = String((payload && payload.cancellationDeadline)   || '').trim();
+
+    var data  = configSheet.getDataRange().getValues();
+    var found = { registration_deadline: false, cancellation_deadline: false };
+
+    for (var i = 1; i < data.length; i++) {
+      var key = String(data[i][0] || '').trim();
+      if (key === 'registration_deadline' && !found[key]) {
+        configSheet.getRange(i + 1, 2).setValue(regDeadline);
+        found[key] = true;
+      } else if (key === 'cancellation_deadline' && !found[key]) {
+        configSheet.getRange(i + 1, 2).setValue(cancelDeadline);
+        found[key] = true;
+      }
+    }
+
+    if (!found['registration_deadline'])  configSheet.appendRow(['registration_deadline',  regDeadline]);
+    if (!found['cancellation_deadline'])  configSheet.appendRow(['cancellation_deadline',  cancelDeadline]);
+
+    SpreadsheetApp.flush();
+    clearConfigCache();
+
+    logActivity('admin_config_update', 'CONFIG',
+      'Deadlines: registration=' + regDeadline + ' cancellation=' + cancelDeadline, 'admin');
+
+    return { success: true, registrationDeadline: regDeadline, cancellationDeadline: cancelDeadline };
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ==========================================
+// MANUAL WORKER REGISTRATION (ADMIN)
+// ==========================================
+
+/**
+ * Register a worker/staff/volunteer manually from the admin sidebar.
+ * Identical processing path to onStaffFormSubmit() — $0, skipAvailabilityCheck.
+ *
+ * @param {Object} payload  {name, email, phone, role, housingOption,
+ *                           familyMembers, dietaryNeeds, specialNeeds}
+ * @returns {Object} Standard processRegistration result plus {success, registrationId, error?}
+ */
+function adminManualWorkerRegistration(payload) {
+  try {
+    var name  = ((payload && payload.name)  || '').trim();
+    var email = ((payload && payload.email) || '').trim();
+    if (!name || !email) {
+      return { success: false, error: 'Name and email are required' };
+    }
+
+    // Duplicate check — same logic as onStaffFormSubmit
+    var regData = getSS().getSheetByName('Registrations').getDataRange().getValues();
+    for (var i = 1; i < regData.length; i++) {
+      if (String(regData[i][COLUMNS.EMAIL] || '') === email && isActiveRegistration(regData[i])) {
+        return { success: false, error: 'An active registration already exists for: ' + email };
+      }
+    }
+
+    // Parse family members using the same parser as the Google Form path
+    var guests = parseGuestDetails(((payload.familyMembers || '') + '').trim());
+
+    // Primary registrant anchored at front (full attendance, adult)
+    guests.unshift({
+      name: name,
+      age: 30,
+      isChild: false,
+      attendanceType: 'full',
+      attendanceRaw: 'Full Time',
+      attendanceDays: getCampMeetingDays()
+    });
+
+    var adultsCount = 0, childrenCount = 0;
+    for (var g = 0; g < guests.length; g++) {
+      if (guests[g].isChild) childrenCount++;
+      else adultsCount++;
+    }
+
+    var data = {
+      action: 'submitRegistration',
+      regType: 'staff',
+      skipAvailabilityCheck: true,
+      staffRole:    ((payload.role      || 'Staff') + '').trim(),
+      name:         name,
+      email:        email,
+      phone:        ((payload.phone     || '') + '').trim(),
+      housingOption: payload.housingOption || 'none',
+      nights:   'tue,wed,thu,fri,sat',
+      numNights: 5,
+      adultsCount:   adultsCount,
+      childrenCount: childrenCount,
+      totalGuests:   adultsCount + childrenCount,
+      guests:        guests,
+      dietaryNeeds:  ((payload.dietaryNeeds  || '') + '').trim(),
+      specialNeeds:  ((payload.specialNeeds  || '') + '').trim(),
+      specialRequests: '',
+      paymentMethod: 'free',
+      paymentStatus: 'paid',
+      totalCharged:  0,
+      subtotal:      0,
+      processingFee: 0,
+      housingSubtotal: 0,
+      mealSubtotal:  0,
+      submittedAt:   new Date().toISOString()
+    };
+
+    data.mealSelections   = buildStaffMealSelections(guests);
+    data.childClassCounts = buildChildClassCounts(guests);
+
+    var result = processRegistration(data);
+
+    if (result.success) {
+      logActivity('admin_worker_reg', result.registrationId,
+        'Manual worker registration: ' + name +
+        ' role=' + data.staffRole +
+        ' housing=' + data.housingOption, 'admin');
+    }
+
+    return result;
+  } catch (e) {
+    return { success: false, error: 'adminManualWorkerRegistration: ' + e.toString() };
+  }
+}
