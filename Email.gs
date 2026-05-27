@@ -96,26 +96,23 @@ function sendWaitlistOfferEmail(waitlistId, name, email, housingOption, expiresA
 }
 
 /**
- * Sends the HTML reminder email to a registrant
+ * Sends the dorm reminder email to a registrant
  */
 function sendReminderEmail(regId) {
   var config = getConfig();
   var regResult = getRegistration(regId);
 
   if (!regResult.success) {
-    Logger.log("Error: Registration not found for email " + regId);
-    return;
+    Logger.log('Error: Registration not found for reminder email ' + regId);
+    return { success: false, error: 'Registration not found' };
   }
 
   var reg = regResult.registration;
 
-  // Prepare the template
   var template = HtmlService.createTemplateFromFile('ReminderEmailTemplate');
   template.reg = reg;
-
   var emailBody = template.evaluate().getContent();
 
-  // Send the email
   try {
     GmailApp.sendEmail(
       reg.email,
@@ -129,9 +126,71 @@ function sendReminderEmail(regId) {
     );
 
     logActivity('email_sent', regId, 'Reminder email sent to ' + reg.email, 'system');
-    Logger.log("Reminder email sent successfully to " + reg.email);
+    Logger.log('Reminder email sent successfully to ' + reg.email);
+    return { success: true, email: reg.email };
   } catch (e) {
-    Logger.log("Failed to send reminder email: " + e.toString());
+    Logger.log('Failed to send reminder email: ' + e.toString());
     logActivity('error', regId, 'Reminder email failed: ' + e.toString(), 'system');
+    return { success: false, error: e.toString() };
+  }
+}
+
+/**
+ * Sends the RV reminder email to a registrant, including their RV slot number
+ * from column J (array index 9) of the GuestDetails sheet.
+ */
+function sendRVReminderEmail(regId) {
+  var config = getConfig();
+  var regResult = getRegistration(regId);
+
+  if (!regResult.success) {
+    Logger.log('Error: Registration not found for RV reminder email ' + regId);
+    return { success: false, error: 'Registration not found' };
+  }
+
+  var reg = regResult.registration;
+
+  // Look up RV slot from GuestDetails column J (0-based index 9)
+  var rvSlot = '';
+  try {
+    var ss = getSS();
+    var guestSheet = ss.getSheetByName('GuestDetails');
+    if (guestSheet) {
+      var guestData = guestSheet.getDataRange().getValues();
+      for (var i = 1; i < guestData.length; i++) {
+        if (String(guestData[i][1]) === String(regId)) {
+          rvSlot = String(guestData[i][9] || '');
+          break;
+        }
+      }
+    }
+  } catch (e) {
+    Logger.log('Error looking up RV slot for ' + regId + ': ' + e.toString());
+  }
+
+  var template = HtmlService.createTemplateFromFile('RVReminderEmailTemplate');
+  template.reg = reg;
+  template.rvSlot = rvSlot;
+  var emailBody = template.evaluate().getContent();
+
+  try {
+    GmailApp.sendEmail(
+      reg.email,
+      'Camp Meeting 2026 - See You Soon!',
+      'Camp Meeting is almost here! Your RV spot assignment is included. Please view this email online.',
+      {
+        htmlBody: emailBody,
+        name: 'Iowa-Missouri Conference',
+        replyTo: config.admin_email || 'communication@imsda.org'
+      }
+    );
+
+    logActivity('email_sent', regId, 'RV reminder sent to ' + reg.email + ' (slot: ' + (rvSlot || 'none') + ')', 'system');
+    Logger.log('RV reminder email sent successfully to ' + reg.email);
+    return { success: true, email: reg.email, rvSlot: rvSlot };
+  } catch (e) {
+    Logger.log('Failed to send RV reminder email: ' + e.toString());
+    logActivity('error', regId, 'RV reminder email failed: ' + e.toString(), 'system');
+    return { success: false, error: e.toString() };
   }
 }
