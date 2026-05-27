@@ -9,7 +9,7 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#2c6fb6">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" type="text/javascript"></script>
 </head>
 <body>
 
@@ -86,11 +86,23 @@
 
             <!-- Scan + Arrivals row -->
             <div class="action-row">
-                <button id="scan-btn" class="btn btn-secondary">📷 Scan QR</button>
+                <button id="scan-btn" class="btn btn-primary">📷 Scan QR</button>
                 <div class="arrivals-group">
                     <input type="date" id="arrivals-date" title="Select date for arrivals">
                     <button id="arrivals-btn" class="btn btn-outline">📋 Arrivals</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- MEAL TICKET CALCULATOR -->
+        <div id="meal-calc-section" class="card">
+            <button class="meal-calc-toggle" onclick="toggleMealCalc()">
+                💳 Meal Ticket Calculator <span id="meal-calc-chevron">▼</span>
+            </button>
+            <div id="meal-calc-body" style="display:none; margin-top:12px">
+                <label for="meal-calc-input" style="display:block; font-weight:600; margin-bottom:6px;">Ticket Subtotal ($)</label>
+                <input type="number" id="meal-calc-input" placeholder="0.00" min="0" step="0.01">
+                <div id="meal-calc-result" class="meal-calc-result" style="display:none"></div>
             </div>
         </div>
 
