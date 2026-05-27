@@ -714,7 +714,7 @@ input[type="date"],
 .btn {
   border-radius: var(--radius-md);
   transition: var(--transition);
-  min-height: 42px;
+  min-height: 44px;
   touch-action: manipulation;
   border: 1px solid transparent;
   box-shadow: var(--btn-surface-shadow), var(--btn-inset-highlight);
@@ -742,8 +742,8 @@ input[type="date"],
 }
 
 .btn-danger {
-  background: linear-gradient(180deg, #df6f60, #c95445);
-  box-shadow: 0 10px 22px rgba(201, 90, 73, 0.2);
+  background: linear-gradient(180deg, #d45a49, #b84335);
+  box-shadow: 0 10px 22px rgba(184, 67, 53, 0.25);
 }
 
 .btn:active,
@@ -844,6 +844,38 @@ button {
 
 #stat-expected {
   color: var(--warning);
+}
+
+/* ── Meal Ticket Calculator ──────────────── */
+.meal-calc-toggle {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  padding: 0;
+  min-height: auto;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.meal-calc-result {
+  background: var(--panel-soft);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin-top: 10px;
+  font-size: 0.95rem;
+  line-height: 1.9;
+}
+
+.meal-calc-total {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--primary);
 }
 
 @media (max-width: 480px) {

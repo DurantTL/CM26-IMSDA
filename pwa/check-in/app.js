@@ -79,6 +79,7 @@ function initializeBindings() {
     els.syncBtn.addEventListener('click', processOfflineQueue);
     els.logoutBtn.addEventListener('click', logout);
     els.auth.form.addEventListener('submit', handleLogin);
+    document.getElementById('meal-calc-input').addEventListener('input', updateMealCalc);
 
     document.getElementById('checkin-form').addEventListener('submit', submitCheckInForm);
     document.getElementById('checkout-form').addEventListener('submit', submitCheckOutForm);
@@ -175,6 +176,7 @@ async function logout() {
         await html5QrCode.stop().catch(() => {});
         html5QrCode = null;
         els.reader.style.display = 'none';
+        els.scanBtn.className = 'btn btn-primary';
         els.scanBtn.textContent = '📷 Scan QR';
     }
 
@@ -683,6 +685,7 @@ function toggleScanner() {
         html5QrCode.stop().then(() => {
             html5QrCode = null;
             els.reader.style.display = 'none';
+            els.scanBtn.className = 'btn btn-primary';
             els.scanBtn.textContent = '📷 Scan QR';
         });
         return;
@@ -703,6 +706,32 @@ function toggleScanner() {
                 doSearchById();
             }
         }
-    );
-    els.scanBtn.textContent = 'Stop Scan';
+    ).catch(() => {
+        html5QrCode = null;
+        els.reader.style.display = 'none';
+        els.scanBtn.className = 'btn btn-primary';
+        els.scanBtn.textContent = '📷 Scan QR';
+        showResultsError('Camera access denied. Check browser permissions and try again.');
+    });
+    els.scanBtn.className = 'btn btn-danger';
+    els.scanBtn.textContent = '⏹ Stop Scan';
+}
+
+function toggleMealCalc() {
+    const body = document.getElementById('meal-calc-body');
+    const chevron = document.getElementById('meal-calc-chevron');
+    const open = body.style.display === 'none';
+    body.style.display = open ? 'block' : 'none';
+    chevron.textContent = open ? '▲' : '▼';
+    if (open) document.getElementById('meal-calc-input').focus();
+}
+
+function updateMealCalc() {
+    const subtotal = parseFloat(document.getElementById('meal-calc-input').value) || 0;
+    const result = document.getElementById('meal-calc-result');
+    if (subtotal <= 0) { result.style.display = 'none'; return; }
+    const fee = Math.round((subtotal * 0.026 + 0.15) * 100) / 100;
+    const total = Math.round((subtotal + fee) * 100) / 100;
+    result.style.display = 'block';
+    result.innerHTML = `Subtotal: $${subtotal.toFixed(2)}<br>Square fee (2.6% + $0.15): $${fee.toFixed(2)}<br><span class="meal-calc-total">Charge on Square: $${total.toFixed(2)}</span>`;
 }
