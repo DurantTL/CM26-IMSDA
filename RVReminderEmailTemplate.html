@@ -10,6 +10,8 @@
     .header h1 { margin: 0; font-size: 24px; }
     .content { padding: 30px; }
     .reg-id-box { background: #e8f4fd; border: 2px dashed #1a365d; color: #1a365d; padding: 15px; text-align: center; font-size: 24px; font-weight: bold; margin: 20px 0; letter-spacing: 1px; }
+    .slot-box { background: #f0fdf4; border: 2px solid #16a34a; color: #166534; padding: 15px; text-align: center; font-size: 22px; font-weight: bold; margin: 20px 0; border-radius: 6px; }
+    .slot-label { font-size: 13px; font-weight: normal; color: #166534; display: block; margin-bottom: 4px; }
     .qr-section { text-align: center; margin: 25px 0; padding: 20px; background: #fff; border: 1px solid #eee; border-radius: 8px; }
     .qr-section img { max-width: 180px; height: auto; display: inline-block; }
     .qr-caption { font-size: 13px; color: #666; margin-top: 10px; }
@@ -32,9 +34,14 @@
 
       <p>Thank you for registering for Camp Meeting 2026. This is a reminder that Camp Meeting will take place <strong>June 2–6, 2026</strong>.</p>
 
-      <p>If you have reserved lodging, please note that dorm room numbers will not be assigned ahead of time. You will receive your room assignment when you check in at the <strong>Information Center, located in the library</strong>. Check-in will begin any time after <strong>2:00 p.m. on Tuesday, June 2</strong>.</p>
+      <p>Your RV/camper spot assignment is shown below. Check-in will begin any time after <strong>2:00 p.m. on Tuesday, June 2</strong> at the <strong>Information Center, located in the library</strong>.</p>
 
-      <p>At check-in, you will receive your registration packet, which will include the Camp Meeting program, meal tickets, room information, and any other important details. If you owe a balance, you may pay the balance at check-in. Please also remember that there will be a <strong>$5.00 deposit per key</strong> for your dorm room.</p>
+      <p>At check-in, you will receive your registration packet, which will include the Camp Meeting program, meal tickets, and any other important details. If you owe a balance, you may pay the balance at check-in.</p>
+
+      <div class="slot-box">
+        <span class="slot-label">Your RV / Camper Spot</span>
+        <?= rvSlot || 'See Information Center at Check-In' ?>
+      </div>
 
       <p>Please make note of the following important information:</p>
 
@@ -42,10 +49,6 @@
         <li>
           <strong>No Pets</strong>
           Dogs, cats, or other pets are not allowed on campus.
-        </li>
-        <li>
-          <strong>Bring Your Own Bedding and Linens</strong>
-          There are two twin beds per dorm room.
         </li>
         <li>
           <strong>Your Address During Camp</strong>

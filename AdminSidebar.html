@@ -176,6 +176,19 @@
   </div>
 
   <div class="section">
+    <h3>📬 Reminder Emails</h3>
+    <p style="font-size:11px; color:#64748b; margin-top:0;">
+      Sends the pre-event reminder to all active registrants of each housing type.
+    </p>
+    <button class="btn btn-secondary" data-action="send-dorm-reminders">
+      🛏️ Send Dorm Reminders (All)
+    </button>
+    <button class="btn btn-secondary" data-action="send-rv-reminders">
+      🚐 Send RV Reminders (All)
+    </button>
+  </div>
+
+  <div class="section">
     <h3>🚪 Room Assignment</h3>
     <p><span id="unassigned-count">...</span> registrations need rooms</p>
     <button class="btn btn-secondary" data-action="load-unassigned">
@@ -356,6 +369,26 @@
         showStatus('Sending email...', false);
         runAction(action, btn, 'Sending…', 'resendConfirmationEmail', [regId], function(result) {
           showStatus((result && result.message) || 'Done', !(result && result.success));
+        });
+      } else if (action === 'send-dorm-reminders') {
+        if (!confirm('Send dorm reminder emails to ALL active dorm registrations?')) return;
+        showStatus('Sending dorm reminders…', false);
+        runAction(action, btn, 'Sending…', 'sendDormReminderEmails', [], function(result) {
+          if (result && result.success) {
+            showStatus('Dorm reminders sent: ' + result.sent + '  Errors: ' + result.errors, result.errors > 0);
+          } else {
+            showStatus((result && result.error) || 'Failed to send dorm reminders', true);
+          }
+        });
+      } else if (action === 'send-rv-reminders') {
+        if (!confirm('Send RV reminder emails (with slot numbers) to ALL active RV registrations?')) return;
+        showStatus('Sending RV reminders…', false);
+        runAction(action, btn, 'Sending…', 'sendRVReminderEmails', [], function(result) {
+          if (result && result.success) {
+            showStatus('RV reminders sent: ' + result.sent + '  Errors: ' + result.errors, result.errors > 0);
+          } else {
+            showStatus((result && result.error) || 'Failed to send RV reminders', true);
+          }
         });
       } else if (action === 'load-unassigned') {
         loadUnassigned(btn);

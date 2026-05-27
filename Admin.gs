@@ -41,6 +41,9 @@ function onOpen() {
     .addItem('Export Check-In List', 'exportCheckInList')
     .addSeparator()
     .addItem('Process No-Shows', 'processNoShows')
+    .addSeparator()
+    .addItem('Send Dorm Reminder Emails', 'promptSendDormReminders')
+    .addItem('Send RV Reminder Emails', 'promptSendRVReminders')
     .addToUi();
 }
 
@@ -1565,4 +1568,104 @@ function adminUpdatePaymentInfo(payload) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// ==========================================
+// REMINDER EMAILS (BULK)
+// ==========================================
+
+/**
+ * Send dorm reminder emails to all active dorm registrations.
+ * Called from the sidebar or via promptSendDormReminders (spreadsheet menu).
+ */
+function sendDormReminderEmails() {
+  var data = getSheetValuesSafe('Registrations').values;
+  var sent = 0;
+  var errors = 0;
+
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    if (isCancelledRegistration(row)) continue;
+    if (String(row[COLUMNS.HOUSING_OPTION] || '').toLowerCase() !== 'dorm') continue;
+
+    var regId = String(row[COLUMNS.REG_ID] || '');
+    if (!regId) continue;
+
+    var result = sendReminderEmail(regId);
+    if (result && result.success) {
+      sent++;
+    } else {
+      errors++;
+      Logger.log('Dorm reminder failed for ' + regId + ': ' + ((result && result.error) || 'unknown'));
+    }
+    Utilities.sleep(200); // stay within GmailApp rate limits
+  }
+
+  logActivity('bulk_email', 'ALL_DORM', 'Dorm reminders: sent=' + sent + ' errors=' + errors, 'admin');
+  return { success: true, sent: sent, errors: errors };
+}
+
+/**
+ * Send RV reminder emails to all active RV registrations.
+ * Called from the sidebar or via promptSendRVReminders (spreadsheet menu).
+ */
+function sendRVReminderEmails() {
+  var data = getSheetValuesSafe('Registrations').values;
+  var sent = 0;
+  var errors = 0;
+
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    if (isCancelledRegistration(row)) continue;
+    if (String(row[COLUMNS.HOUSING_OPTION] || '').toLowerCase() !== 'rv') continue;
+
+    var regId = String(row[COLUMNS.REG_ID] || '');
+    if (!regId) continue;
+
+    var result = sendRVReminderEmail(regId);
+    if (result && result.success) {
+      sent++;
+    } else {
+      errors++;
+      Logger.log('RV reminder failed for ' + regId + ': ' + ((result && result.error) || 'unknown'));
+    }
+    Utilities.sleep(200);
+  }
+
+  logActivity('bulk_email', 'ALL_RV', 'RV reminders: sent=' + sent + ' errors=' + errors, 'admin');
+  return { success: true, sent: sent, errors: errors };
+}
+
+/**
+ * Spreadsheet menu wrapper: confirm then send dorm reminders.
+ */
+function promptSendDormReminders() {
+  var ui = SpreadsheetApp.getUi();
+  var confirm = ui.alert(
+    'Send Dorm Reminder Emails',
+    'This will send a reminder email to every active dorm registration. Continue?',
+    ui.ButtonSet.YES_NO
+  );
+  if (confirm !== ui.Button.YES) return;
+
+  ui.alert('Sending…', 'Emails are sending in the background. This may take a moment for large lists.', ui.ButtonSet.OK);
+  var result = sendDormReminderEmails();
+  ui.alert('Done', 'Dorm reminders sent: ' + result.sent + '\nErrors: ' + result.errors, ui.ButtonSet.OK);
+}
+
+/**
+ * Spreadsheet menu wrapper: confirm then send RV reminders.
+ */
+function promptSendRVReminders() {
+  var ui = SpreadsheetApp.getUi();
+  var confirm = ui.alert(
+    'Send RV Reminder Emails',
+    'This will send a reminder email (with RV slot number) to every active RV registration. Continue?',
+    ui.ButtonSet.YES_NO
+  );
+  if (confirm !== ui.Button.YES) return;
+
+  ui.alert('Sending…', 'Emails are sending in the background. This may take a moment for large lists.', ui.ButtonSet.OK);
+  var result = sendRVReminderEmails();
+  ui.alert('Done', 'RV reminders sent: ' + result.sent + '\nErrors: ' + result.errors, ui.ButtonSet.OK);
 }
