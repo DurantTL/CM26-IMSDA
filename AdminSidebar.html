@@ -189,6 +189,24 @@
   </div>
 
   <div class="section">
+    <h3>📅 Deadline Settings</h3>
+    <p style="font-size:11px; color:#64748b; margin-top:0;">
+      Saves directly to the Config sheet. Takes effect immediately.
+    </p>
+    <div class="input-group">
+      <label>Registration Deadline:</label>
+      <input type="date" id="deadline-registration">
+    </div>
+    <div class="input-group">
+      <label>Cancellation Deadline:</label>
+      <input type="date" id="deadline-cancellation">
+    </div>
+    <button class="btn btn-warning" data-action="update-deadlines">
+      ⚠️ Update Deadlines
+    </button>
+  </div>
+
+  <div class="section">
     <h3>🚪 Room Assignment</h3>
     <p><span id="unassigned-count">...</span> registrations need rooms</p>
     <button class="btn btn-secondary" data-action="load-unassigned">
@@ -236,6 +254,64 @@
 </div>
 
   <div class="section">
+    <h3>👷 Manual Worker Registration</h3>
+    <p style="font-size:11px; color:#64748b; margin-top:0;">
+      Use when the Google Form is unavailable. Registers as staff (free, full week).
+    </p>
+    <div class="input-group">
+      <label>Full Name: *</label>
+      <input type="text" id="worker-name" placeholder="Jane Smith">
+    </div>
+    <div class="input-group">
+      <label>Email: *</label>
+      <input type="email" id="worker-email" placeholder="jane@example.com">
+    </div>
+    <div class="input-group">
+      <label>Phone:</label>
+      <input type="tel" id="worker-phone" placeholder="555-123-4567">
+    </div>
+    <div class="input-group">
+      <label>Role:</label>
+      <select id="worker-role">
+        <option value="Pastor">Pastor</option>
+        <option value="Staff" selected>Staff</option>
+        <option value="Volunteer">Volunteer</option>
+        <option value="Musician">Musician</option>
+        <option value="Security">Security</option>
+        <option value="Kitchen">Kitchen</option>
+        <option value="Maintenance">Maintenance</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="input-group">
+      <label>Housing:</label>
+      <select id="worker-housing">
+        <option value="dorm">Dorm Room</option>
+        <option value="rv">RV/Camper</option>
+        <option value="tent">Tent</option>
+        <option value="none" selected>No Housing</option>
+      </select>
+    </div>
+    <div class="input-group">
+      <label>Family Members (one per line: Name, Age, Attendance):</label>
+      <textarea id="worker-family" rows="3"
+        style="width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:4px; font-size:12px; resize:vertical; box-sizing:border-box;"
+        placeholder="Spouse Name, 32, Full Time&#10;Child Name, 8, Full Time"></textarea>
+    </div>
+    <div class="input-group">
+      <label>Dietary Needs:</label>
+      <input type="text" id="worker-dietary" placeholder="vegetarian, gluten-free, etc.">
+    </div>
+    <div class="input-group">
+      <label>Special Needs / Notes:</label>
+      <input type="text" id="worker-special" placeholder="Accessibility or other notes">
+    </div>
+    <button class="btn btn-primary" data-action="manual-worker-reg">
+      Register Worker
+    </button>
+  </div>
+
+  <div class="section">
     <h3>🔧 Repair Registration</h3>
     <p style="font-size:11px; color:#64748b; margin-top:0;">
       Edit guests for any registration type. Counts, class assignments, meal selections,
@@ -281,6 +357,34 @@
       var div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
+    }
+
+    function parseDateToInputValue(val) {
+      if (!val) return '';
+      var s = String(val).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      var d = new Date(s);
+      if (!isNaN(d.getTime())) {
+        var y = d.getFullYear();
+        var m = ('0' + (d.getMonth() + 1)).slice(-2);
+        var day = ('0' + d.getDate()).slice(-2);
+        return y + '-' + m + '-' + day;
+      }
+      return '';
+    }
+
+    function loadDeadlines() {
+      google.script.run
+        .withSuccessHandler(function(result) {
+          if (result && result.success) {
+            var regEl    = document.getElementById('deadline-registration');
+            var cancelEl = document.getElementById('deadline-cancellation');
+            if (regEl)    regEl.value    = parseDateToInputValue(result.registrationDeadline);
+            if (cancelEl) cancelEl.value = parseDateToInputValue(result.cancellationDeadline);
+          }
+        })
+        .withFailureHandler(function() {})
+        .adminGetDeadlines();
     }
 
     var SidebarState = { inFlight: {} };
@@ -420,6 +524,57 @@
         loadForRepair(btn);
       } else if (action === 'save-repair') {
         saveRepair(btn);
+      } else if (action === 'update-deadlines') {
+        var regDeadline    = document.getElementById('deadline-registration').value;
+        var cancelDeadline = document.getElementById('deadline-cancellation').value;
+        if (!regDeadline && !cancelDeadline) return showStatus('Enter at least one deadline date', true);
+        if (!confirm(
+          'Update deadline dates?\n\n' +
+          'Registration:  ' + (regDeadline    || '(unchanged)') + '\n' +
+          'Cancellation:  ' + (cancelDeadline || '(unchanged)')
+        )) return;
+        showStatus('Saving…', false);
+        runAction(action, btn, 'Saving…', 'adminUpdateDeadlines',
+          [{ registrationDeadline: regDeadline, cancellationDeadline: cancelDeadline }],
+          function(result) {
+            if (result && result.success) {
+              showStatus('Deadlines updated successfully.', false);
+            } else {
+              showStatus((result && result.error) || 'Failed to update deadlines', true);
+            }
+          }
+        );
+      } else if (action === 'manual-worker-reg') {
+        var workerName  = document.getElementById('worker-name').value.trim();
+        var workerEmail = document.getElementById('worker-email').value.trim();
+        if (!workerName || !workerEmail) return showStatus('Name and email are required', true);
+        if (!confirm('Register worker?\n\nName:  ' + workerName + '\nEmail: ' + workerEmail)) return;
+        showStatus('Registering…', false);
+        runAction(action, btn, 'Registering…', 'adminManualWorkerRegistration',
+          [{
+            name:         workerName,
+            email:        workerEmail,
+            phone:        document.getElementById('worker-phone').value.trim(),
+            role:         document.getElementById('worker-role').value,
+            housingOption: document.getElementById('worker-housing').value,
+            familyMembers: document.getElementById('worker-family').value,
+            dietaryNeeds: document.getElementById('worker-dietary').value.trim(),
+            specialNeeds: document.getElementById('worker-special').value.trim()
+          }],
+          function(result) {
+            if (result && result.success) {
+              showStatus('Worker registered! ID: ' + result.registrationId, false);
+              ['worker-name','worker-email','worker-phone','worker-family',
+               'worker-dietary','worker-special'].forEach(function(id) {
+                document.getElementById(id).value = '';
+              });
+              document.getElementById('worker-role').value    = 'Staff';
+              document.getElementById('worker-housing').value = 'none';
+            } else {
+              showStatus((result && result.error) || 'Registration failed', true);
+            }
+          }
+        );
       }
     });
 
@@ -583,6 +738,7 @@
     }
 
     loadUnassigned(document.querySelector('[data-action="load-unassigned"]'));
+    loadDeadlines();
   </script>
 </body>
 </html>
