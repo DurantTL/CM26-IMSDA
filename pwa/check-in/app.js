@@ -74,7 +74,7 @@ function initializeBindings() {
     els.searchIdBtn.addEventListener('click', doSearchById);
     els.searchRegId.addEventListener('keydown', (event) => { if (event.key === 'Enter') doSearchById(); });
 
-    els.arrivalsBtn.addEventListener('click', loadArrivals);
+    els.arrivalsBtn.addEventListener('click', toggleArrivals);
     els.scanBtn.addEventListener('click', toggleScanner);
     els.syncBtn.addEventListener('click', processOfflineQueue);
     els.logoutBtn.addEventListener('click', logout);
@@ -346,14 +346,41 @@ function renderResults(results) {
     });
 }
 
+let arrivalsActive = false;
+
+function toggleArrivals() {
+    if (arrivalsActive) {
+        clearArrivals();
+    } else {
+        loadArrivals();
+    }
+}
+
+function clearArrivals() {
+    arrivalsActive = false;
+    els.arrivalsBtn.classList.remove('active');
+    els.arrivalsBtn.textContent = '📋 Arrivals';
+    document.getElementById('arrivals-active-bar').style.display = 'none';
+    els.resultsList.style.display = 'none';
+    els.guestDetail.style.display = 'none';
+}
+
 async function loadArrivals() {
     const date = els.arrivalsDate.value || todayDateString();
     showResultsLoading(`Loading arrivals for ${date}…`);
+    arrivalsActive = true;
+    els.arrivalsBtn.classList.add('active');
+    els.arrivalsBtn.textContent = '✕ Close';
+    document.getElementById('arrivals-active-bar').style.display = 'flex';
 
     try {
         const payload = await apiRequest(`/arrivals?date=${encodeURIComponent(date)}`);
         renderResults(payload.arrivals);
     } catch (error) {
+        arrivalsActive = false;
+        els.arrivalsBtn.classList.remove('active');
+        els.arrivalsBtn.textContent = '📋 Arrivals';
+        document.getElementById('arrivals-active-bar').style.display = 'none';
         if (error.message !== 'UNAUTHORIZED') {
             showResultsError('Failed to load arrivals.');
         }
@@ -581,12 +608,70 @@ function submitCheckInForm(event) {
 function openCheckOut() {
     if (!currentReg) return;
 
-    document.getElementById('co-key1-val').textContent = currentReg.key1Number || 'None';
-    document.getElementById('co-key2-val').textContent = currentReg.key2Number || 'None';
-    document.getElementById('co-deposit-paid').textContent = currentReg.keyDepositAmount || '0';
+    const key1 = currentReg.key1Number || '';
+    const key2 = currentReg.key2Number || '';
+    const depositPaid = currentReg.keyDepositPaid === 'yes';
+    const depositAmount = parseFloat(currentReg.keyDepositAmount) || 0;
+    const hasKeys = !!(key1 || key2);
+
+    // Reset checkboxes
+    document.getElementById('co-key1-returned').checked = false;
+    document.getElementById('co-key2-returned').checked = false;
+
+    // Show/hide key rows based on whether keys were assigned
+    const key1Row = document.getElementById('co-key1-row');
+    const key2Row = document.getElementById('co-key2-row');
+    const noKeysMsg = document.getElementById('co-no-keys-msg');
+
+    if (key1) {
+        document.getElementById('co-key1-val').textContent = key1;
+        key1Row.style.display = '';
+    } else {
+        key1Row.style.display = 'none';
+    }
+    if (key2) {
+        document.getElementById('co-key2-val').textContent = key2;
+        key2Row.style.display = '';
+    } else {
+        key2Row.style.display = 'none';
+    }
+    noKeysMsg.style.display = hasKeys ? 'none' : 'block';
+
+    // Deposit section — only show if a deposit was actually collected
+    const depositSection = document.getElementById('co-deposit-section');
+    if (depositPaid && depositAmount > 0) {
+        depositSection.style.display = '';
+        document.getElementById('co-deposit-paid').textContent = depositAmount.toFixed(2);
+        // Pre-fill refund with full deposit if both keys present
+        document.getElementById('co-refund-amount').value = depositAmount;
+    } else {
+        depositSection.style.display = 'none';
+        document.getElementById('co-refund-amount').value = 0;
+    }
 
     els.modals.overlay.style.display = 'block';
     els.modals.checkout.style.display = 'block';
+}
+
+function onKeyReturnChange() {
+    // If deposit section is visible, keep refund amount synced with deposit when both keys returned
+    const depositSection = document.getElementById('co-deposit-section');
+    if (depositSection.style.display === 'none') return;
+
+    const key1Returned = document.getElementById('co-key1-returned').checked;
+    const key2Returned = document.getElementById('co-key2-returned').checked;
+    const key1Row = document.getElementById('co-key1-row');
+    const key2Row = document.getElementById('co-key2-row');
+    const key1Active = key1Row.style.display !== 'none';
+    const key2Active = key2Row.style.display !== 'none';
+    const allReturned = (!key1Active || key1Returned) && (!key2Active || key2Returned);
+    const depositAmount = parseFloat(currentReg.keyDepositAmount) || 0;
+
+    if (allReturned) {
+        document.getElementById('co-refund-amount').value = depositAmount;
+    } else if (!key1Returned && !key2Returned) {
+        document.getElementById('co-refund-amount').value = 0;
+    }
 }
 
 function submitCheckOutForm(event) {
@@ -722,7 +807,11 @@ function closeModal(id) {
 
 function closeGuest() {
     els.guestDetail.style.display = 'none';
-    els.resultsList.style.display = 'block';
+    if (arrivalsActive) {
+        els.resultsList.style.display = 'block';
+    } else {
+        els.resultsList.style.display = 'none';
+    }
 }
 
 function toggleScanner() {

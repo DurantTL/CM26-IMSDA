@@ -898,6 +898,33 @@ button {
   color: var(--warning);
 }
 
+/* ── Arrivals button depressed state ────── */
+#arrivals-btn.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary-dark);
+}
+
+/* ── Arrivals active bar ─────────────────── */
+.arrivals-active-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--primary);
+  padding: 4px 2px 0;
+}
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
 /* ── Tiny button variant ─────────────────── */
 .btn-xs {
   padding: 2px 8px;
