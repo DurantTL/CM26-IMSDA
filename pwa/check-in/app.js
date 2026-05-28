@@ -79,7 +79,7 @@ function initializeBindings() {
     els.syncBtn.addEventListener('click', processOfflineQueue);
     els.logoutBtn.addEventListener('click', logout);
     els.auth.form.addEventListener('submit', handleLogin);
-    document.getElementById('meal-calc-input').addEventListener('input', updateMealCalc);
+    document.getElementById('edit-room-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') saveRoomNumber(); });
 
     document.getElementById('checkin-form').addEventListener('submit', submitCheckInForm);
     document.getElementById('checkout-form').addEventListener('submit', submitCheckOutForm);
@@ -411,6 +411,9 @@ function renderGuestDetail(reg) {
         </div>
         <div class="detail-grid">
             <p><strong>Housing:</strong> ${reg.housingOption} (${reg.roomAssignment || 'Unassigned'})</p>
+            <p><strong>Room/Spot:</strong> ${reg.roomNumber || '–'}
+                <button class="btn btn-xs btn-outline" onclick="openEditRoom()" style="margin-left:8px">Edit</button>
+            </p>
             <p><strong>Nights:</strong> ${reg.numNights}</p>
             <p><strong>Guests:</strong> ${reg.totalGuests} (${reg.adultsCount}A / ${reg.childrenCount}C)</p>
             <p><strong>Balance Due:</strong> $${reg.balanceDue}</p>
@@ -498,6 +501,48 @@ async function saveGuestList() {
         if (error.message !== 'UNAUTHORIZED') {
             document.getElementById('edit-guests-error').textContent = 'Save failed. Try again.';
             document.getElementById('edit-guests-error').style.display = 'block';
+        }
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+    }
+}
+
+function openEditRoom() {
+    if (!currentReg) return;
+    document.getElementById('edit-room-input').value = currentReg.roomNumber || '';
+    document.getElementById('edit-room-error').style.display = 'none';
+    document.getElementById('edit-room-modal').style.display = 'block';
+    els.modals.overlay.style.display = 'block';
+    document.getElementById('edit-room-input').focus();
+}
+
+async function saveRoomNumber() {
+    if (!currentReg) return;
+
+    const roomNumber = document.getElementById('edit-room-input').value.trim();
+    const saveBtn = document.getElementById('save-room-btn');
+    const errEl = document.getElementById('edit-room-error');
+    errEl.style.display = 'none';
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+
+    try {
+        await apiRequest('/update-room', {
+            method: 'POST',
+            body: {
+                regId: currentReg.regId,
+                roomNumber,
+                volunteer: currentUser ? currentUser.username : 'CheckInApp'
+            }
+        });
+        logActivity(`Room updated: ${currentReg.name} → ${roomNumber || '(cleared)'}`, true);
+        closeModal('edit-room-modal');
+        await loadGuest(currentReg.regId);
+    } catch (error) {
+        if (error.message !== 'UNAUTHORIZED') {
+            errEl.textContent = 'Save failed. Try again.';
+            errEl.style.display = 'block';
         }
     } finally {
         saveBtn.disabled = false;
@@ -717,21 +762,68 @@ function toggleScanner() {
     els.scanBtn.textContent = '⏹ Stop Scan';
 }
 
+const MEAL_PRICES = {
+    ab: 7.00, al: 8.00, as: 8.00,
+    cb: 6.00, cl: 7.00, cs: 7.00
+};
+
 function toggleMealCalc() {
     const body = document.getElementById('meal-calc-body');
     const chevron = document.getElementById('meal-calc-chevron');
     const open = body.style.display === 'none';
     body.style.display = open ? 'block' : 'none';
     chevron.textContent = open ? '▲' : '▼';
-    if (open) document.getElementById('meal-calc-input').focus();
+    if (open) {
+        renderMealPriceHints();
+        document.getElementById('mq-ab').focus();
+    }
+}
+
+function renderMealPriceHints() {
+    document.getElementById('mph-ab').textContent = `$${MEAL_PRICES.ab.toFixed(2)}`;
+    document.getElementById('mph-al').textContent = `$${MEAL_PRICES.al.toFixed(2)}`;
+    document.getElementById('mph-as').textContent = `$${MEAL_PRICES.as.toFixed(2)}`;
 }
 
 function updateMealCalc() {
-    const subtotal = parseFloat(document.getElementById('meal-calc-input').value) || 0;
+    const qty = (id) => Math.max(0, parseInt(document.getElementById(id).value, 10) || 0);
+    const subtotal =
+        qty('mq-ab') * MEAL_PRICES.ab +
+        qty('mq-al') * MEAL_PRICES.al +
+        qty('mq-as') * MEAL_PRICES.as +
+        qty('mq-cb') * MEAL_PRICES.cb +
+        qty('mq-cl') * MEAL_PRICES.cl +
+        qty('mq-cs') * MEAL_PRICES.cs;
+
     const result = document.getElementById('meal-calc-result');
     if (subtotal <= 0) { result.style.display = 'none'; return; }
+
+    const lines = [];
+    const add = (id, label, price) => {
+        const q = qty(id);
+        if (q > 0) lines.push(`${label} ×${q}: $${(q * price).toFixed(2)}`);
+    };
+    add('mq-ab', 'Adult Breakfast', MEAL_PRICES.ab);
+    add('mq-al', 'Adult Lunch', MEAL_PRICES.al);
+    add('mq-as', 'Adult Supper', MEAL_PRICES.as);
+    add('mq-cb', 'Child Breakfast', MEAL_PRICES.cb);
+    add('mq-cl', 'Child Lunch', MEAL_PRICES.cl);
+    add('mq-cs', 'Child Supper', MEAL_PRICES.cs);
+
     const fee = Math.round((subtotal * 0.026 + 0.15) * 100) / 100;
     const total = Math.round((subtotal + fee) * 100) / 100;
+
     result.style.display = 'block';
-    result.innerHTML = `Subtotal: $${subtotal.toFixed(2)}<br>Square fee (2.6% + $0.15): $${fee.toFixed(2)}<br><span class="meal-calc-total">Charge on Square: $${total.toFixed(2)}</span>`;
+    result.innerHTML = lines.join('<br>') +
+        `<hr style="margin:8px 0;border-color:#e2e8f0">` +
+        `Subtotal: $${subtotal.toFixed(2)}<br>` +
+        `Square fee (2.6% + $0.15): $${fee.toFixed(2)}<br>` +
+        `<span class="meal-calc-total">Charge on Square: $${total.toFixed(2)}</span>`;
+}
+
+function resetMealCalc() {
+    ['mq-ab','mq-al','mq-as','mq-cb','mq-cl','mq-cs'].forEach((id) => {
+        document.getElementById(id).value = 0;
+    });
+    document.getElementById('meal-calc-result').style.display = 'none';
 }

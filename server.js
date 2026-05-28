@@ -691,6 +691,18 @@ app.post('/api/checkin/update-guests', noStore, requireAppAccess('checkin'), asy
   }
 });
 
+app.post('/api/checkin/update-room', noStore, requireAppAccess('checkin'), async (req, res) => {
+  try {
+    const payload = await fetchGasJson('updateRoomNumber', req.body, 'POST');
+    if (payload.success) {
+      await refreshSyncCache(true);
+    }
+    res.status(payload.success ? 200 : 400).json({ ...payload, sync: getSyncMeta() });
+  } catch (error) {
+    res.status(503).json({ success: false, error: error.message, sync: getSyncMeta() });
+  }
+});
+
 app.get('/api/cafe/search', noStore, requireAppAccess('cafe'), async (req, res) => {
   try {
     await ensureCacheReady();
