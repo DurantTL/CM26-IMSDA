@@ -599,3 +599,47 @@ function updateGuestDetails(data) {
     lock.releaseLock();
   }
 }
+
+/**
+ * Update the dorm room / RV spot stored in GuestDetails column J for all
+ * rows belonging to a registration.
+ */
+function updateRoomNumber(data) {
+  var regId = String(data.regId || '').trim();
+  var roomNumber = String(data.roomNumber || '').trim();
+  var volunteer = String(data.volunteer || 'CheckInPWA');
+
+  if (!regId) return { success: false, error: 'regId is required' };
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+
+  try {
+    var ss = getSS();
+    var guestSheet = ss.getSheetByName('GuestDetails');
+    if (!guestSheet) return { success: false, error: 'GuestDetails sheet not found' };
+
+    var guestData = guestSheet.getDataRange().getValues();
+    var updated = 0;
+
+    for (var i = 1; i < guestData.length; i++) {
+      if (String(guestData[i][1]) === regId) {
+        // Column J is 1-based column 10
+        guestSheet.getRange(i + 1, 10).setValue(roomNumber);
+        updated++;
+      }
+    }
+
+    if (updated === 0) {
+      // No GuestDetails rows exist yet for this regId — that's acceptable; nothing to update
+      return { success: true, updated: 0, note: 'No guest rows found; nothing written' };
+    }
+
+    logActivity('updateRoomNumber', regId, 'Room/spot set to "' + roomNumber + '" by ' + volunteer, 'CheckInPWA');
+    return { success: true, updated: updated };
+  } catch (e) {
+    return { success: false, error: e.message };
+  } finally {
+    lock.releaseLock();
+  }
+}

@@ -11,6 +11,24 @@ function getPwaSyncData() {
   var ss = getSS();
   var regSheet = ss.getSheetByName('Registrations');
   var mealSheet = ss.getSheetByName('MealTickets');
+
+  // Build regId → roomNumber map from GuestDetails column J (index 9)
+  var roomNumberByRegId = {};
+  try {
+    var guestSheet = ss.getSheetByName('GuestDetails');
+    if (guestSheet) {
+      var guestData = guestSheet.getDataRange().getValues();
+      for (var g = 1; g < guestData.length; g++) {
+        var gRegId = String(guestData[g][1] || '');
+        var roomVal = String(guestData[g][9] || '').trim();
+        if (gRegId && roomVal && !roomNumberByRegId[gRegId]) {
+          roomNumberByRegId[gRegId] = roomVal;
+        }
+      }
+    }
+  } catch (e) {
+    // non-fatal — roomNumber will just be empty
+  }
   var regData = regSheet.getDataRange().getValues();
   var mealData = mealSheet.getDataRange().getValues();
 
@@ -89,6 +107,7 @@ function getPwaSyncData() {
       balanceDue: row[COLUMNS.BALANCE_DUE],
       paymentStatus: row[COLUMNS.PAYMENT_STATUS],
       roomAssignment: row[COLUMNS.ROOM_ASSIGNMENT],
+      roomNumber: roomNumberByRegId[regId] || '',
       building: row[COLUMNS.BUILDING],
       key1Number: row[COLUMNS.KEY_1_NUMBER],
       key2Number: row[COLUMNS.KEY_2_NUMBER],
