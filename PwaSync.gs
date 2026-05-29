@@ -130,8 +130,9 @@ function getPwaSyncData() {
       if (registration.checkedOut === 'yes') {
         stats.checkedOut++;
       } else {
-        var key1Out = row[COLUMNS.KEY_DEPOSIT_PAID] === 'yes' && row[COLUMNS.KEY_1_RETURNED] !== 'yes';
-        var key2Out = row[COLUMNS.KEY_DEPOSIT_PAID] === 'yes' && row[COLUMNS.KEY_2_RETURNED] !== 'yes';
+        // Count actual keys that were issued and not yet returned.
+        var key1Out = row[COLUMNS.KEY_1_NUMBER] && row[COLUMNS.KEY_1_RETURNED] !== 'yes';
+        var key2Out = row[COLUMNS.KEY_2_NUMBER] && row[COLUMNS.KEY_2_RETURNED] !== 'yes';
         stats.keysOut += (key1Out ? 1 : 0) + (key2Out ? 1 : 0);
 
         if (row[COLUMNS.KEY_DEPOSIT_PAID] === 'yes' && row[COLUMNS.DEPOSIT_REFUNDED] !== 'yes') {

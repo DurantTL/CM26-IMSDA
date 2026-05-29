@@ -60,7 +60,7 @@ body {
   font-family: Inter, "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
   margin: 0;
   padding: 0;
-  padding-bottom: 70px;
+  padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px));
   background: var(--bg-atmosphere), var(--bg-gradient);
   background-attachment: fixed;
   color: var(--text);
@@ -72,6 +72,7 @@ header {
   background: var(--primary);
   color: white;
   padding: 14px 16px;
+  padding-top: calc(14px + env(safe-area-inset-top, 0px));
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -315,7 +316,7 @@ input[type="number"]:focus,
 input[type="date"]:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(47,133,90,0.15);
+  box-shadow: 0 0 0 3px rgba(44,111,182,0.18);
 }
 
 /* ── Buttons ─────────────────────────────── */
@@ -370,6 +371,13 @@ input[type="date"]:focus {
   align-items: flex-start;
   gap: 8px;
   margin-bottom: 4px;
+}
+
+.result-matched {
+  font-size: 0.82rem;
+  color: var(--primary-dark);
+  font-weight: 600;
+  margin-bottom: 6px;
 }
 
 .result-meta {
@@ -577,6 +585,7 @@ input[type="date"]:focus {
   background: var(--queue-bg);
   color: white;
   padding: 10px 14px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
   display: flex;
   justify-content: space-between;
   align-items: center;

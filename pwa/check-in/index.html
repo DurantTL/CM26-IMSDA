@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Check-In - CM26</title>
     <link rel="stylesheet" href="../shared/theme.css">
     <link rel="stylesheet" href="styles.css">
@@ -79,8 +79,8 @@
             <!-- By ID Panel -->
             <div id="search-id-panel" class="tab-panel" style="display:none;">
                 <div class="input-group">
-                    <input type="text" id="search-reg-id" placeholder="Reg ID (e.g. CM26-0001)" autocomplete="off">
-                    <button id="search-id-btn" class="btn btn-primary">🔍</button>
+                    <input type="text" id="search-reg-id" placeholder="Reg ID (e.g. CM26-0001)" autocomplete="off" inputmode="text" enterkeyhint="search">
+                    <button id="search-id-btn" class="btn btn-primary" aria-label="Search by registration ID">🔍</button>
                 </div>
             </div>
 

@@ -1,16 +1,25 @@
-const CACHE_NAME = 'cm26-cafe-v2';
-const ASSETS = [
+const CACHE_NAME = 'cm26-cafe-v3';
+// Local assets are required for offline use; a failure here should fail install.
+const LOCAL_ASSETS = [
   './',
   './index.html',
   './styles.css',
+  '../shared/theme.css',
   './config.js',
-  './app.js',
-  'https://unpkg.com/html5-qrcode'
+  './app.js'
+];
+// CDN assets are best-effort: don't let a flaky CDN block the whole install.
+const CDN_ASSETS = [
+  'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js'
 ];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then((cache) =>
+      cache.addAll(LOCAL_ASSETS).then(() =>
+        Promise.all(CDN_ASSETS.map((url) => cache.add(url).catch(() => {})))
+      )
+    ).then(() => self.skipWaiting())
   );
 });
 
@@ -18,7 +27,7 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
-    )
+    ).then(() => self.clients.claim())
   );
 });
 
