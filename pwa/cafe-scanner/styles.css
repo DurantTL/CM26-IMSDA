@@ -12,7 +12,7 @@ body {
     background: var(--bg-atmosphere), var(--bg-gradient);
     background-attachment: fixed;
     color: var(--text);
-    padding-bottom: 80px;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ── Header ─────────────────────────────── */
@@ -20,6 +20,7 @@ header {
     background: var(--primary);
     color: #fff;
     padding: 14px 16px;
+    padding-top: calc(14px + env(safe-area-inset-top, 0px));
     position: sticky;
     top: 0;
     z-index: 100;
@@ -430,6 +431,7 @@ main {
     background: var(--queue-bg);
     color: #fff;
     padding: 10px 14px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
     display: flex;
     justify-content: space-between;
     align-items: center;

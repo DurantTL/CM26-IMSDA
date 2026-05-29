@@ -325,11 +325,15 @@ function renderResults(results) {
     results.forEach((result) => {
         const div = document.createElement('div');
         div.className = 'card result-item';
+        const matchedNote = result.matchedGuests && result.matchedGuests.length
+            ? `<div class="result-matched">Matched party member: ${result.matchedGuests.join(', ')}</div>`
+            : '';
         div.innerHTML = `
             <div class="result-header">
                 <strong>${result.name}</strong>
                 <span class="badge">${result.regId}</span>
             </div>
+            ${matchedNote}
             <div class="result-meta">
                 ${result.housingOption}${result.roomAssignment ? ' &mdash; Room ' + result.roomAssignment : ''}
                 &nbsp;&bull;&nbsp; Guests: ${result.totalGuests}
@@ -585,17 +589,25 @@ function openCheckIn() {
     document.getElementById('ci-key1').value = currentReg.key1Number || '';
     document.getElementById('ci-key2').value = currentReg.key2Number || '';
 
+    // Reset checkboxes so state doesn't carry over from the previous guest.
+    document.getElementById('ci-balance-paid').checked = false;
+    document.getElementById('ci-deposit-collected').checked = false;
+    document.getElementById('ci-packet-given').checked = false;
+
     els.modals.overlay.style.display = 'block';
     els.modals.checkin.style.display = 'block';
 }
 
 function submitCheckInForm(event) {
     event.preventDefault();
+    // Only record a key deposit when the volunteer actually collected it.
+    // Otherwise we book phantom cash that has to be "refunded" at check-out.
+    const depositCollected = document.getElementById('ci-deposit-collected').checked;
     const data = {
         regId: currentReg.regId,
         volunteer: currentUser ? currentUser.username : 'CheckInApp',
         amount: document.getElementById('ci-payment-amount').value,
-        keyDepositAmount: 10,
+        keyDepositAmount: depositCollected ? 10 : 0,
         key1: document.getElementById('ci-key1').value,
         key2: document.getElementById('ci-key2').value,
         welcomePacket: document.getElementById('ci-packet-given').checked

@@ -162,9 +162,14 @@ function processCheckIn(data) {
         if (data.building) roomKeyValues[0][1] = data.building;
         if (data.key1) roomKeyValues[0][2] = data.key1;
         if (data.key2) roomKeyValues[0][3] = data.key2;
-        var depositAmount = data.keyDepositAmount || 10;
+        // Respect an explicit 0 (no deposit collected). `|| 10` would swallow it.
+        var depositAmount = (data.keyDepositAmount === undefined ||
+                             data.keyDepositAmount === null ||
+                             data.keyDepositAmount === '')
+          ? 10
+          : Number(data.keyDepositAmount) || 0;
         roomKeyValues[0][4] = depositAmount;
-        roomKeyValues[0][5] = 'yes';
+        roomKeyValues[0][5] = depositAmount > 0 ? 'yes' : 'no';
         regSheet.getRange(row, COLUMNS.ROOM_ASSIGNMENT + 1, 1, 6).setValues(roomKeyValues);
 
         // Batch update check-in status (columns AS-AV, 1-based 45-48)
