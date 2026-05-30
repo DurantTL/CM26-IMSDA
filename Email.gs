@@ -168,23 +168,9 @@ function sendRVReminderEmail(regId) {
     Logger.log('Error looking up RV slot for ' + regId + ': ' + e.toString());
   }
 
-  // Optionally attach a campus map. The map is fetched from the URL stored in
-  // the Config sheet under "campus_map_url" so no Drive scope is required.
-  var attachments = [];
-  if (config.campus_map_url) {
-    try {
-      var mapBlob = UrlFetchApp.fetch(String(config.campus_map_url)).getBlob();
-      mapBlob.setName('Camp-Meeting-2026-Campus-Map' + (mapBlob.getName().indexOf('.') > -1 ? mapBlob.getName().substring(mapBlob.getName().lastIndexOf('.')) : ''));
-      attachments.push(mapBlob);
-    } catch (e) {
-      Logger.log('Error fetching campus map for ' + regId + ': ' + e.toString());
-    }
-  }
-
   var template = HtmlService.createTemplateFromFile('RVReminderEmailTemplate');
   template.reg = reg;
   template.rvSlot = rvSlot;
-  template.mapAttached = attachments.length > 0;
   var emailBody = template.evaluate().getContent();
 
   try {
@@ -195,8 +181,7 @@ function sendRVReminderEmail(regId) {
       {
         htmlBody: emailBody,
         name: 'Iowa-Missouri Conference',
-        replyTo: config.admin_email || 'communication@imsda.org',
-        attachments: attachments
+        replyTo: config.admin_email || 'communication@imsda.org'
       }
     );
 
