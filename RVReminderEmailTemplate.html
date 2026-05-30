@@ -10,19 +10,18 @@
     .header h1 { margin: 0; font-size: 24px; }
     .content { padding: 30px; }
     .reg-id-box { background: #e8f4fd; border: 2px dashed #1a365d; color: #1a365d; padding: 15px; text-align: center; font-size: 24px; font-weight: bold; margin: 20px 0; letter-spacing: 1px; }
-    .slot-box { background: #f0fdf4; border: 2px solid #16a34a; color: #166534; padding: 15px; text-align: center; font-size: 22px; font-weight: bold; margin: 20px 0; border-radius: 6px; }
-    .slot-label { font-size: 13px; font-weight: normal; color: #166534; display: block; margin-bottom: 4px; }
     .qr-section { text-align: center; margin: 25px 0; padding: 20px; background: #fff; border: 1px solid #eee; border-radius: 8px; }
     .qr-section img { max-width: 180px; height: auto; display: inline-block; }
     .qr-caption { font-size: 13px; color: #666; margin-top: 10px; }
     .important-list { margin: 20px 0; padding: 0; list-style: none; }
     .important-list li { padding: 10px 12px; margin: 8px 0; background: #f8fafc; border-left: 4px solid #1a365d; border-radius: 0 4px 4px 0; }
     .important-list li strong { display: block; color: #1a365d; margin-bottom: 2px; text-transform: uppercase; font-size: 13px; letter-spacing: 0.4px; }
-    .warning { color: #856404; background-color: #fff3cd; border: 1px solid #ffeeba; padding: 10px; border-radius: 4px; margin-top: 20px; }
     .footer { background: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #eee; }
   </style>
 </head>
 <body>
+  <? var rvDisplay = rvSlot ? (/^rv/i.test(String(rvSlot)) ? String(rvSlot) : 'RV Spot ' + rvSlot) : ''; ?>
+  <? var hasMeals = Number(reg.mealSubtotal || 0) > 0; ?>
   <div class="container">
     <div class="header">
       <h1>Camp Meeting 2026</h1>
@@ -32,33 +31,41 @@
     <div class="content">
       <p>Dear <?= reg.name || 'Guest' ?>,</p>
 
-      <p>Thank you for registering for Camp Meeting 2026. This is a reminder that Camp Meeting will take place <strong>June 2–6, 2026</strong>.</p>
+      <p>Thank you for your Camp Meeting registration. <strong><?= rvDisplay || 'Your RV spot' ?></strong> has been reserved in your name for June 2–6, 2026.</p>
 
-      <p>Your RV/camper spot assignment is shown below. Check-in will begin any time after <strong>2:00 p.m. on Tuesday, June 2</strong> at the <strong>Information Center, located in the library</strong>.</p>
+      <p>Upon arrival, please check in at the Information Center, which will be located at the Sunnydale Library. You may pick up your registration packet any time after 2:00 p.m. on Tuesday, June 2. Your packet will include the Camp Meeting Program and other important information.</p>
 
-      <p>At check-in, you will receive your registration packet, which will include the Camp Meeting program, meal tickets, and any other important details. If you owe a balance, you may pay the balance at check-in.</p>
+      <? if (hasMeals) { ?>
+        <p>Your pre-purchased meal tickets will be included in your registration packet. Additional meal tickets will be available at the Information Center throughout the week.</p>
+      <? } else { ?>
+        <p>Our records indicate that you did not pre-purchase meal tickets. If you would like to purchase meal tickets, they will be available at the Information Center throughout the week.</p>
+      <? } ?>
 
-      <div class="slot-box">
-        <span class="slot-label">Your RV / Camper Spot</span>
-        <?= rvSlot || 'See Information Center at Check-In' ?>
-      </div>
-
-      <p>Please make note of the following important information:</p>
+      <p>Please note the following important information:</p>
 
       <ul class="important-list">
         <li>
-          <strong>No Pets</strong>
-          Dogs, cats, or other pets are not allowed on campus.
+          <strong>No Pets Allowed</strong>
+          Dogs, cats, and other pets are not permitted on campus during Camp Meeting.
         </li>
         <li>
-          <strong>Your Address During Camp</strong>
-          Adventist Camp Meeting, c/o Sunnydale Adventist Academy, 6818 Audrain Road 9139, Centralia, MO 65240
+          <strong>Camp Address</strong>
+          Adventist Camp Meeting<br>
+          c/o Sunnydale Adventist Academy<br>
+          6818 Audrain Road 9139<br>
+          Centralia, MO 65240
         </li>
         <li>
           <strong>Directions</strong>
-          From Hwy 63 between Moberly and Columbia, take Hwy 22 East for 4 miles. At the sign for Sunnydale Academy, take Hwy 151 to the left. The Academy is on the left about &frac34; mile.
+          From Highway 63 between Moberly and Columbia, take Highway 22 East for 4 miles. At the Sunnydale Academy sign, turn left onto Highway 151. The Academy is located approximately &frac34; mile ahead on the left.
+        </li>
+        <li>
+          <strong>RV Site Assignments</strong>
+          While <?= rvDisplay || 'your RV spot' ?> is currently assigned to you, RV site assignments are subject to change if necessary due to operational or accommodation needs. Should any changes be required, we will make every effort to notify you as soon as possible.
         </li>
       </ul>
+
+      <p>We look forward to seeing you at Camp Meeting and pray you have a safe journey.</p>
 
       <div class="reg-id-box">
         <?= reg.regId ?>
@@ -68,17 +75,6 @@
         <img src="https://quickchart.io/qr?text=<?= encodeURIComponent(reg.regId) ?>&size=300&ecLevel=H" alt="Registration QR Code" width="180" height="180">
         <p class="qr-caption">Scan this code at Check-In upon arrival</p>
       </div>
-
-      <? if (reg.balanceDue > 0) { ?>
-        <div class="warning">
-          <strong>Balance Due: $<?= Number(reg.balanceDue).toFixed(2) ?></strong><br>
-          Please pay the remaining balance at check-in (Cash or Card accepted).
-        </div>
-      <? } else { ?>
-        <p><strong>Balance:</strong> Paid in Full ✓</p>
-      <? } ?>
-
-      <p>We look forward to seeing you at Camp Meeting!</p>
     </div>
 
     <div class="footer">
