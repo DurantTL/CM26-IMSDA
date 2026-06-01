@@ -441,8 +441,8 @@ function renderGuestDetail(reg) {
             ${statusBadge}
         </div>
         <div class="detail-grid">
-            <p><strong>Housing:</strong> ${reg.housingOption} (${reg.roomAssignment || 'Unassigned'})</p>
-            <p><strong>Room/Spot:</strong> ${reg.roomNumber || '–'}
+            <p><strong>Housing:</strong> ${reg.housingOption || '–'}</p>
+            <p><strong>Room/Spot:</strong> ${reg.roomNumber || reg.roomAssignment || '–'}
                 <button class="btn btn-xs btn-outline" onclick="openEditRoom()" style="margin-left:8px">Edit</button>
             </p>
             <p><strong>Nights:</strong> ${reg.numNights}</p>
@@ -541,7 +541,7 @@ async function saveGuestList() {
 
 function openEditRoom() {
     if (!currentReg) return;
-    document.getElementById('edit-room-input').value = currentReg.roomNumber || '';
+    document.getElementById('edit-room-input').value = currentReg.roomNumber || currentReg.roomAssignment || '';
     document.getElementById('edit-room-error').style.display = 'none';
     document.getElementById('edit-room-modal').style.display = 'block';
     els.modals.overlay.style.display = 'block';
@@ -586,6 +586,9 @@ function openCheckIn() {
 
     document.getElementById('ci-balance').textContent = currentReg.balanceDue;
     document.getElementById('ci-payment-amount').value = currentReg.balanceDue > 0 ? currentReg.balanceDue : '';
+    // Pre-fill the room/spot with whatever has already been assigned so the
+    // keys handed out below are recorded against the right place.
+    document.getElementById('ci-room').value = currentReg.roomNumber || currentReg.roomAssignment || '';
     document.getElementById('ci-key1').value = currentReg.key1Number || '';
     document.getElementById('ci-key2').value = currentReg.key2Number || '';
 
@@ -607,6 +610,9 @@ function submitCheckInForm(event) {
         regId: currentReg.regId,
         volunteer: currentUser ? currentUser.username : 'CheckInApp',
         amount: document.getElementById('ci-payment-amount').value,
+        // Send the room/spot so the backend records it on the registration row
+        // alongside the keys — this is what ties each key to a place.
+        room: document.getElementById('ci-room').value.trim(),
         keyDepositAmount: depositCollected ? 10 : 0,
         key1: document.getElementById('ci-key1').value,
         key2: document.getElementById('ci-key2').value,

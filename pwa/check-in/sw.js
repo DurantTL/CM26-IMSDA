@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cm26-checkin-v3';
+const CACHE_NAME = 'cm26-checkin-v4';
 // Local assets are required for offline use; a failure here should fail install.
 const LOCAL_ASSETS = [
   './',

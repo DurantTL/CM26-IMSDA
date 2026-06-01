@@ -606,8 +606,10 @@ function updateGuestDetails(data) {
 }
 
 /**
- * Update the dorm room / RV spot stored in GuestDetails column J for all
- * rows belonging to a registration.
+ * Update the dorm room / RV spot for a registration.
+ * Writes ROOM_ASSIGNMENT on the Registrations row (so the keys recorded there
+ * are tied to the room) and mirrors the value into GuestDetails column J for
+ * every guest row belonging to the registration.
  */
 function updateRoomNumber(data) {
   var regId = String(data.regId || '').trim();
@@ -621,27 +623,44 @@ function updateRoomNumber(data) {
 
   try {
     var ss = getSS();
-    var guestSheet = ss.getSheetByName('GuestDetails');
-    if (!guestSheet) return { success: false, error: 'GuestDetails sheet not found' };
 
-    var guestData = guestSheet.getDataRange().getValues();
-    var updated = 0;
-
-    for (var i = 1; i < guestData.length; i++) {
-      if (String(guestData[i][1]) === regId) {
-        // Column J is 1-based column 10
-        guestSheet.getRange(i + 1, 10).setValue(roomNumber);
-        updated++;
+    // Mirror the room/spot onto the Registrations row (ROOM_ASSIGNMENT). The
+    // keys for a registration live on this row, so writing the room here is
+    // what actually ties each key to the right place. The free-text GuestDetails
+    // value (column J) is kept in sync below for backward compatibility.
+    var regSheet = ss.getSheetByName('Registrations');
+    var regData = regSheet.getDataRange().getValues();
+    var regRowUpdated = false;
+    for (var r = 1; r < regData.length; r++) {
+      if (String(regData[r][COLUMNS.REG_ID]) === regId) {
+        if (isCancelledRegistration(regData[r])) {
+          return { success: false, error: 'Registration is cancelled' };
+        }
+        regSheet.getRange(r + 1, COLUMNS.ROOM_ASSIGNMENT + 1).setValue(roomNumber);
+        regRowUpdated = true;
+        break;
       }
     }
 
-    if (updated === 0) {
-      // No GuestDetails rows exist yet for this regId — that's acceptable; nothing to update
-      return { success: true, updated: 0, note: 'No guest rows found; nothing written' };
+    var guestSheet = ss.getSheetByName('GuestDetails');
+    var updated = 0;
+    if (guestSheet) {
+      var guestData = guestSheet.getDataRange().getValues();
+      for (var i = 1; i < guestData.length; i++) {
+        if (String(guestData[i][1]) === regId) {
+          // Column J is 1-based column 10
+          guestSheet.getRange(i + 1, 10).setValue(roomNumber);
+          updated++;
+        }
+      }
+    }
+
+    if (!regRowUpdated && updated === 0) {
+      return { success: false, error: 'Registration not found' };
     }
 
     logActivity('updateRoomNumber', regId, 'Room/spot set to "' + roomNumber + '" by ' + volunteer, 'CheckInPWA');
-    return { success: true, updated: updated };
+    return { success: true, updated: updated, roomAssignmentUpdated: regRowUpdated };
   } catch (e) {
     return { success: false, error: e.message };
   } finally {
