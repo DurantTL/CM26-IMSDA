@@ -107,7 +107,9 @@ function getPwaSyncData() {
       balanceDue: row[COLUMNS.BALANCE_DUE],
       paymentStatus: row[COLUMNS.PAYMENT_STATUS],
       roomAssignment: row[COLUMNS.ROOM_ASSIGNMENT],
-      roomNumber: roomNumberByRegId[regId] || '',
+      // Prefer the GuestDetails free-text value; fall back to the room recorded
+      // on the registration row (set at check-in or via the Edit Room action).
+      roomNumber: roomNumberByRegId[regId] || row[COLUMNS.ROOM_ASSIGNMENT] || '',
       building: row[COLUMNS.BUILDING],
       key1Number: row[COLUMNS.KEY_1_NUMBER],
       key2Number: row[COLUMNS.KEY_2_NUMBER],
