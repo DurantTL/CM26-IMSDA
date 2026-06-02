@@ -928,3 +928,65 @@ function resetMealCalc() {
     });
     document.getElementById('meal-calc-result').style.display = 'none';
 }
+
+// Per-night lodging prices (must match Config: dorm_price / rv_price / tent_price)
+const LODGING_PRICES = {
+    dorm: { label: 'Dorm Room', price: 25.00 },
+    rv:   { label: 'RV Spot',   price: 15.00 },
+    tent: { label: 'Tent Space', price: 5.00 }
+};
+
+function toggleLodgingCalc() {
+    const body = document.getElementById('lodging-calc-body');
+    const chevron = document.getElementById('lodging-calc-chevron');
+    const open = body.style.display === 'none';
+    body.style.display = open ? 'block' : 'none';
+    chevron.textContent = open ? '▲' : '▼';
+    if (open) {
+        renderLodgingPriceHints();
+        document.getElementById('lq-dorm-units').focus();
+    }
+}
+
+function renderLodgingPriceHints() {
+    document.getElementById('lph-dorm').textContent = `$${LODGING_PRICES.dorm.price.toFixed(2)}`;
+    document.getElementById('lph-rv').textContent = `$${LODGING_PRICES.rv.price.toFixed(2)}`;
+    document.getElementById('lph-tent').textContent = `$${LODGING_PRICES.tent.price.toFixed(2)}`;
+}
+
+function updateLodgingCalc() {
+    const qty = (id) => Math.max(0, parseInt(document.getElementById(id).value, 10) || 0);
+
+    const lines = [];
+    let subtotal = 0;
+    Object.keys(LODGING_PRICES).forEach((key) => {
+        const units = qty(`lq-${key}-units`);
+        const nights = qty(`lq-${key}-nights`);
+        const amount = units * nights * LODGING_PRICES[key].price;
+        if (amount > 0) {
+            const { label, price } = LODGING_PRICES[key];
+            lines.push(`${label}: ${units} × ${nights} night${nights === 1 ? '' : 's'} × $${price.toFixed(2)} = $${amount.toFixed(2)}`);
+            subtotal += amount;
+        }
+    });
+
+    const result = document.getElementById('lodging-calc-result');
+    if (subtotal <= 0) { result.style.display = 'none'; return; }
+
+    const fee = Math.round((subtotal * 0.026 + 0.15) * 100) / 100;
+    const total = Math.round((subtotal + fee) * 100) / 100;
+
+    result.style.display = 'block';
+    result.innerHTML = lines.join('<br>') +
+        `<hr style="margin:8px 0;border-color:#e2e8f0">` +
+        `Subtotal: $${subtotal.toFixed(2)}<br>` +
+        `Square fee (2.6% + $0.15): $${fee.toFixed(2)}<br>` +
+        `<span class="meal-calc-total">Charge on Square: $${total.toFixed(2)}</span>`;
+}
+
+function resetLodgingCalc() {
+    ['lq-dorm-units','lq-dorm-nights','lq-rv-units','lq-rv-nights','lq-tent-units','lq-tent-nights'].forEach((id) => {
+        document.getElementById(id).value = 0;
+    });
+    document.getElementById('lodging-calc-result').style.display = 'none';
+}
