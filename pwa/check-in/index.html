@@ -132,6 +132,47 @@
             </div>
         </div>
 
+        <!-- LODGING CALCULATOR -->
+        <div id="lodging-calc-section" class="card">
+            <button class="meal-calc-toggle" onclick="toggleLodgingCalc()">
+                🛏️ Lodging Calculator <span id="lodging-calc-chevron">▼</span>
+            </button>
+            <div id="lodging-calc-body" style="display:none; margin-top:12px">
+                <table class="meal-calc-table">
+                    <thead>
+                        <tr>
+                            <th>Type</th>
+                            <th>Per&nbsp;night</th>
+                            <th>Units</th>
+                            <th>Nights</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Dorm Room</strong></td>
+                            <td><span class="meal-price-hint" id="lph-dorm"></span></td>
+                            <td><input type="number" class="meal-qty-input" id="lq-dorm-units" value="0" min="0" max="99" oninput="updateLodgingCalc()"></td>
+                            <td><input type="number" class="meal-qty-input" id="lq-dorm-nights" value="0" min="0" max="14" oninput="updateLodgingCalc()"></td>
+                        </tr>
+                        <tr>
+                            <td><strong>RV Spot</strong></td>
+                            <td><span class="meal-price-hint" id="lph-rv"></span></td>
+                            <td><input type="number" class="meal-qty-input" id="lq-rv-units" value="0" min="0" max="99" oninput="updateLodgingCalc()"></td>
+                            <td><input type="number" class="meal-qty-input" id="lq-rv-nights" value="0" min="0" max="14" oninput="updateLodgingCalc()"></td>
+                        </tr>
+                        <tr>
+                            <td><strong>Tent Space</strong></td>
+                            <td><span class="meal-price-hint" id="lph-tent"></span></td>
+                            <td><input type="number" class="meal-qty-input" id="lq-tent-units" value="0" min="0" max="99" oninput="updateLodgingCalc()"></td>
+                            <td><input type="number" class="meal-qty-input" id="lq-tent-nights" value="0" min="0" max="14" oninput="updateLodgingCalc()"></td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div id="lodging-calc-result" class="meal-calc-result" style="display:none"></div>
+                <button type="button" class="btn btn-sm btn-outline" onclick="resetLodgingCalc()" style="margin-top:8px;width:100%">Clear</button>
+            </div>
+        </div>
+
         <div id="reader" style="display:none;"></div>
 
         <!-- DYNAMIC CONTENT AREA -->
