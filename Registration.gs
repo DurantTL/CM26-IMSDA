@@ -22,14 +22,30 @@ function processRegistration(data) {
     var regSheet = ss.getSheetByName('Registrations');
     var guestSheet = ss.getSheetByName('GuestDetails');
     
-    // Check registration deadline
+    // Check registration deadline.
+    //
+    // The advertised online pre-registration deadline (registration_deadline,
+    // e.g. May 25) only closes the public web form. On-site and manual
+    // additions must keep working through the event itself — last-minute tent
+    // campers, walk-up food buyers, and workers are routinely added during
+    // camp meeting. So both paid and worker/staff registrations are accepted
+    // until the event ends (event_end), and after that an admin can still add
+    // anyone by setting bypassDeadline (used by the admin sidebar paths).
     var config = getConfig();
-    var deadlineDate = new Date(config.registration_deadline || '2026-05-25');
-    deadlineDate.setHours(23, 59, 59, 999);
     var today = new Date();
 
-    if (today > deadlineDate) {
-      return { success: false, error: 'Registration deadline has passed.' };
+    var bypassDeadline = data.bypassDeadline === true;
+
+    if (!bypassDeadline) {
+      // Allow registrations up to and including the last day of the event so
+      // on-site sign-ups work. Fall back to the pre-registration deadline only
+      // if event_end is not configured.
+      var cutoff = new Date(config.event_end || config.registration_deadline || '2026-06-06');
+      cutoff.setHours(23, 59, 59, 999);
+
+      if (today > cutoff) {
+        return { success: false, error: 'Registration is closed for this event.' };
+      }
     }
 
     // 1. Validate Housing Availability
