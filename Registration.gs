@@ -28,16 +28,13 @@ function processRegistration(data) {
     // e.g. May 25) only closes the public web form. On-site and manual
     // additions must keep working through the event itself — last-minute tent
     // campers, walk-up food buyers, and workers are routinely added during
-    // camp meeting. So we keep accepting registrations until the event ends
-    // (event_end), and we always allow:
-    //   - staff/worker registrations (regType 'staff'), and
-    //   - any caller that explicitly sets bypassDeadline (admin override).
+    // camp meeting. So both paid and worker/staff registrations are accepted
+    // until the event ends (event_end), and after that an admin can still add
+    // anyone by setting bypassDeadline (used by the admin sidebar paths).
     var config = getConfig();
     var today = new Date();
 
-    var bypassDeadline = data.bypassDeadline === true ||
-                         data.regType === 'staff' ||
-                         !!data.staffRole;
+    var bypassDeadline = data.bypassDeadline === true;
 
     if (!bypassDeadline) {
       // Allow registrations up to and including the last day of the event so
