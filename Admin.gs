@@ -1789,6 +1789,7 @@ function adminManualWorkerRegistration(payload) {
       action: 'submitRegistration',
       regType: 'staff',
       skipAvailabilityCheck: true,
+      bypassDeadline: true, // admin can add workers any time, including during/after the event
       staffRole:    ((payload.role      || 'Staff') + '').trim(),
       name:         name,
       email:        email,
